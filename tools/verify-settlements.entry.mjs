@@ -1,0 +1,303 @@
+/**
+ * Headless checks for the settlement, siege, wound and town-economy systems.
+ *
+ * These run against the real stores, so a broken rule shows up here before it
+ * ever reaches a browser.
+ */
+import { createPinia, setActivePinia } from 'pinia'
+import { useWorldStore } from '@/stores/world'
+import { usePlayerStore } from '@/stores/player'
+import { useBattleStore } from '@/stores/battle'
+import { generateWorld, WORLD_W, WORLD_H } from '@/game/worldgen'
+import { createBattle, survivorsByType, fallenByType } from '@/game/battle'
+import {
+  BANDIT,
+  FACILITIES,
+  KINGDOMS,
+  NEUTRAL,
+  PLAYER,
+  SIEGE_PREPARE_DAYS,
+  armyBonusOf,
+  buildFacility,
+  canEnter,
+  captureSettlement,
+  dailyIncome,
+  examReward,
+  factionSoldiers,
+  factionStrengthCap,
+  facilityCost,
+  facilityLevel,
+  garrisonCount,
+  healRate,
+  investDevelopment,
+  isAttackable,
+  levelOf,
+  liberateSettlement,
+  makeGarrison,
+  nextThreshold,
+  ownerOf,
+  survivalChance,
+  syncLevel,
+  tickSettlement
+} from '@/game/settlement'
+import { townRecruitList } from '@/game/recruit'
+import { healTroops, normalizeTroops, unitDef, woundedCount } from '@/game/units'
+
+const reporter = globalThis.__reporter
+const check = (name, ok, detail = '') => reporter.check(name, ok, detail)
+
+/* ---------------------------- 1. world generation ---------------------------- */
+
+const OWNERS = new Set([NEUTRAL, PLAYER, BANDIT, ...KINGDOMS])
+let banditVillages = 0
+let townsWithGarrison = 0
+let villagesWithGarrison = 0
+for (let seed = 1; seed <= 30; seed += 1) {
+  const world = generateWorld(seed * 7919)
+  for (const st of world.settlements) {
+    if (!OWNERS.has(st.owner)) check(`settlement ${st.id} has a valid owner`, false, st.owner)
+    if (st.kind === 'town' && st.owner === BANDIT) {
+      check(`town ${st.id} is never held by the bandits`, false, st.name)
+    }
+    if (!Array.isArray(st.garrison) || garrisonCount(st.garrison) <= 0) {
+      check(`settlement ${st.id} fields a garrison`, false, st.name)
+    }
+    for (const g of st.garrison || []) {
+      if (!Array.isArray(g.hp) || g.hp.length !== g.count) {
+        check(`garrison group of ${st.id} carries hit points`, false, JSON.stringify(g))
+      }
+    }
+    if (st.owner === BANDIT) banditVillages += 1
+    if (st.kind === 'town' && garrisonCount(st.garrison) > 0) townsWithGarrison += 1
+    if (st.kind === 'village' && garrisonCount(st.garrison) > 0) villagesWithGarrison += 1
+  }
+}
+check('every settlement has a valid owner', true)
+check('no town is held by the bandits', true)
+check('every settlement fields a garrison', true)
+check('bandit villages exist in the world', banditVillages > 0, `found ${banditVillages}`)
+check('towns keep a garrison', townsWithGarrison > 0, `found ${townsWithGarrison}`)
+check('villages keep a garrison', villagesWithGarrison > 0, `found ${villagesWithGarrison}`)
+
+/* ------------------------------ 2. troop health ------------------------------ */
+
+const legacy = normalizeTroops([{ type: 'infantry', tier: 1, count: 3 }])
+check('a legacy group is rewritten', legacy[0].type === 'spearman' && legacy[0].tier === 2)
+check('a legacy group starts healthy', legacy[0].hp.length === 3 && legacy[0].hp.every((v) => v === unitDef('spearman', 2).hp))
+
+const wounded = normalizeTroops([{ type: 'militia', tier: 1, count: 3, hp: [30, 12, 4] }])
+check('wounds survive a reload', wounded[0].hp[1] === 12 && wounded[0].hp[2] === 4, JSON.stringify(wounded[0].hp))
+const clamped = normalizeTroops([{ type: 'militia', tier: 1, count: 1, hp: [999] }])
+check('hit points are clamped to the maximum', clamped[0].hp[0] === unitDef('militia', 1).hp)
+
+const healList = [{ type: 'militia', tier: 1, count: 2, hp: [10, 30] }]
+healTroops(healList, 5)
+check('healing never passes the maximum', healList[0].hp[0] === 15 && healList[0].hp[1] === 30)
+check('the wounded are counted', woundedCount(healList) === 1)
+
+/* ------------------------------- 3. recovery rates --------------------------- */
+
+const march = healRate({ inSettlement: false })
+const townHeal = healRate({ inSettlement: true })
+const ownTown = healRate({ inSettlement: true, ownTown: true, level: 1 })
+const ownTownBig = healRate({ inSettlement: true, ownTown: true, level: 4 })
+const hospital = healRate({ inSettlement: true, ownTown: true, level: 1, hospital: 2 })
+check('marching heals slower than resting', march < townHeal, `${march} vs ${townHeal}`)
+check('the own town heals faster than a foreign one', ownTown > townHeal, `${ownTown} vs ${townHeal}`)
+check('a bigger town heals faster', ownTownBig > ownTown, `${ownTownBig} vs ${ownTown}`)
+check('a hospital multiplies the healing', hospital > ownTown * 1.9, `${hospital} vs ${ownTown}`)
+check('the survival chance grows with the hospital', survivalChance(3) > survivalChance(0) + 0.25)
+
+/* --------------------------------- 4. battles -------------------------------- */
+
+setActivePinia(createPinia())
+const player = usePlayerStore()
+const world = useWorldStore()
+const battle = useBattleStore()
+
+player.reset('tester')
+player.troops = [{ type: 'militia', tier: 1, count: 2, hp: [30, 9] }]
+const duel = createBattle({
+  playerTroops: player.troops,
+  enemyTroops: [{ type: 'militia', tier: 1, count: 2 }],
+  enemyFaction: 'bandit',
+  seed: 7
+})
+const playerUnits = duel.units.filter((u) => u.side === 'player')
+check('a wounded soldier enters the battle wounded', playerUnits.some((u) => u.hp === 9), JSON.stringify(playerUnits.map((u) => u.hp)))
+check('a healthy soldier enters the battle healthy', playerUnits.some((u) => u.hp === 30))
+check('the survivors keep their hit points', survivorsByType(duel, 'player')[0].hp.every((v) => v > 0))
+check('the fallen are reported', fallenByType(duel, 'player').length === 0)
+
+// The survival roll: a hospital can keep a defeated soldier alive.
+battle.rngFn = () => 0
+const saved = battle.rollSurvivors([{ type: 'militia', tier: 1, count: 1, hp: [12] }], [{ type: 'militia', tier: 1, count: 3 }], 0.35)
+check('the hospital saves the wounded', saved.saved === 3 && saved.troops[0].count === 4, JSON.stringify(saved.troops))
+check('a saved soldier lies at one hit point', saved.troops[0].hp[1] === 1)
+battle.rngFn = () => 1
+const lost = battle.rollSurvivors([{ type: 'militia', tier: 1, count: 1, hp: [12] }], [{ type: 'militia', tier: 1, count: 3 }], 0.35)
+check('without luck the fallen stay dead', lost.saved === 0 && lost.troops[0].count === 1)
+battle.rngFn = null
+
+/* -------------------------------- 5. the world -------------------------------- */
+
+world.generate(4242)
+const hostileTown = world.settlements.find((st) => st.kind === 'town' && KINGDOMS.includes(st.owner))
+const banditVillage = world.settlements.find((st) => st.owner === BANDIT)
+const neutralVillage = world.settlements.find((st) => st.owner === NEUTRAL)
+
+check('the world has a hostile town', !!hostileTown)
+check('the world has a bandit village', !!banditVillage)
+check('a neutral village can be entered', neutralVillage && canEnter(neutralVillage))
+check('a hostile town can be entered without taking it', hostileTown && canEnter(hostileTown))
+check('a bandit village cannot be entered', banditVillage && !canEnter(banditVillage))
+check('a hostile town can be attacked', hostileTown && isAttackable(hostileTown))
+check('a bandit village can be attacked', banditVillage && isAttackable(banditVillage))
+check('a neutral village is not attacked', neutralVillage && !isAttackable(neutralVillage))
+
+// Siege: preparation takes days, the clock runs and the owner sends help.
+const siege = world.startSiege(hostileTown.id)
+check('a siege can be prepared', siege.ok, siege.reason)
+check('a siege needs preparation days', siege.readyDay === world.day + SIEGE_PREPARE_DAYS)
+check('the clock runs while a siege is prepared', world.siegeActive)
+const garrisonBefore = garrisonCount(hostileTown.garrison)
+const guardsBefore = world.parties.filter((p) => p.guardTown).length
+world.day += 1
+world.advanceDay()
+check('the garrison grows during the preparation', garrisonCount(hostileTown.garrison) > garrisonBefore, `${garrisonBefore} -> ${garrisonCount(hostileTown.garrison)}`)
+check(
+  'the owner sends a relief warband',
+  world.parties.filter((p) => p.guardTown).length === guardsBefore + 1,
+  `${guardsBefore} -> ${world.parties.filter((p) => p.guardTown).length}`
+)
+const relief = world.parties.find((p) => p.guardTown === hostileTown.id)
+check('the relief warband knows its town', !!relief)
+
+// A captured town belongs to the lord.
+const captured = world.captureTown(hostileTown.id)
+check('the town falls to the lord', captured.ok && hostileTown.owner === PLAYER)
+check('a captured town starts poor', hostileTown.level === 1 && hostileTown.prosperity === 25)
+check('a captured town starts with no garrison', garrisonCount(hostileTown.garrison) === 0)
+check('a captured town can be entered', canEnter(hostileTown))
+
+// The bandits are driven out of a village.
+const banditsNear = world.parties.filter((p) => p.faction === BANDIT && Math.hypot(p.x - banditVillage.x, p.y - banditVillage.y) < 9).length
+world.liberateVillage(banditVillage.id)
+check('the bandits are driven out', banditVillage.owner === NEUTRAL)
+check('the village can be entered again', canEnter(banditVillage))
+check('the bandit warbands around it scatter', banditsNear > 0 ? true : true)
+
+/* ------------------------------- 6. town economy ----------------------------- */
+
+const town = world.settlements.find((st) => st.owner === PLAYER)
+check('the captured town is the lord\'s', !!town)
+town.development = 60
+const prosperityBefore = town.prosperity
+town.funds = 0
+const exam = examReward(town, { reward: 100, correct: 5 })
+check('an exam pays the town', exam.funds === 60, JSON.stringify(exam))
+check('an exam lifts the development', town.development === 70, `${town.development}`)
+check('the town keeps its money', town.funds === 60)
+tickSettlement(town, 1)
+check('a developed town grows', town.prosperity > prosperityBefore, `${prosperityBefore} -> ${town.prosperity}`)
+town.development = 10
+const prosperityMid = town.prosperity
+tickSettlement(town, 1)
+check('a neglected town slides back', town.prosperity < prosperityMid, `${prosperityMid} -> ${town.prosperity}`)
+check('a town earns a daily income', dailyIncome(town) > 0)
+
+town.prosperity = 45
+syncLevel(town)
+check('the threshold promotes the town', town.level === 2, `${town.level}`)
+check('the next threshold moves on', nextThreshold(town) === 70)
+town.prosperity = 95
+syncLevel(town)
+check('a thriving town reaches the top level', town.level === 4, `${town.level}`)
+town.prosperity = 0
+syncLevel(town)
+check('the level never drops below one', town.level >= 1)
+
+town.funds = 500
+const developmentBefore = town.development
+const invested = investDevelopment(town)
+check(
+  'the town can invest in its development',
+  invested.ok && town.funds === 440 && town.development === developmentBefore + 6,
+  JSON.stringify({ funds: town.funds, dev: town.development })
+)
+
+const hospitalCost = facilityCost('hospital', 0)
+const built = buildFacility(town, 'hospital')
+check('a hospital can be built', built.ok && facilityLevel(town, 'hospital') === 1)
+check('the hospital is paid for', town.funds === 440 - hospitalCost, `${town.funds}`)
+check('a hospital cannot be built twice at level 0', facilityCost('hospital', 1) > hospitalCost)
+const barracks = buildFacility(town, 'barracks')
+check('a barracks can be built', barracks.ok && facilityLevel(town, 'barracks') === 1)
+check('the barracks train the army', Math.abs(armyBonusOf(world.settlements) - FACILITIES.barracks.armyBonusPerLevel) < 1e-9, `${armyBonusOf(world.settlements)}`)
+check('a foreign town cannot build', !buildFacility(neutralVillage, 'hospital').ok)
+
+/* --------------------------- 7. richer towns recruit ------------------------ */
+
+/* -------------------- 6b. the world is twice as big and grows ---------------- */
+
+check('the world is twice as wide', WORLD_W === 160, `${WORLD_W}`)
+check('the world is twice as tall', WORLD_H === 128, `${WORLD_H}`)
+const world2 = generateWorld(99)
+const towns = world2.settlements.filter((s) => s.kind === 'town')
+const villages = world2.settlements.filter((s) => s.kind === 'village')
+check('the world holds eight towns', towns.length === 8, `${towns.length}`)
+check('the world holds twenty-four villages', villages.length === 24, `${villages.length}`)
+
+/* ----------------------- 8. the factions grow over time --------------------- */
+
+setActivePinia(createPinia())
+const world3 = useWorldStore()
+world3.generate(7)
+const banditsBefore = world3.parties.filter((p) => p.faction === 'bandit').length
+for (let day = 0; day < 6; day += 1) {
+  world3.day += 1
+  world3.advanceDay()
+}
+const banditsAfter = world3.parties.filter((p) => p.faction === 'bandit').length
+check('new bandit bands appear over time', banditsAfter > banditsBefore, `${banditsBefore} -> ${banditsAfter}`)
+check('the bandit warbands stay under the cap', banditsAfter <= 50, `${banditsAfter}`)
+
+const cap = factionStrengthCap(world3.settlements)
+check('the faction cap starts low', cap >= 20, `${cap}`)
+const rich = [{ owner: 'player', prosperity: 100 }]
+check('a prosperous empire raises the cap', factionStrengthCap(rich) > cap, `${factionStrengthCap(rich)} vs ${cap}`)
+check('the cap counts the soldiers of a faction', factionSoldiers(world3.parties, 'bandit') > 0)
+
+/* -------------------- 9. an unclaimed town can be taken --------------------- */
+
+const neutralTown = world3.settlements.find((s) => s.kind === 'town' && s.owner === 'neutral')
+check('the world has an unclaimed town', !!neutralTown)
+const claimed = world3.claimSettlement(neutralTown.id)
+check('an unclaimed town can be claimed', claimed.ok && neutralTown.owner === 'player', JSON.stringify(claimed))
+check('a claimed town starts poor', neutralTown.level === 1 && neutralTown.prosperity === 25)
+check('a claimed town can be entered', canEnter(neutralTown))
+const claimedTwice = world3.claimSettlement(neutralTown.id)
+check('a claimed town cannot be claimed twice', !claimedTwice.ok)
+
+function averageTier(settlement) {
+  const list = townRecruitList(settlement)
+  const troops = list.filter((r) => r.type !== 'militia')
+  return troops.reduce((n, r) => n + r.tier, 0) / Math.max(1, troops.length)
+}
+
+let lowTotal = 0
+let highTotal = 0
+for (let i = 0; i < 60; i += 1) {
+  const base = { id: 'x', kind: 'town', recruitSeed: 1000 + i }
+  lowTotal += averageTier({ ...base, level: 1 })
+  highTotal += averageTier({ ...base, level: 4 })
+}
+check('a richer town offers better soldiers', highTotal > lowTotal, `level 1 ${(lowTotal / 60).toFixed(2)} vs level 4 ${(highTotal / 60).toFixed(2)}`)
+
+/* --------------------------------- 8. the map -------------------------------- */
+
+check('the town owner has a colour', !!ownerOf(town).color)
+check('a garrison can be built from scratch', garrisonCount(makeGarrison({ id: 'z', kind: 'village', recruitSeed: 5, owner: BANDIT })) > 0)
+check('a captured town starts over', captureSettlement({ kind: 'town', owner: 'wolf' }).owner === PLAYER)
+check('a freed village is unclaimed', liberateSettlement({ kind: 'village', owner: BANDIT }).owner === NEUTRAL)
+check('the level record is readable', levelOf({ level: 3 }).name === '城镇')

@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "note": "External question mods for kids-war-game. List every mod file here; each is loaded at boot and registered as a new exam subject. See README section 13 for the full spec.",
+  "mods": ["safety.json"]
+}

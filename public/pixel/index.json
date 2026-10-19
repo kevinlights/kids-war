@@ -1,0 +1,110 @@
+[
+  {
+    "category": "commander",
+    "name": "bandit",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "commander",
+    "name": "eagle",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "commander",
+    "name": "wolf",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "settlement",
+    "name": "town",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "settlement",
+    "name": "village",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "terrain",
+    "name": "camp",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "terrain",
+    "name": "desert",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "terrain",
+    "name": "forest",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "terrain",
+    "name": "mountain",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "terrain",
+    "name": "water",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "archer",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "cavalry",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "knight",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "lord",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "marksman",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "militia",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "spearman",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "unit",
+    "name": "spearman-elite",
+    "width": 32,
+    "height": 32
+  }
+]

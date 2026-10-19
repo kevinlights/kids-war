@@ -1,0 +1,201 @@
+:root {
+  --bg-deep: #10160f;
+  --bg-panel: rgba(22, 30, 22, 0.92);
+  --bg-panel-light: rgba(38, 50, 36, 0.94);
+  --ink: #f3ecd8;
+  --ink-dim: #b9b199;
+  --gold: #e8c56a;
+  --gold-deep: #a9812f;
+  --line: rgba(232, 197, 106, 0.28);
+  --danger: #d8533f;
+  --ok: #6fbf73;
+  --player: #4aa3ff;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+  --radius: 14px;
+  font-synthesis: none;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+/* Phones: use the dynamic viewport so the browser URL bar never clips the
+   bottom HUD when it slides in and out. */
+@supports (height: 100dvh) {
+  #app {
+    height: 100dvh;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg-deep);
+  color: var(--ink);
+  font-family: 'Trebuchet MS', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  /* Phones: no rubber-band scrolling and no grey tap flash on the canvas. */
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  background: linear-gradient(180deg, var(--gold), var(--gold-deep));
+  color: #2b1e05;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 0 #6d5119, var(--shadow);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease;
+}
+
+.btn:hover {
+  filter: brightness(1.06);
+}
+
+.btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 #6d5119, var(--shadow);
+}
+
+.btn.ghost {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.btn.ghost:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.btn.danger {
+  background: linear-gradient(180deg, #e86b58, #a8301f);
+  color: #fff;
+  box-shadow: 0 4px 0 #6f1c10, var(--shadow);
+}
+
+.btn:disabled {
+  filter: grayscale(0.7) brightness(0.7);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--gold-deep) transparent;
+}
+
+.scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.scroll::-webkit-scrollbar-thumb {
+  background: var(--gold-deep);
+  border-radius: 8px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--ink-dim);
+}
+
+.center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 5, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 40;
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.pop {
+  animation: popIn 0.22s ease-out;
+}
+
+/* Phones: bigger touch targets and slightly tighter chrome so the world map
+   keeps as much usable screen as possible. */
+@media (max-width: 560px) {
+  .btn {
+    min-height: 44px;
+    padding: 12px 16px;
+    font-size: 14.5px;
+  }
+
+  .btn.small {
+    min-height: 40px;
+  }
+
+  .chip {
+    font-size: 12px;
+    padding: 4px 9px;
+  }
+
+  .overlay {
+    padding: 10px;
+    align-items: center;
+  }
+}
