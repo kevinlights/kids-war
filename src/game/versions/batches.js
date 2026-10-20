@@ -176,7 +176,17 @@ export const BATCHES = [
     { zh: "打完是真打一场：点「⚡ 进入战场」就站上战场，像平常一样下令、换队形、打完看战报。", en: "The fight is a real one: 「⚡ 进入战场」 puts the lord on the field, where the orders and formations work exactly as usual." },
     { zh: "快速战斗不打乱战役：这一场只是练习，你的队伍、金币与战绩都不会变。", en: "A quick battle leaves the campaign alone: it is a drill, so the warband, the purse and the record do not move." },
     { zh: "想先看胜率也行：点「📊 先看看胜率」用同样的两支队伍跑 20 场，直接给出胜率与平均阵亡。", en: "Or look at the odds first: 「📊 先看看胜率」 runs the same two armies through 20 fights and reports the win rate and the average casualties." },
-    { zh: "入口就在首页：「⚡ 快速战斗」与「开始新的征程」「继续上次进度」**同级**，一进来就能用。", en: "The entry is on the home screen: 「⚡ 快速战斗」 sits **on the same level** as 「开始新的征程」 and 「继续上次进度」." },
+    { zh: "入口就在首页：「⚡ 快速战斗」与「开始新的征程」「继续上次进度」**同级**，一进来就能用。", en: "The entry is on the home screen: 「⚡ 快速战斗」 sits **on the same level** as 「开始新的征程」 and 「继续上次进度」." }
+    ]
+  },
+  {
+    batch: 18,
+    title: "反击与队形 Counterattack and formation",
+    date: "2026-10-21",
+    items: [
+    { zh: "被打了就会还手：士兵会记住是谁打了它，转身还手 —— 哪怕它本来在防守或者在赶路。", en: "**Everybody answers an attack**: a soldier remembers who hit it and turns to answer that one, even when it was holding its position or marching somewhere else." },
+    { zh: "攻击不再打乱队形：小队转向敌人，前排压上，每个士兵守住自己的位置；队列不会一拥而上。", en: "**An attack keeps the formation**: the squad turns towards the foe, the front rank goes for it and every soldier holds its own slot; the ranks do not mob the enemy." },
+    { zh: "远程小队嫌近了是**整队后撤**，不是各自乱跑，队形在后撤中依然保持。", en: "**A ranged squad that is too close steps back as one block**, so the shape survives the retreat." },
     { zh: "--", en: "" }
     ]
   }

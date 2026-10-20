@@ -219,6 +219,72 @@ for (let seed = 1; seed <= 12; seed += 1) {
 check('every battle ends', ended === 12, `${ended}/12`)
 check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1))
 
+/* --------------------- 4b. the counterattack and the formation -------------- */
+
+/**
+ * A soldier that is attacked answers the attacker.
+ *
+ * The player soldier stands between two enemies: the near one to its right and
+ * the far one to its left. The far one shoots it, and the soldier has to turn
+ * to the left and answer it, instead of trading blows with the nearer foe.
+ */
+{
+  const b = createBattle({
+    playerTroops: [{ type: 'archer', tier: 2, count: 1, hp: [] }],
+    enemyTroops: [
+      { type: 'militia', tier: 1, count: 1, hp: [] },
+      { type: 'archer', tier: 2, count: 1, hp: [] }
+    ],
+    enemyFaction: 'bandit',
+    seed: 77
+  })
+  const hero = b.units.find((u) => u.side === 'player')
+  const near = b.units.find((u) => u.side === 'enemy' && u.type === 'militia')
+  const far = b.units.find((u) => u.side === 'enemy' && u.type === 'archer')
+  // The near foe stands to the right, the shooter to the left.
+  hero.x = 500
+  hero.y = 340
+  near.x = 540
+  near.y = 340
+  far.x = 440
+  far.y = 340
+  // The far archer shoots the hero.
+  far.cd = 0
+  for (let i = 0; i < 200; i += 1) stepBattle(b, 1 / 60)
+  check('the soldier remembers who hit it', hero.lastAttackerId === far.id, String(hero.lastAttackerId))
+  check('the soldier answers the attacker', hero.facing < 0, String(hero.facing))
+  check('the hero took the blow', hero.hp < hero.maxHp, `${hero.hp}/${hero.maxHp}`)
+}
+
+/**
+ * An attack keeps the formation: the soldiers hold their slots around the
+ * squad's target instead of mobbing the enemy.
+ */
+{
+  const b = createBattle({
+    playerTroops: [{ type: 'spearman', tier: 2, count: 9, hp: [] }],
+    enemyTroops: [{ type: 'spearman', tier: 2, count: 9, hp: [] }],
+    enemyFaction: 'bandit',
+    seed: 88
+  })
+  // Let the two sides close and fight.
+  for (let i = 0; i < 60 * 20; i += 1) stepBattle(b, 1 / 60)
+  const group = b.groups[b.playerGroups[0]]
+  const living = b.units.filter((u) => u.alive && u.side === 'player')
+  // How wide the squad is on the field, against how wide its formation is.
+  const xs = living.map((u) => u.x)
+  const ys = living.map((u) => u.y)
+  const spread = Math.max(...xs) - Math.min(...xs)
+  const slotXs = group.slots.map((s) => s.ox)
+  const slotYs = group.slots.map((s) => s.oy)
+  const wanted = Math.max(Math.max(...slotXs) - Math.min(...slotXs), Math.max(...slotYs) - Math.min(...slotYs))
+  check('the formation holds while attacking', spread > wanted * 0.6, `${spread.toFixed(1)} px of ${wanted} px`)
+  // The squad is not collapsed on the enemy: the ranks are still spread out.
+  check('the ranks keep their distance', spread > 20, `${spread.toFixed(1)} px`)
+  // The fight still happens: both sides took losses.
+  check('the attack is not harmless', b.kills > 0 && b.losses > 0, `${b.kills} kills / ${b.losses} losses`)
+}
+
 /* --------------------------------- 5. siege --------------------------------- */
 
 world.generate(4242)

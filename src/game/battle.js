@@ -220,6 +220,8 @@ function addSide(b, side, troops, dir, atkMul) {
       formation: side === 'player' ? 'square' : 'line2',
       density: 'tight',
       order: 'attack',
+      // The way the formation faces: it turns towards the foe it attacks.
+      dir,
       anchor: { x: originX, y: anchorY },
       rally: null,
       tx: originX,
@@ -255,7 +257,9 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
     cd: b.rng.float(0, 0.6),
     alive: true,
     facing: dir > 0 ? 1 : -1,
-    hitFlash: 0
+    hitFlash: 0,
+    // The soldier that hit it last: it answers that one first.
+    lastAttackerId: null
   })
 }
 
@@ -442,6 +446,24 @@ function nearestEnemy(b, unit) {
   return { unit: best, dist: bestD }
 }
 
+/**
+ * The soldier's target.
+ *
+ * Whoever hit it last comes first while it is within reach: a soldier that is
+ * attacked always answers, even when it was holding its position or walking
+ * somewhere else. Out of reach the nearest enemy is the target as usual.
+ */
+function foeFor(b, unit) {
+  const nearest = nearestEnemy(b, unit)
+  if (!unit.lastAttackerId) return nearest
+  const attacker = b.units.find((u) => u.id === unit.lastAttackerId)
+  if (!attacker || !attacker.alive) return nearest
+  const d = Math.hypot(attacker.x - unit.x, attacker.y - unit.y)
+  const reach = unit.def.ranged ? unit.def.range : MELEE_RANGE
+  if (d > reach) return nearest
+  return { unit: attacker, dist: d }
+}
+
 /** Enemy closest to a point, used as the aim point of a charging squad. */
 function nearestFoeTo(b, side, x, y) {
   const foeSide = side === 'player' ? 'enemy' : 'player'
@@ -496,6 +518,11 @@ function blockedAt(b, x, y) {
  * Where each squad is heading this frame: the enemy for an attack, its own
  * anchor for a defence, the commander for a follow and its rally point for a
  * move. Individual soldiers then walk to their slot around that point.
+ *
+ * An attacking squad keeps its **formation**: the squad turns so that its
+ * front rank faces the foe, the anchor of the formation goes onto the foe and
+ * every soldier holds its own slot around it. A ranged squad that is too
+ * close steps back as one block, so the shape survives the retreat too.
  */
 function updateGroupTargets(b) {
   for (const g of Object.values(b.groups)) {
@@ -503,22 +530,11 @@ function updateGroupTargets(b) {
     if (g.isDummy) {
       g.tx = g.anchor.x
       g.ty = g.anchor.y
+      g.retreat = null
       continue
     }
-    if (g.side === 'player') {
-      if (g.order === 'follow') {
-        g.tx = b.commander.x - 40
-        g.ty = b.commander.y
-        continue
-      }
-      if (g.order === 'defend' || g.order === 'move') {
-        const point = g.rally || g.anchor
-        g.tx = point.x
-        g.ty = point.y
-        continue
-      }
-    }
-    // attack (and every enemy squad): advance on the nearest enemy.
+
+    // Where the squad stands right now.
     let cx = 0
     let cy = 0
     let n = 0
@@ -528,10 +544,52 @@ function updateGroupTargets(b) {
       cy += u.y
       n += 1
     }
-    const foe = nearestFoeTo(b, g.side, n ? cx / n : g.anchor.x, n ? cy / n : g.anchor.y)
-    if (foe) {
-      g.tx = foe.x
-      g.ty = foe.y
+    cx = n ? cx / n : g.anchor.x
+    cy = n ? cy / n : g.anchor.y
+    g.center = { x: cx, y: cy }
+
+    if (g.side === 'player') {
+      if (g.order === 'follow') {
+        g.tx = b.commander.x - 40
+        g.ty = b.commander.y
+        g.retreat = null
+        continue
+      }
+      if (g.order === 'defend' || g.order === 'move') {
+        const point = g.rally || g.anchor
+        g.tx = point.x
+        g.ty = point.y
+        g.retreat = null
+        continue
+      }
+    }
+
+    // attack (and every enemy squad): advance on the nearest enemy.
+    const foe = nearestFoeTo(b, g.side, cx, cy)
+    if (!foe) {
+      g.retreat = null
+      continue
+    }
+
+    // The formation turns to face the foe, so the front rank is the one that
+    // fights and the rest keeps its shape behind it.
+    const dir = foe.x >= cx ? 1 : -1
+    if (g.dir !== dir) {
+      g.dir = dir
+      g.slots = formationSlots(g.unitCount, g.formation, g.density, dir)
+    }
+    g.tx = foe.x
+    g.ty = foe.y
+
+    // A ranged squad keeps its distance: the whole formation steps back
+    // together instead of every soldier running on its own.
+    const def = unitDef(g.type, g.tier)
+    const d = Math.hypot(foe.x - cx, foe.y - cy)
+    if (def.ranged && d < def.range * 0.5) {
+      const len = d || 1
+      g.retreat = { x: (cx - foe.x) / len, y: (cy - foe.y) / len }
+    } else {
+      g.retreat = null
     }
   }
 }
@@ -571,18 +629,25 @@ function strike(b, unit, target) {
       tx: target.x,
       ty: target.y,
       targetId: target.id,
+      // The shooter is remembered, so the soldier it hits knows who to answer.
+      attackerId: unit.id,
       t: 0,
       speed: 420,
       side: unit.side,
       dmg
     })
   } else {
-    applyDamage(b, target, dmg)
+    applyDamage(b, target, dmg, unit)
     b.effects.push({ x: target.x, y: target.y, t: 0, life: 0.22, kind: 'hit' })
   }
 }
 
-function applyDamage(b, target, dmg) {
+function applyDamage(b, target, dmg, attacker) {
+  // The victim remembers who hit it: a soldier that is attacked answers the
+  // attacker instead of the nearest enemy.
+  if (attacker && attacker.side !== target.side) {
+    target.lastAttackerId = attacker.id
+  }
   if (target.isCommander) {
     target.hp = Math.max(0, target.hp - dmg)
     target.hitFlash = 0.2
@@ -630,7 +695,9 @@ export function stepBattle(b, dt) {
 
     const mods = groupMods(group)
     const slot = group.slots[unit.slotIndex] || { ox: 0, oy: 0 }
-    const { unit: foe, dist } = nearestEnemy(b, unit)
+    // The target: whoever hit this soldier last comes first while it is in
+    // reach, so an attack is always answered.
+    const { unit: foe, dist } = foeFor(b, unit)
     const engage = def.ranged ? def.range : MELEE_RANGE
     const holding = group.order !== 'attack'
     // The ground the soldier stands on slows it down: a forest or a river
@@ -639,34 +706,39 @@ export function stepBattle(b, dt) {
     const speed = def.speed * BASE_SPEED * mods.speedMul * ground.speedMul
     const prevX = unit.x
     const prevY = unit.y
-    // Ranged squads ordered to attack keep the enemy at arm's length: once a foe
-    // closes to half their range they back away, still facing it and still
-    // shooting. Squads holding a position never fall back, so an archer told to
-    // 防守 stands and trades blows.
-    const kiting = def.ranged && group.order === 'attack' && foe && dist < def.range * 0.5
-    // A charging melee squad crowds the enemy: the slot offsets — which can be
-    // tens of pixels deep in a big block or a scattered formation — are capped so
-    // every soldier can reach striking distance instead of hovering out of reach
-    // behind the front rank. Ranged squads never need to close, so they keep the
-    // shape of their formation.
-    const crowd = !def.ranged && group.order === 'attack' && foe && dist < 140 ? MELEE_RANGE * 0.5 : null
-    const tx = group.tx + (crowd === null ? slot.ox : Math.max(-crowd, Math.min(crowd, slot.ox)))
-    const ty = group.ty + (crowd === null ? slot.oy : Math.max(-crowd, Math.min(crowd, slot.oy)))
+    // The soldier keeps its slot: the attack does not mob the enemy, the
+    // formation marches onto it as it is.
+    const tx = group.tx + slot.ox
+    const ty = group.ty + slot.oy
 
     let wantsToMove = false
-    if (kiting) {
+    if (group.retreat) {
+      // A ranged squad that is too close steps back as one block, so every
+      // soldier keeps its place in the formation.
       wantsToMove = true
-      moveAwayFrom(unit, foe.x, foe.y, speed, dt, (x, y) => blockedAt(b, x, y))
-      unit.facing = foe.x >= unit.x ? 1 : -1
+      moveToward(
+        unit,
+        unit.x + group.retreat.x * 60,
+        unit.y + group.retreat.y * 60,
+        speed,
+        dt,
+        (x, y) => blockedAt(b, x, y)
+      )
     } else {
       // Walk to the slot unless this soldier is already shooting / swinging.
+      // The soldier holds its slot tightly (2 px): a soldier that drifts off
+      // its slot would step out of reach of the foe and stop fighting.
       const dSlot = Math.hypot(tx - unit.x, ty - unit.y)
-      if (dSlot > 5 && (holding || !foe || dist > engage)) {
+      if (dSlot > 2 && (holding || !foe || dist > engage)) {
         wantsToMove = true
         moveToward(unit, tx, ty, speed, dt, (x, y) => blockedAt(b, x, y))
       }
     }
-    if (foe && dist <= engage) strike(b, unit, foe)
+    if (foe && dist <= engage) {
+      // The soldier turns to the foe it answers and strikes.
+      unit.facing = foe.x >= unit.x ? 1 : -1
+      strike(b, unit, foe)
+    }
 
     // A soldier that wants to move but cannot (a lake in the way) gets a
     // sideways nudge, so no fight can stall for ever.
@@ -703,7 +775,10 @@ export function stepBattle(b, dt) {
       const target = b.units.find((u) => u.id === p.targetId && u.alive)
       // Loose ranks give up density for cover, so a scattered squad takes less
       // from arrows. The reduction is applied where the arrow lands.
-      if (target) applyDamage(b, target, Math.max(1, Math.round(p.dmg * rangedTakenOf(b, target))))
+      if (target) {
+        const shooter = p.attackerId ? b.units.find((u) => u.id === p.attackerId) : null
+        applyDamage(b, target, Math.max(1, Math.round(p.dmg * rangedTakenOf(b, target))), shooter)
+      }
     } else {
       p.x += (dx / d) * step
       p.y += (dy / d) * step

@@ -350,7 +350,7 @@ Tap a squad chip at the bottom (or 全军 for all of them), then give the order:
 
 | 命令 Order | 行为 Behaviour | 数值 Modifier |
 | --- | --- | --- |
-| ⚔️ 攻击 Attack | 全军压向最近的敌人，远程单位贴近时后撤风筝。Charge the nearest enemy; ranged squads back away while still shooting. | 攻击 ×1.08，防御 ×0.94 |
+| ⚔️ 攻击 Attack | 全军压向最近的敌人，**保持队形**推进，远程单位贴近时整队后撤。Charge the nearest enemy **without breaking the formation**; ranged squads step back as one block. | 攻击 ×1.08，防御 ×0.94 |
 | 🛡️ 防守 Defend | 原地结阵，守住当前位置，远程单位站着对射。Hold the current spot and trade blows. | 攻击 ×0.96，防御 ×1.25 |
 | 🏇 跟随 Follow | 贴身跟随指挥官移动，沿途交战。Escort the commander and engage whatever is close. | 攻击 ×1，防御 ×1.05 |
 | 🎯 移动 Move | 整队走到点击处后原地待命。March to the tapped point and wait there. | 攻击 ×0.94，防御 ×1 |
@@ -358,6 +358,21 @@ Tap a squad chip at the bottom (or 全军 for all of them), then give the order:
 Each squad also has a **formation** and a **density**, changed from the folded 「▦ 队形」 panel and applied
 immediately. Formations decide how the soldiers of a squad are laid out; densities decide how tightly packed they are.
 每支小队还有**队形**与**密度**，在收起的「▦ 队形」面板里切换，改动立即生效。队形决定这一小队怎么排，密度决定人和人之间的间隔。
+
+#### 反击与队形 · Counterattack and formation
+
+Two rules make the fight read like a battle of armies rather than a crowd:
+
+- **Everyone answers an attack.** A soldier that is hit remembers who hit it and turns to answer that one, even
+  when it was holding its position or walking somewhere else. Only the front of the line can reach a foe with a
+  spear, but every soldier shoots back the moment it is in reach.
+  **被打了就会还手。** 士兵会记住是谁打了它，转身去还手 —— 哪怕它本来在防守或者在赶路。拿长枪的只有前排能
+  碰到敌人，但每个士兵只要够得着就会回击。
+- **An attack keeps the formation.** The squad turns so that its front rank faces the foe, its anchor goes onto the
+  enemy and every soldier holds its own slot around it. The ranks do not mob the enemy, and a ranged squad that is
+  too close steps back as one block instead of every soldier running on its own.
+  **攻击不乱队形。** 小队会转向敌人，前排压上去，每个士兵守住自己那个位置；队列不会一拥而上，远程小队嫌近了
+  也是整队一起后撤，不是各自乱跑。
 
 | 队形 Formation | 效果 Effect |
 | --- | --- |
@@ -1173,7 +1188,7 @@ The game has five dependency-free checks under `tools/`, all runnable with plain
 | `node tools/verify-upgrade-head.mjs` | 同一套升级检查跑在修复前的源码上（`291eddaa81d`），用来复现旧缺陷：升级后会写入一个没有 `type` 的兵员，界面回退显示成民兵，并且只扣 8 金币保底价。The same upgrade suite against the pre-fix sources (`291eddaa81d`), reproducing the old defect: a soldier with no `type` is written, the panel falls back to militia, and only the 8-gold floor is charged. |
 | `node tools/verify-upgrade-browser.mjs` | 真实 Chrome（headless + CDP）走一遍界面：预置一份站在村庄旁的存档，进村、打开「升级」页签、真的点「升级」按钮，再读回 DOM 与金币。Real Chrome (headless over CDP) walks the interface: a save with the lord next to a village, into the village, the 升级 tab, a real click on 升级, and the DOM and treasury read back. |
 | `node tools/verify-settlements-browser.mjs` | 真实 Chrome 走一遍据点玩法：地图上的归属光环、角色面板里的伤兵、赶走强盗、准备围城并攻打城镇，以及城镇面板（等级 / 繁荣度 / 资金 / 建医院 / 注入资金 / 投入发展）。Real Chrome walks the settlement features: the ownership ring on the map, the wounded in the lord panel, driving off bandits, preparing a siege and storming the town, and the town panel (level / prosperity / funds / building a hospital / injecting money / investing). |
-| `node tools/verify-battle.mjs` | 64 项检查：难度（三种难度的金币、科目加成、存档读写）、战斗速度（默认慢速、慢速推进更少）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）。64 checks: the difficulty (the gold of the three levels, the subject bonus, the save round trip), the battle speed (slow by default, the slow speed advances less), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), twelve battles that always end, and the sieges (they can be called off, a failed assault needs a new preparation, a won assault takes the town). |
+| `node tools/verify-battle.mjs` | 70 项检查：难度（三种难度的金币、科目加成、存档读写）、战斗速度（默认慢速、慢速推进更少）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、**反击与队形**（士兵记住攻击者、转身还手、挨打掉血；攻击时队形保持、各排仍有距离、两边都有伤亡）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）。70 checks: the difficulty (the gold of the three levels, the subject bonus, the save round trip), the battle speed (slow by default, the slow speed advances less), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), **the counterattack and the formation** (the soldier remembers the attacker, turns to answer it and took the blow; the formation holds while attacking, the ranks keep their distance and both sides take losses), twelve battles that always end, and the sieges (they can be called off, a failed assault needs a new preparation, a won assault takes the town). |
 | `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、战斗界面的速度按钮与地形说明、镜头拖动与回中、控制台 0 报错。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, the speed buttons and the terrain legend on the battle screen, dragging and recentring the camera, and a clean console. |
 | `node tools/verify-training-browser.mjs` | 真实 Chrome 走一遍新功能：首页显示版本号、点徽章展开更新内容；世界地图上**没扎营时没有「练兵」按钮**、扎营后出现；点进去后战斗界面写着「🎯 练兵」、对面是训练木桩、store 认得出这是训练、没有敌人、**没有胜负**、金币 / 军粮 / 队伍都不变；木桩真的挨打而士兵毫发无伤；点「🏕 结束练兵」回到世界地图，营地还在，控制台 0 报错。Real Chrome walks the new features: the home screen shows the version and the badge opens the update notes; the world map has **no drill button before the camp** and one after it; inside, the battle screen reads 「🎯 练兵」, the other side is the wooden dummies, the store knows it is a drill, there is no enemy, **no outcome**, and the purse, the food and the warband do not move; the dummies really take the blows while the soldiers stay untouched; 「🏕 结束练兵」 returns to the world map with the camp still pitched, and the console stays clean. |
 | `node tools/verify-chinese-browser.mjs` | 真实 Chrome 考一张只选「语文」的卷子，走完全部题目并读回题干：卷子里要有**阅读理解短文**与**古诗题**，短文保持换行、同一份卷子里没有重复题目、控制台 0 报错。Real Chrome takes a Chinese-only paper, walks every question and reads the prompts back: the paper must carry a **reading passage** and an **ancient-poem question**, the passage keeps its line breaks, no question repeats inside one paper and the console stays clean. |
@@ -1211,7 +1226,7 @@ kids-war-game/
 ├── tools/verify-upgrade-head.mjs # 同一套检查跑在修复前的源码上，复现旧缺陷
 ├── tools/verify-upgrade-browser.mjs # 真实 Chrome 走一遍「升级」界面
 ├── tools/verify-settlements-browser.mjs # 真实 Chrome 走一遍据点、围城与城镇面板
-├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 战场地形 / 围城中断自检（无头，64 项检查）
+├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 战场地形 / 反击与队形 / 围城中断自检（无头，70 项检查）
 ├── tools/verify-battle-browser.mjs # 真实 Chrome 走一遍难度、速度、地形与围城中断
 ├── tools/verify-training.mjs  # 版本号与练兵自检（无头，58 项检查）
 ├── tools/verify-training-browser.mjs # 真实 Chrome 走一遍版本号与练兵
