@@ -185,56 +185,118 @@ try {
 
   const options = await evaluate(`
     (() => {
-      const groups = [...document.querySelectorAll('.block')]
+      const blocks = [...document.querySelectorAll('.block')]
       return {
-        maps: groups[0] ? groups[0].querySelectorAll('.pick').length : 0,
-        sides: groups[1] ? groups[1].querySelectorAll('.pick').length : 0,
-        scales: groups[2] ? groups[2].querySelectorAll('.scales .pick').length : 0,
-        rounds: groups[2] ? groups[2].querySelectorAll('.rounds-grid .pick').length : 0,
+        maps: blocks[0] ? blocks[0].querySelectorAll('.maps .pick').length : 0,
+        scales: blocks[1] ? blocks[1].querySelectorAll('.scales .pick').length : 0,
+        armies: document.querySelectorAll('.side')[0] ? document.querySelectorAll('.side')[0].querySelectorAll('.presets .chip').length : 0,
+        factions: document.querySelectorAll('.side')[1] ? document.querySelectorAll('.side')[1].querySelectorAll('.presets .chip').length : 0,
+        counters: document.querySelectorAll('.counter').length,
+        steps: document.querySelectorAll('.counter .step').length,
         title: document.querySelector('h1') ? document.querySelector('h1').textContent.trim() : null
       }
     })()
   `)
   check('the screen is the quick battle', !!options.title && options.title.includes('快速战斗'), String(options))
   check('six battlefields can be picked', options.maps === 6, String(options.maps))
-  check('the two sides can be picked', options.sides === 7, String(options.sides))
   check('four army sizes can be picked', options.scales === 4, String(options.scales))
-  check('three round counts can be picked', options.rounds === 3, String(options.rounds))
+  check('four friendly armies can be picked', options.armies === 4, String(options.armies))
+  check('three enemy factions can be picked', options.factions === 3, String(options.factions))
+  check('every kind of soldier has a counter', options.counters === 8, String(options.counters))
+  check('every counter has a stepper', options.steps === 16, String(options.steps))
 
-  // Pick another battlefield, another enemy and a bigger army.
-  await clickByText('.block .pick', '密林')
-  await clickByText('.block .pick', '赤鹰')
-  await clickByText('.scales .pick', '大队')
-  await sleep(200)
-  const picked = await evaluate(`
+  // The number of soldiers of a kind can be set to any value.
+  const before = await evaluate(`
     (() => {
-      const on = [...document.querySelectorAll('.pick.on')].map((b) => b.textContent.trim())
-      return on
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      return row.querySelector('.num').textContent.trim()
     })()
   `)
-  check('the picks can be changed', picked.length >= 3, JSON.stringify(picked))
-
-  // Run the simulation.
-  await clickByText('button.go', '开始模拟')
-  await waitFor("!!document.querySelector('.result')", 'the report', 60000)
-  await sleep(300)
-  const report = await evaluate(`
+  await evaluate(`
     (() => {
-      const rate = document.querySelector('.winrate b')
-      const rounds = document.querySelectorAll('.round-row').length
-      const stats = [...document.querySelectorAll('.stat b')].map((b) => b.textContent.trim())
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      const plus = [...row.querySelectorAll('.step')].pop()
+      for (let i = 0; i < 5; i += 1) plus.click()
+      return true
+    })()
+  `)
+  await sleep(200)
+  const after = await evaluate(`
+    (() => {
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      return row.querySelector('.num').textContent.trim()
+    })()
+  `)
+  check('the count of a kind can be raised', Number(after) === Number(before) + 5, `${before} -> ${after}`)
+
+  await evaluate(`
+    (() => {
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      const minus = row.querySelector('.step')
+      for (let i = 0; i < 20; i += 1) minus.click()
+      return true
+    })()
+  `)
+  await sleep(200)
+  const zero = await evaluate(`
+    (() => {
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      return row.querySelector('.num').textContent.trim()
+    })()
+  `)
+  check('the count of a kind can be cleared', Number(zero) === 0, String(zero))
+
+  // Pick a battlefield, a faction and an army, then walk into the battle.
+  await clickByText('.maps .pick', '密林')
+  await clickByText('.presets .chip', '苍狼')
+  await clickByText('.presets .chip', '骑兵')
+  await sleep(200)
+  const setup = await evaluate(`
+    (() => {
+      const sides = [...document.querySelectorAll('.side')]
+      const read = (side) => [...side.querySelectorAll('.counter .num')].map((n) => Number(n.textContent.trim()))
       return {
-        rate: rate ? rate.textContent.trim() : null,
-        rounds,
-        stats,
-        setup: document.querySelector('.setup') ? document.querySelector('.setup').textContent.trim() : null
+        player: read(sides[0]),
+        enemy: read(sides[1]),
+        playerTotal: sides[0].querySelector('.side-total').textContent.trim(),
+        enemyTotal: sides[1].querySelector('.side-total').textContent.trim()
       }
     })()
   `)
-  check('the report shows a win rate', !!report.rate && /%$/.test(report.rate), JSON.stringify(report))
-  check('every round is listed', report.rounds === 20, String(report.rounds))
-  check('the report holds the averages', report.stats.length === 4, JSON.stringify(report.stats))
-  check('the report names the setup', !!report.setup && report.setup.includes('密林'), String(report.setup))
+  check('the friendly army is the chosen one', setup.player[3] > 0 && setup.player[0] === 0, JSON.stringify(setup))
+  check('the enemy mix is the faction one', setup.enemy[0] > 0 && setup.enemy[1] > 0, JSON.stringify(setup))
+  check('the totals are shown', /名/.test(setup.playerTotal) && /名/.test(setup.enemyTotal), JSON.stringify(setup))
+
+  await clickByText('button.go', '进入战场')
+  await waitFor("!!document.querySelector('canvas.battle-canvas')", 'the battle field')
+  await sleep(900)
+
+  const fight = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      return {
+        kind: b.context ? b.context.kind : null,
+        faction: b.context ? b.context.faction : null,
+        map: b.context ? b.context.map : null,
+        player: b.data ? b.data.units.filter((u) => u.side === 'player').length : 0,
+        enemy: b.data ? b.data.units.filter((u) => u.side === 'enemy').length : 0,
+        title: document.querySelector('.vs') ? document.querySelector('.vs').textContent.trim() : null,
+        chips: [...document.querySelectorAll('.chips .chip')].map((c) => c.textContent.trim())
+      }
+    })()
+  `)
+  check('the fight is a quick battle', fight.kind === 'quick', JSON.stringify(fight))
+  check('the enemy is the chosen faction', fight.faction === 'wolf', JSON.stringify(fight))
+  check('the field is the chosen battlefield', fight.map === 'forest', JSON.stringify(fight))
+  check('the chosen armies fight', fight.player > 0 && fight.enemy > 0, JSON.stringify(fight))
+  check('the battle screen says it is a quick battle', !!fight.title && fight.title.includes('快速战斗'), String(fight.title))
+  check('the squads can be picked', fight.chips.length >= 2, JSON.stringify(fight.chips))
+
+  // The fight can be ended and the way back is the quick battle setup.
+  await clickByText('.command .cmd', '攻击')
+  await sleep(200)
+  const ordered = await evaluate("window.kidsWarGame.stores.battle.order")
+  check('the orders work in a quick battle', ordered === 'attack', String(ordered))
 
   check('the console stayed clean', consoleErrors.length === 0, consoleErrors.join(' | '))
 } catch (err) {

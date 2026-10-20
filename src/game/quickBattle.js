@@ -1,20 +1,39 @@
 /**
- * The quick battle simulator.
+ * The quick battle: pick a battlefield, pick how many soldiers of each kind
+ * fight on each side, and the fight happens on the real battle field.
  *
- * It answers the question "who would win?" without playing a whole campaign:
- * pick a battlefield, pick the two armies and the size of them, and the
- * simulation fights the fight many times over and counts the results.
- *
- * The simulation itself is the ordinary one from `battle.js` — the same squads,
- * the same orders, the same terrain — so the numbers it produces are the
- * numbers the real battles would produce.
+ * The simulation itself is the ordinary one from `battle.js` — the same
+ * squads, the same orders, the same terrain — so the quick battle is a real
+ * fight, only without a campaign around it.
  */
 import { createBattle, stepBattle } from './battle'
 import { ARENA_MAPS } from './arena'
 import { unitDef } from './units'
 
-/** The armies the lord may field in a quick battle. */
-export const QUICK_PLAYER_ARMIES = [
+/** The unit kinds a quick battle can field, and the rank they fight at. */
+export const QUICK_UNITS = [
+  { key: 'militia', name: '民兵', en: 'Militia', icon: '🛡️' },
+  { key: 'spearman', name: '长枪兵', en: 'Spearman', icon: '🔱' },
+  { key: 'archer', name: '弓箭手', en: 'Archer', icon: '🏹' },
+  { key: 'cavalry', name: '骑兵', en: 'Cavalry', icon: '🐎' }
+]
+
+/** The rank the quick battle soldiers fight at: the middle one. */
+export const QUICK_TIER = 2
+
+/** The most soldiers one kind may have on a side. */
+export const QUICK_MAX_COUNT = 200
+
+/** The battlefields a quick battle can be fought on. */
+export const QUICK_MAPS = ARENA_MAPS
+
+/**
+ * The army the lord may field: a whole side of one kind of soldier.
+ *
+ * The counts are only the starting point — every kind can be set to any
+ * number afterwards.
+ */
+export const QUICK_ARMIES = [
   { key: 'militia', name: '民兵', en: 'Militia', icon: '🛡️', note: '最便宜的基础兵，人多但很弱。' },
   { key: 'spearman', name: '长枪兵', en: 'Spearman', icon: '🔱', note: '防御最高的长枪阵，克制骑兵。' },
   { key: 'archer', name: '弓箭手', en: 'Archer', icon: '🏹', note: '隔空输出，需要前排挡住敌人。' },
@@ -22,11 +41,12 @@ export const QUICK_PLAYER_ARMIES = [
 ]
 
 /**
- * The enemy factions, each with the mix of families it fights with.
+ * The enemy factions: each one is a mix of the four kinds.
  *
- * The weights are the share of the enemy army each family takes.
+ * Picking a faction fills the enemy counts; every count can then be changed
+ * to any number.
  */
-export const QUICK_ENEMY_FACTIONS = [
+export const QUICK_FACTIONS = [
   {
     key: 'bandit',
     name: '强盗',
@@ -34,10 +54,7 @@ export const QUICK_ENEMY_FACTIONS = [
     icon: '🪓',
     color: '#9aa2ab',
     note: '乌合之众：民兵为主，少数长枪兵。',
-    roster: [
-      { type: 'militia', tier: 1, share: 0.75 },
-      { type: 'spearman', tier: 1, share: 0.25 }
-    ]
+    mix: { militia: 0.75, spearman: 0.25, archer: 0, cavalry: 0 }
   },
   {
     key: 'wolf',
@@ -46,11 +63,7 @@ export const QUICK_ENEMY_FACTIONS = [
     icon: '🐺',
     color: '#7a5cc0',
     note: '长枪兵与弓箭手并重，靠阵型取胜。',
-    roster: [
-      { type: 'spearman', tier: 2, share: 0.5 },
-      { type: 'archer', tier: 2, share: 0.35 },
-      { type: 'militia', tier: 1, share: 0.15 }
-    ]
+    mix: { spearman: 0.5, archer: 0.35, militia: 0.15, cavalry: 0 }
   },
   {
     key: 'eagle',
@@ -59,11 +72,7 @@ export const QUICK_ENEMY_FACTIONS = [
     icon: '🦅',
     color: '#c98a2b',
     note: '骑兵为主，机动性最强。',
-    roster: [
-      { type: 'cavalry', tier: 2, share: 0.55 },
-      { type: 'archer', tier: 2, share: 0.3 },
-      { type: 'spearman', tier: 2, share: 0.15 }
-    ]
+    mix: { cavalry: 0.55, archer: 0.3, spearman: 0.15, militia: 0 }
   }
 ]
 
@@ -75,7 +84,7 @@ export const QUICK_SCALES = [
   { key: 'army', name: '大军', en: 'Army', perSide: 64, note: '每方 64 名士兵' }
 ]
 
-/** How many fights a quick battle runs. */
+/** How many fights the instant simulation runs. */
 export const QUICK_ROUNDS = [
   { key: '5', name: '5 场', count: 5 },
   { key: '20', name: '20 场', count: 20 },
@@ -89,40 +98,110 @@ export function quickScaleOf(key) {
 
 /** The record of a player army key, falling back to the militia. */
 export function quickArmyOf(key) {
-  return QUICK_PLAYER_ARMIES.find((a) => a.key === key) || QUICK_PLAYER_ARMIES[0]
+  return QUICK_ARMIES.find((a) => a.key === key) || QUICK_ARMIES[0]
 }
 
 /** The record of an enemy faction key, falling back to the bandits. */
 export function quickFactionOf(key) {
-  return QUICK_ENEMY_FACTIONS.find((f) => f.key === key) || QUICK_ENEMY_FACTIONS[0]
+  return QUICK_FACTIONS.find((f) => f.key === key) || QUICK_FACTIONS[0]
 }
 
-/** The battlefield presets the simulator offers. */
-export const QUICK_MAPS = ARENA_MAPS
+/** The record of a unit kind, falling back to the militia. */
+export function quickUnitOf(key) {
+  return QUICK_UNITS.find((u) => u.key === key) || QUICK_UNITS[0]
+}
+
+/** How many soldiers a side has in total. */
+export function countTotal(counts) {
+  return QUICK_UNITS.reduce((n, u) => n + (counts?.[u.key] || 0), 0)
+}
+
+/** How many soldiers a warband array holds in total. */
+export function troopTotal(troops) {
+  return (troops || []).reduce((n, g) => n + (g.count || 0), 0)
+}
 
 /**
- * The warband of one side: the soldiers are spread over the families of a
- * roster by their share, and every soldier starts at full health.
+ * The counts of one side of the field: every kind of soldier and how many of
+ * it there are.
  */
-export function buildArmy(roster, perSide) {
-  const troops = []
+export function emptyCounts() {
+  const out = {}
+  for (const u of QUICK_UNITS) out[u.key] = 0
+  return out
+}
+
+/**
+ * The counts of a whole side of one kind of soldier.
+ *
+ * 整队只有一个兵种时，按总人数铺开。
+ */
+export function armyCounts(armyKey, perSide) {
+  const counts = emptyCounts()
+  counts[quickArmyOf(armyKey).key] = perSide
+  return counts
+}
+
+/**
+ * The counts of a faction: its mix spread over the asked size.
+ *
+ * The last kind of the mix takes the rounding remainder, so the side always
+ * has exactly the asked number of soldiers.
+ */
+export function factionCounts(factionKey, perSide) {
+  const faction = quickFactionOf(factionKey)
+  const counts = emptyCounts()
   let left = perSide
-  roster.forEach((entry, index) => {
-    const count = index === roster.length - 1 ? left : Math.round(perSide * entry.share)
+  const kinds = QUICK_UNITS.filter((u) => faction.mix[u.key] > 0)
+  kinds.forEach((unit, index) => {
+    const count = index === kinds.length - 1 ? left : Math.round(perSide * faction.mix[unit.key])
     const take = Math.max(0, Math.min(count, left))
     left -= take
-    if (!take) return
-    const hp = unitDef(entry.type, entry.tier).hp
-    troops.push({ type: entry.type, tier: entry.tier, count: take, hp: new Array(take).fill(hp) })
+    counts[unit.key] = take
   })
+  return counts
+}
+
+/**
+ * Scale the counts of a side to a new size: the mix stays, the numbers grow
+ * or shrink.
+ */
+export function scaleCounts(counts, perSide) {
+  const total = countTotal(counts)
+  const out = emptyCounts()
+  if (!total) return factionCounts('bandit', perSide)
+  let left = perSide
+  const kinds = QUICK_UNITS.filter((u) => (counts[u.key] || 0) > 0)
+  kinds.forEach((unit, index) => {
+    const count = index === kinds.length - 1 ? left : Math.round((counts[unit.key] / total) * perSide)
+    const take = Math.max(0, Math.min(count, left))
+    left -= take
+    out[unit.key] = take
+  })
+  return out
+}
+
+/**
+ * The warband of one side: every kind of soldier with its own count, and
+ * every soldier at full health.
+ */
+export function buildArmy(counts) {
+  const troops = []
+  for (const unit of QUICK_UNITS) {
+    const count = Math.max(0, Math.min(QUICK_MAX_COUNT, counts?.[unit.key] || 0))
+    if (!count) continue
+    const hp = unitDef(unit.key, QUICK_TIER).hp
+    troops.push({ type: unit.key, tier: QUICK_TIER, count, hp: new Array(count).fill(hp) })
+  }
   return troops
 }
 
-/** The warband of the lord's side: one family, as many soldiers as asked. */
-export function buildPlayerArmy(armyKey, perSide) {
-  const army = quickArmyOf(armyKey)
-  const hp = unitDef(army.key, 2).hp
-  return [{ type: army.key, tier: 2, count: perSide, hp: new Array(perSide).fill(hp) }]
+/** The two armies of a quick battle, ready for `createBattle()`. */
+export function buildQuickArmies({ playerCounts, enemyCounts }) {
+  return {
+    playerTroops: buildArmy(playerCounts),
+    enemyTroops: buildArmy(enemyCounts)
+  }
 }
 
 /**
@@ -163,21 +242,16 @@ export function simulateRound({ map, playerTroops, enemyTroops, enemyFaction, se
 }
 
 /**
- * Run the whole quick battle.
+ * Run the whole instant simulation.
  *
  * The rounds are simulated one after the other, and the callback reports the
  * progress so the screen can show a bar while the fight is running.
  */
 export async function runQuickBattle(options, onProgress) {
   const map = options.map || 'mixed'
-  const scale = quickScaleOf(options.scale)
-  const army = quickArmyOf(options.army)
-  const faction = quickFactionOf(options.faction)
   const rounds = Math.max(1, Math.round(options.rounds || 20))
   const seed = Number.isFinite(options.seed) ? options.seed : 20261021
-
-  const playerTroops = buildPlayerArmy(army.key, scale.perSide)
-  const enemyTroops = buildArmy(faction.roster, scale.perSide)
+  const { playerTroops, enemyTroops } = buildQuickArmies(options)
 
   const results = []
   for (let i = 0; i < rounds; i += 1) {
@@ -185,7 +259,7 @@ export async function runQuickBattle(options, onProgress) {
       map,
       playerTroops,
       enemyTroops,
-      enemyFaction: faction.key,
+      enemyFaction: options.faction || 'bandit',
       seed: seed + i * 7919
     })
     results.push(round)
@@ -202,9 +276,7 @@ export async function runQuickBattle(options, onProgress) {
 
   return {
     map,
-    army,
-    faction,
-    scale,
+    faction: quickFactionOf(options.faction),
     rounds: results.length,
     wins,
     losses,

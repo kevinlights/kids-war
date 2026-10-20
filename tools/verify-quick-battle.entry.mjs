@@ -1,28 +1,39 @@
 /**
- * Headless checks for the quick battle simulator.
+ * Headless checks for the quick battle.
  *
- * The simulator answers "who would win?" without a campaign: it picks a
- * battlefield, the two armies and their size, and fights the fight many times
- * over. These checks keep that contract honest.
+ * The quick battle lets the lord pick a battlefield, set how many soldiers of
+ * each kind fight on each side, and then fight it out on the real field.
+ * These checks keep that contract honest.
  */
 import { createPinia, setActivePinia } from 'pinia'
+import { usePlayerStore } from '@/stores/player'
+import { useBattleStore } from '@/stores/battle'
 import { ARENA_MAPS, generateArenaTerrain, arenaCellTerrain } from '@/game/arena'
 import {
-  QUICK_ENEMY_FACTIONS,
+  QUICK_FACTIONS,
   QUICK_MAPS,
-  QUICK_PLAYER_ARMIES,
+  QUICK_MAX_COUNT,
   QUICK_SCALES,
+  QUICK_UNITS,
+  armyCounts,
   buildArmy,
-  buildPlayerArmy,
+  buildQuickArmies,
+  countTotal,
+  emptyCounts,
+  factionCounts,
   quickFactionOf,
   quickScaleOf,
   runQuickBattle,
-  simulateRound
+  scaleCounts,
+  simulateRound,
+  troopTotal
 } from '@/game/quickBattle'
 
 const check = (name, condition, detail = '') => globalThis.__reporter.check(name, condition, detail)
 
 setActivePinia(createPinia())
+const player = usePlayerStore()
+const battle = useBattleStore()
 
 /* ------------------------------ 1. the maps -------------------------------- */
 
@@ -59,34 +70,107 @@ check('the lake holds deep water', lakeCells > 10, String(lakeCells))
 
 /* ------------------------------ 2. the armies ------------------------------ */
 
-check('there are four armies for the lord', QUICK_PLAYER_ARMIES.length === 4)
-check('there are three enemy factions', QUICK_ENEMY_FACTIONS.length === 3)
-check('the factions are the hostile ones', QUICK_ENEMY_FACTIONS.every((f) => f.key !== 'player'))
-check('every faction has a roster', QUICK_ENEMY_FACTIONS.every((f) => f.roster.length > 0))
-check('every roster entry has a share', QUICK_ENEMY_FACTIONS.every((f) => f.roster.every((r) => r.share > 0)))
-
-const scale = quickScaleOf('company')
+check('there are four kinds of soldier', QUICK_UNITS.length === 4)
+check('every kind has a name', QUICK_UNITS.every((u) => u.name && u.en && u.icon))
+check('there are three enemy factions', QUICK_FACTIONS.length === 3)
+check('the factions are the hostile ones', QUICK_FACTIONS.every((f) => f.key !== 'player'))
+check('every faction has a mix', QUICK_FACTIONS.every((f) => f.mix && Object.keys(f.mix).length === 4))
 check('the scales grow', QUICK_SCALES.every((s, i) => i === 0 || s.perSide > QUICK_SCALES[i - 1].perSide))
 check('the scale falls back', quickScaleOf('nonsense').key === QUICK_SCALES[0].key)
 check('the faction falls back', quickFactionOf('nonsense').key === 'bandit')
 
-const bandits = buildArmy(quickFactionOf('bandit').roster, 16)
-const banditTotal = bandits.reduce((n, g) => n + g.count, 0)
-check('the enemy army has the asked size', banditTotal === 16, String(banditTotal))
-check('the enemy army carries health', bandits.every((g) => g.hp.length === g.count && g.hp.every((v) => v > 0)))
-check('the enemy army keeps its families', bandits.every((g) => g.type && g.tier))
+// The counts of every kind can be set to any number.
+const counts = emptyCounts()
+counts.militia = 3
+counts.archer = 11
+counts.cavalry = 0
+check('the counts hold every kind', QUICK_UNITS.every((u) => typeof counts[u.key] === 'number'))
+check('the counts add up', countTotal(counts) === 14, String(countTotal(counts)))
 
-const playerArmy = buildPlayerArmy('spearman', 16)
-check('the lord fields the asked size', playerArmy.reduce((n, g) => n + g.count, 0) === 16)
-check('the lord fields the chosen family', playerArmy[0].type === 'spearman')
-check('the lord fields healthy soldiers', playerArmy[0].hp.length === playerArmy[0].count)
+const army = buildArmy(counts)
+check('the army holds the counted soldiers', army.reduce((n, g) => n + g.count, 0) === 14)
+check('the army carries the kinds that were counted', army.length === 2)
+check('the army carries health', army.every((g) => g.hp.length === g.count && g.hp.every((v) => v > 0)))
+check('an empty kind is left out', !army.some((g) => g.count === 0))
 
-/* ------------------------------- 3. the fight ------------------------------- */
+// A whole army of one kind.
+const oneKind = armyCounts('cavalry', 12)
+check('an army of one kind holds them all', oneKind.cavalry === 12 && countTotal(oneKind) === 12)
+
+// A faction fills the enemy counts with its mix.
+const bandits = factionCounts('bandit', 16)
+check('a faction fills the asked size', countTotal(bandits) === 16, String(countTotal(bandits)))
+check('a faction uses its own kinds', bandits.militia > 0 && bandits.cavalry === 0)
+const wolf = factionCounts('wolf', 16)
+check('the wolf fights with spears and bows', wolf.spearman > 0 && wolf.archer > 0)
+const eagle = factionCounts('eagle', 16)
+check('the eagle fights with cavalry', eagle.cavalry > 0)
+
+// Scaling keeps the mix and changes the size.
+const scaled = scaleCounts(wolf, 32)
+check('scaling keeps the size asked', countTotal(scaled) === 32, String(countTotal(scaled)))
+check(
+  'scaling keeps the mix',
+  scaled.spearman > 0 && scaled.archer > 0 && Math.abs(scaled.spearman / 32 - wolf.spearman / 16) < 0.1,
+  JSON.stringify({ scaled, wolf })
+)
+check('scaling an empty side gives soldiers', countTotal(scaleCounts(emptyCounts(), 8)) === 8)
+
+// The two sides of a quick battle.
+const { playerTroops, enemyTroops } = buildQuickArmies({
+  playerCounts: armyCounts('spearman', 8),
+  enemyCounts: factionCounts('bandit', 8)
+})
+check('the quick battle has two armies', playerTroops.length === 1 && enemyTroops.length === 2)
+check('the quick battle armies have the asked size', troopTotal(playerTroops) === 8 && troopTotal(enemyTroops) === 8)
+check('the counts are capped', QUICK_MAX_COUNT > 0)
+
+/* --------------------------- 3. the fight itself --------------------------- */
+
+// The store opens the battle with the chosen armies.
+player.reset('tester')
+player.addTroops('militia', 1, 5)
+const troopsBefore = JSON.stringify(player.troops)
+const goldBefore = player.gold
+
+battle.startQuick({
+  map: 'forest',
+  playerTroops,
+  enemyTroops,
+  enemyFaction: 'bandit',
+  seed: 17
+})
+check('the quick battle is open', battle.active && !!battle.data)
+check('the store knows it is a quick battle', battle.context.kind === 'quick')
+check('the enemy is the chosen faction', battle.context.faction === 'bandit')
+check('the field is the chosen battlefield', battle.context.map === 'forest')
+check('the chosen armies are on the field', battle.data.units.filter((u) => u.side === 'player').length === 8)
+check('the enemy army is on the field', battle.data.units.filter((u) => u.side === 'enemy').length === 8)
+
+// The fight is a real one: it ends and it is settled.
+let guard = 0
+while (!battle.data.outcome && guard < 60 * 200) {
+  battle.tick(1 / 60)
+  guard += 1
+}
+check('the quick battle ends', !!battle.data.outcome, String(battle.data.outcome))
+check('the quick battle settles', battle.settled === true)
+check('the result carries the survivors', !!battle.result && !!battle.result.summary)
+
+// A quick battle is a sandbox: the campaign is not touched.
+check('the warband is untouched', JSON.stringify(player.troops) === troopsBefore)
+check('the purse is untouched', player.gold === goldBefore)
+check('the record is untouched', player.stats.battles === 0)
+check('the result says it is a sandbox', battle.result.sandbox === true)
+battle.close()
+check('the quick battle closes', !battle.active && !battle.data)
+
+/* --------------------------- 4. the instant run ---------------------------- */
 
 const round = simulateRound({
   map: 'mixed',
-  playerTroops: buildPlayerArmy('spearman', 8),
-  enemyTroops: buildArmy(quickFactionOf('bandit').roster, 8),
+  playerTroops,
+  enemyTroops,
   enemyFaction: 'bandit',
   seed: 3
 })
@@ -96,7 +180,13 @@ check('a round counts the fallen', round.playerFallen === 8 - round.playerAlive 
 
 // The whole simulation must stay fast enough for a browser.
 const started = Date.now()
-const report = await runQuickBattle({ map: 'mixed', army: 'spearman', faction: 'bandit', scale: 'squad', rounds: 5 })
+const report = await runQuickBattle({
+  map: 'mixed',
+  faction: 'bandit',
+  playerCounts: armyCounts('spearman', 8),
+  enemyCounts: factionCounts('bandit', 8),
+  rounds: 5
+})
 const elapsed = Date.now() - started
 check('five rounds are simulated', report.rounds === 5, String(report.rounds))
 check('the results add up', report.wins + report.losses + report.draws === 5)

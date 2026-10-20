@@ -171,9 +171,11 @@ export const BATCHES = [
     items: [
     { zh: "快速战斗：不用打战役，也能问一句「谁打得过谁」。", en: "Quick battle: ask \"who would win?\" without playing a campaign." },
     { zh: "可以选战场：混战、平原、密林、山地、大河与湖泽六种地形。", en: "Six battlefields to pick: mixed, plain, forest, mountain, river and lake." },
-    { zh: "可以选敌我：己方民兵 / 长枪兵 / 弓箭手 / 骑兵，敌方强盗 / 苍狼 / 赤鹰。", en: "Both sides can be picked: militia, spearmen, archers or cavalry against bandits, the wolf or the eagle." },
-    { zh: "可以选规模：小队、中队、大队到大军，跑 5 / 20 / 50 场。", en: "The armies can be sized from a squad to an army, over 5, 20 or 50 fights." },
-    { zh: "战报：胜率、双方平均阵亡与每场明细一目了然。", en: "The report shows the win rate, the average casualties of both sides and every round." },
+    { zh: "兵力可以随便填：民兵、长枪兵、弓箭手、骑兵，**每一种的数量都能用加减键任意设置**，四档规模只是帮你一键铺开。", en: "The numbers are yours to set: militia, spearmen, archers and cavalry, and **the count of every kind can be raised or lowered freely** — the four sizes are only a shortcut." },
+    { zh: "可以选敌我势力：己方一键换成整队民兵 / 长枪兵 / 弓箭手 / 骑兵，敌方一键换成强盗 / 苍狼 / 赤鹰的兵种配比，之后仍可逐个改。", en: "Both sides can be picked: the lord switches to a whole band of militia / spearmen / archers / cavalry, the enemy to the mix of the bandits / the wolf / the eagle, and every number stays editable." },
+    { zh: "打完是真打一场：点「⚡ 进入战场」就站上战场，像平常一样下令、换队形、打完看战报。", en: "The fight is a real one: 「⚡ 进入战场」 puts the lord on the field, where the orders and formations work exactly as usual." },
+    { zh: "快速战斗不打乱战役：这一场只是练习，你的队伍、金币与战绩都不会变。", en: "A quick battle leaves the campaign alone: it is a drill, so the warband, the purse and the record do not move." },
+    { zh: "想先看胜率也行：点「📊 先看看胜率」用同样的两支队伍跑 20 场，直接给出胜率与平均阵亡。", en: "Or look at the odds first: 「📊 先看看胜率」 runs the same two armies through 20 fights and reports the win rate and the average casualties." },
     { zh: "入口就在首页：「⚡ 快速战斗」与「开始新的征程」「继续上次进度」**同级**，一进来就能用。", en: "The entry is on the home screen: 「⚡ 快速战斗」 sits **on the same level** as 「开始新的征程」 and 「继续上次进度」." },
     { zh: "--", en: "" }
     ]

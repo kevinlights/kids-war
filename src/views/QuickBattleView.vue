@@ -4,7 +4,7 @@
       <header class="head">
         <button class="back" @click="router.push('/')">← 返回首页</button>
         <h1>⚡ 快速战斗</h1>
-        <p class="sub">选战场、选敌我、选兵力，模拟器替你打一遍 · Quick battle simulator</p>
+        <p class="sub">选战场、定兵力，进入战场真打一场 · Pick a field, set the armies, fight it out</p>
       </header>
 
       <!-- The battlefield -->
@@ -25,46 +25,7 @@
         <p class="note">{{ mapInfo.note }}</p>
       </section>
 
-      <!-- The two sides -->
-      <section class="panel block">
-        <div class="block-title">⚔️ 敌我势力 · The two sides</div>
-        <div class="sides">
-          <div class="side">
-            <div class="side-title">🛡️ 己方</div>
-            <div class="grid">
-              <button
-                v-for="a in ARMIES"
-                :key="a.key"
-                class="pick"
-                :class="{ on: options.army === a.key }"
-                @click="options.army = a.key"
-              >
-                <span class="pick-icon">{{ a.icon }}</span>
-                <span class="pick-name">{{ a.name }}</span>
-              </button>
-            </div>
-            <p class="note">{{ armyInfo.note }}</p>
-          </div>
-          <div class="side">
-            <div class="side-title">🪓 敌方</div>
-            <div class="grid">
-              <button
-                v-for="f in FACTIONS"
-                :key="f.key"
-                class="pick"
-                :class="{ on: options.faction === f.key }"
-                @click="options.faction = f.key"
-              >
-                <span class="pick-icon">{{ f.icon }}</span>
-                <span class="pick-name">{{ f.name }}</span>
-              </button>
-            </div>
-            <p class="note">{{ factionInfo.note }}</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- The size of the armies and the number of fights -->
+      <!-- The size of the armies -->
       <section class="panel block">
         <div class="block-title">🪖 士兵规模 · Size of the armies</div>
         <div class="grid scales">
@@ -73,31 +34,82 @@
             :key="s.key"
             class="pick"
             :class="{ on: options.scale === s.key }"
-            @click="options.scale = s.key"
+            @click="setScale(s)"
           >
             <span class="pick-name">{{ s.name }}</span>
             <span class="pick-sub">{{ s.perSide }} × {{ s.perSide }}</span>
           </button>
         </div>
-        <div class="block-title rounds">🔁 模拟场次 · Rounds</div>
-        <div class="grid rounds-grid">
-          <button
-            v-for="r in ROUNDS"
-            :key="r.key"
-            class="pick"
-            :class="{ on: String(options.rounds) === r.key }"
-            @click="options.rounds = Number(r.key)"
-          >
-            <span class="pick-name">{{ r.name }}</span>
-          </button>
+        <p class="note">规模只决定每方多少人，具体兵种的数量可以自己填。The size only says how many soldiers there are; the mix is yours to set.</p>
+      </section>
+
+      <!-- The two sides -->
+      <section class="panel block">
+        <div class="block-title">⚔️ 敌我势力 · The two sides</div>
+
+        <div class="side">
+          <div class="side-head">
+            <span class="side-title">🛡️ 己方</span>
+            <span class="side-total">{{ total(playerCounts) }} 名</span>
+          </div>
+          <div class="presets">
+            <button
+              v-for="a in ARMIES"
+              :key="a.key"
+              class="chip"
+              @click="setPlayerArmy(a.key)"
+            >
+              {{ a.icon }} {{ a.name }}
+            </button>
+          </div>
+          <div v-for="u in UNITS" :key="u.key" class="counter">
+            <span class="counter-name">{{ u.icon }} {{ u.name }}</span>
+            <div class="stepper">
+              <button class="step" @click="change(playerCounts, u.key, -1)">−</button>
+              <span class="num">{{ playerCounts[u.key] }}</span>
+              <button class="step" @click="change(playerCounts, u.key, 1)">+</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="side">
+          <div class="side-head">
+            <span class="side-title">🪓 敌方</span>
+            <span class="side-total">{{ total(enemyCounts) }} 名</span>
+          </div>
+          <div class="presets">
+            <button
+              v-for="f in FACTIONS"
+              :key="f.key"
+              class="chip"
+              :class="{ on: options.faction === f.key }"
+              @click="setFaction(f.key)"
+            >
+              {{ f.icon }} {{ f.name }}
+            </button>
+          </div>
+          <p class="note">{{ factionInfo.note }}</p>
+          <div v-for="u in UNITS" :key="u.key" class="counter">
+            <span class="counter-name">{{ u.icon }} {{ u.name }}</span>
+            <div class="stepper">
+              <button class="step" @click="change(enemyCounts, u.key, -1)">−</button>
+              <span class="num">{{ enemyCounts[u.key] }}</span>
+              <button class="step" @click="change(enemyCounts, u.key, 1)">+</button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <button class="btn go" :disabled="running" @click="run">
-        {{ running ? '⏳ 模拟中…' : '⚡ 开始模拟' }}
-      </button>
+      <!-- Into the battle -->
+      <div class="actions">
+        <button class="btn go" :disabled="!canFight" @click="startBattle">⚡ 进入战场</button>
+        <button class="btn ghost" :disabled="running || !canFight" @click="simulate">
+          {{ running ? '⏳ 模拟中…' : '📊 先看看胜率' }}
+        </button>
+      </div>
+      <p v-if="!canFight" class="hint muted">两边都要有人才能开战。Both sides need at least one soldier.</p>
 
-      <!-- The progress of the simulation -->
+      <!-- The progress of the instant simulation -->
       <div v-if="running || done" class="panel progress">
         <div class="progress-bar">
           <div class="progress-fill" :style="{ width: `${percent}%` }"></div>
@@ -105,7 +117,7 @@
         <span class="progress-text">{{ doneText }}</span>
       </div>
 
-      <!-- The result of the simulation -->
+      <!-- The report of the instant simulation -->
       <section v-if="report" class="panel result">
         <div class="result-head">
           <div class="winrate">
@@ -119,11 +131,6 @@
           </div>
         </div>
 
-        <p class="setup muted">
-          {{ mapInfo.icon }} {{ mapInfo.name }} · {{ armyInfo.icon }} {{ armyInfo.name }} × {{ report.scale.perSide }} vs
-          {{ factionInfo.icon }} {{ factionInfo.name }} × {{ report.scale.perSide }} · {{ report.rounds }} 场
-        </p>
-
         <div class="stats">
           <div class="stat"><span>我方平均剩余</span><b>{{ report.avgPlayerAlive }}</b></div>
           <div class="stat"><span>我方平均阵亡</span><b>{{ report.avgPlayerFallen }}</b></div>
@@ -131,14 +138,7 @@
           <div class="stat"><span>平均时长</span><b>{{ report.avgTime }}s</b></div>
         </div>
 
-        <div class="rounds-title">每场结果 · Every round</div>
-        <div class="round-list">
-          <div v-for="(r, i) in report.results" :key="i" class="round-row" :class="r.outcome">
-            <span class="round-no">#{{ i + 1 }}</span>
-            <span class="round-out">{{ outcomeText(r.outcome) }}</span>
-            <span class="round-detail">我 {{ r.playerAlive }} · 敌 {{ r.enemyAlive }} · {{ r.time }}s</span>
-          </div>
-        </div>
+        <p class="setup muted">这是模拟出来的结果；点「⚡ 进入战场」自己指挥一场。This is the simulation; 「⚡ 进入战场」 is the fight you command yourself.</p>
       </section>
     </div>
   </div>
@@ -148,66 +148,124 @@
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  QUICK_ENEMY_FACTIONS,
+  QUICK_ARMIES,
+  QUICK_FACTIONS,
   QUICK_MAPS,
-  QUICK_PLAYER_ARMIES,
+  QUICK_MAX_COUNT,
   QUICK_ROUNDS,
   QUICK_SCALES,
+  QUICK_UNITS,
+  armyCounts,
+  buildQuickArmies,
+  countTotal,
+  emptyCounts,
+  factionCounts,
   quickFactionOf,
   quickScaleOf,
-  runQuickBattle
+  runQuickBattle,
+  scaleCounts
 } from '@/game/quickBattle'
 import { arenaMapOf } from '@/game/arena'
+import { useBattleStore } from '@/stores/battle'
 
 const router = useRouter()
+const battle = useBattleStore()
 
 const MAPS = QUICK_MAPS
-const ARMIES = QUICK_PLAYER_ARMIES
-const FACTIONS = QUICK_ENEMY_FACTIONS
+const ARMIES = QUICK_ARMIES
+const FACTIONS = QUICK_FACTIONS
 const SCALES = QUICK_SCALES
-const ROUNDS = QUICK_ROUNDS
+const UNITS = QUICK_UNITS
 
-// The settings of the simulation.
+// The settings of the fight.
 const options = ref({
   map: 'mixed',
-  army: 'spearman',
   faction: 'bandit',
-  scale: 'company',
-  rounds: 20
+  scale: 'company'
 })
+
+// The soldiers of each side: every kind can be set to any number.
+const playerCounts = ref(armyCounts('spearman', quickScaleOf('company').perSide))
+const enemyCounts = ref(factionCounts('bandit', quickScaleOf('company').perSide))
 
 const running = ref(false)
 const done = ref(0)
 const report = ref(null)
 
 const mapInfo = computed(() => arenaMapOf(options.value.map))
-const armyInfo = computed(
-  () => QUICK_PLAYER_ARMIES.find((a) => a.key === options.value.army) || QUICK_PLAYER_ARMIES[0]
-)
 const factionInfo = computed(() => quickFactionOf(options.value.faction))
+const canFight = computed(
+  () => countTotal(playerCounts.value) > 0 && countTotal(enemyCounts.value) > 0
+)
 
 const percent = computed(() =>
-  report.value ? 100 : Math.round((done.value / Math.max(1, options.value.rounds)) * 100)
+  report.value ? 100 : Math.round((done.value / Math.max(1, options.value.rounds || 20)) * 100)
 )
-const doneText = computed(
-  () => `已完成 ${done.value} / ${options.value.rounds} 场 · ${percent.value}%`
-)
+const doneText = computed(() => `已完成 ${done.value} / ${options.value.rounds || 20} 场 · ${percent.value}%`)
 
-function outcomeText(outcome) {
-  if (outcome === 'win') return '🏆 胜'
-  if (outcome === 'lose') return '💀 负'
-  return '🤝 平'
+/** How many soldiers a side has. */
+function total(counts) {
+  return countTotal(counts)
 }
 
-/** Run the whole simulation and show what came out of it. */
-async function run() {
+/** Add or remove one soldier of a kind. */
+function change(counts, key, step) {
+  const next = Math.max(0, Math.min(QUICK_MAX_COUNT, (counts[key] || 0) + step))
+  counts[key] = next
+}
+
+/** The lord fields one kind of soldier. */
+function setPlayerArmy(key) {
+  playerCounts.value = armyCounts(key, quickScaleOf(options.value.scale).perSide)
+}
+
+/** The enemy fights with the mix of its faction. */
+function setFaction(key) {
+  options.value.faction = key
+  enemyCounts.value = factionCounts(key, quickScaleOf(options.value.scale).perSide)
+}
+
+/** The size scales both sides, mix kept. */
+function setScale(scale) {
+  options.value.scale = scale.key
+  const perSide = scale.perSide
+  playerCounts.value = scaleCounts(playerCounts.value, perSide)
+  enemyCounts.value = scaleCounts(enemyCounts.value, perSide)
+}
+
+/** Into the battle: the two armies meet on the chosen field. */
+function startBattle() {
+  if (!canFight.value) return
+  const { playerTroops, enemyTroops } = buildQuickArmies({
+    playerCounts: playerCounts.value,
+    enemyCounts: enemyCounts.value
+  })
+  battle.startQuick({
+    map: options.value.map,
+    playerTroops,
+    enemyTroops,
+    enemyFaction: options.value.faction,
+    seed: Math.floor(Math.random() * 1e9)
+  })
+  router.push('/battle')
+}
+
+/** The instant simulation: the same fight, over and over. */
+async function simulate() {
   if (running.value) return
   running.value = true
   done.value = 0
   report.value = null
   try {
     report.value = await runQuickBattle(
-      { ...options.value, seed: Math.floor(Math.random() * 1e9) },
+      {
+        map: options.value.map,
+        faction: options.value.faction,
+        playerCounts: playerCounts.value,
+        enemyCounts: enemyCounts.value,
+        rounds: 20,
+        seed: Math.floor(Math.random() * 1e9)
+      },
       (finished) => {
         done.value = finished
       }
@@ -274,10 +332,6 @@ h1 {
   color: var(--gold);
 }
 
-.block-title.rounds {
-  margin-top: 4px;
-}
-
 .grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -290,10 +344,6 @@ h1 {
 
 .grid.scales {
   grid-template-columns: repeat(4, 1fr);
-}
-
-.grid.rounds-grid {
-  grid-template-columns: repeat(3, 1fr);
 }
 
 .pick {
@@ -330,22 +380,101 @@ h1 {
   color: var(--ink-dim);
 }
 
-.sides {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 .side {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.side-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .side-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--ink);
+}
+
+.side-total {
+  font-size: 12px;
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* The one-tap presets: a whole army of one kind, or the mix of a faction. */
+.presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.chip {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.chip.on {
+  background: rgba(232, 197, 106, 0.22);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* One row per kind of soldier: its name and a stepper for its count. */
+.counter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+
+.counter-name {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.step {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.step:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.num {
+  min-width: 38px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--gold);
 }
 
 .note {
@@ -355,10 +484,27 @@ h1 {
   color: var(--ink-dim);
 }
 
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.actions .btn {
+  flex: 1;
+  min-width: 160px;
+}
+
 .btn.go {
   padding: 16px;
   font-size: 17px;
   letter-spacing: 2px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 13px;
+  text-align: center;
 }
 
 .progress {
@@ -471,53 +617,7 @@ h1 {
   color: var(--ink);
 }
 
-.rounds-title {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--gold);
-}
-
-.round-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 240px;
-  overflow-y: auto;
-}
-
-.round-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 5px 10px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  font-size: 12.5px;
-}
-
-.round-no {
-  color: var(--ink-dim);
-  min-width: 32px;
-}
-
-.round-out {
-  font-weight: 700;
-  min-width: 52px;
-}
-
-.round-row.win .round-out {
-  color: #ffe9a8;
-}
-
-.round-row.lose .round-out {
-  color: #f0b3a5;
-}
-
-.round-detail {
-  color: var(--ink-dim);
-}
-
-/* Phones: the picks stay big enough for a thumb. */
+/* Phones: the picks and the steppers stay big enough for a thumb. */
 @media (max-width: 560px) {
   .content {
     padding: 20px 12px 40px;
@@ -527,8 +627,7 @@ h1 {
     font-size: 25px;
   }
 
-  .grid.maps,
-  .grid.rounds-grid {
+  .grid.maps {
     grid-template-columns: repeat(3, 1fr);
   }
 
@@ -539,6 +638,10 @@ h1 {
   .pick {
     min-height: 52px;
     font-size: 12.5px;
+  }
+
+  .actions .btn {
+    min-width: 0;
   }
 }
 </style>

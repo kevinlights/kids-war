@@ -7,7 +7,7 @@
         <span class="dot" style="background: #4aa3ff"></span>
         我方 {{ playerAlive }}
       </div>
-      <div class="vs">{{ training ? '🎯 练兵' : '⚔️ 战斗' }}</div>
+      <div class="vs">{{ title }}</div>
       <div class="side enemy">
         <span class="dot" :style="{ background: enemyColor }"></span>
         {{ enemyName }} {{ enemyAlive }}
@@ -135,11 +135,15 @@
       <div class="result panel pop">
         <h2 :class="result.outcome">{{ result.outcome === 'win' ? '🏆 大获全胜' : '💀 战斗失利' }}</h2>
 
-        <div v-if="result.outcome === 'win'" class="loot">
+        <div v-if="quick && result.outcome === 'win'" class="loot">
+          <div class="loot-item">⚡ 快速战斗 <b>这场练习不计入战绩</b></div>
+        </div>
+        <div v-else-if="result.outcome === 'win'" class="loot">
           <div class="loot-item">🪙 战利品 <b>+{{ result.loot }}</b></div>
           <div v-if="result.recruits" class="loot-item">🎖️ 收编俘虏 <b>+{{ result.recruits }} 民兵</b></div>
           <div v-if="result.captured" class="loot-item">🏛️ 占领城镇 <b>这座城镇归你了</b></div>
         </div>
+        <p v-else-if="quick" class="muted lose-tip">这次的损失只是练习里的事，你的队伍没有少一个士兵。</p>
         <p v-else class="muted lose-tip">部队损失惨重，退回安全地带修养，先去城镇考试赚钱补充兵力吧。</p>
 
         <div class="casualties">
@@ -159,7 +163,7 @@
           </div>
         </div>
 
-        <button class="btn big" @click="returnToWorld">返回世界地图</button>
+        <button class="btn big" @click="returnToWorld">{{ quick ? '← 回到快速战斗' : '返回世界地图' }}</button>
       </div>
     </div>
   </div>
@@ -194,6 +198,15 @@ const density = computed(() => battle.density)
 const hungry = computed(() => !!battle.context?.hungry)
 // A training session: no enemy, no losses, the field is the practice ground.
 const training = computed(() => battle.isTraining)
+// A quick battle: a real fight on a field of the lord's choosing, without a
+// campaign around it.
+const quick = computed(() => battle.context?.kind === 'quick')
+// The name of the fight in the top bar.
+const title = computed(() => {
+  if (training.value) return '🎯 练兵'
+  if (quick.value) return '⚡ 快速战斗'
+  return '⚔️ 战斗'
+})
 // The terrain kinds of the field, for the legend.
 const TERRAINS = ARENA_TERRAIN_LIST
 const speedInfo = computed(() => battle.speedInfo)
@@ -250,6 +263,11 @@ function onEnd() {
 function returnToWorld() {
   world.clearEncounter()
   battle.close()
+  // A quick battle has no campaign to go back to: it returns to its setup.
+  if (quick.value) {
+    router.push('/quick')
+    return
+  }
   persistGame()
   router.push('/world')
 }

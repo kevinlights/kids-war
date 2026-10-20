@@ -173,6 +173,39 @@ export const useBattleStore = defineStore('battle', {
       this.active = true
     },
 
+    /**
+     * Start a quick battle: the chosen army against the chosen enemy faction
+     * on the chosen battlefield.
+     *
+     * It is a sandbox: the fight is a real one — the same simulation, the same
+     * commands, the same field — but the campaign is not touched, so nobody
+     * loses a soldier of the lord's own warband.
+     *
+     * 快速战斗：选好的两支队伍在选好的战场上打一场真的仗，但战役数据不受影响。
+     */
+    startQuick({ map, playerTroops, enemyTroops, enemyFaction, seed }) {
+      this.data = createBattle({
+        playerTroops,
+        enemyTroops,
+        enemyFaction,
+        seed,
+        playerAtkMul: 1,
+        playerDefMul: 1,
+        arenaMap: map || 'mixed'
+      })
+      this.context = {
+        partyId: null,
+        faction: enemyFaction,
+        kind: 'quick',
+        map: map || 'mixed',
+        hungry: false
+      }
+      this.selectedGroup = null
+      this.result = null
+      this.settled = false
+      this.active = true
+    },
+
     tick(dt) {
       if (!this.active || !this.data) return
       // The speed setting scales the clock of the simulation: the slow speed
@@ -355,10 +388,30 @@ export const useBattleStore = defineStore('battle', {
       // A training session never settles: it changes nothing about the
       // campaign, so the lord's soldiers, purse and record stay untouched.
       if (this.context && this.context.kind === 'training') return
-      const world = useWorldStore()
-      const player = usePlayerStore()
       const outcome = this.data.outcome
       const summary = battleSummary(this.data)
+
+      // A quick battle is a sandbox: the fight was real, but the campaign is
+      // not touched — no loot, no record, and not one soldier of the lord's
+      // own warband is lost.
+      if (this.context && this.context.kind === 'quick') {
+        this.result = {
+          outcome,
+          loot: 0,
+          recruits: 0,
+          summary,
+          wounded: 0,
+          saved: 0,
+          fallen: summary.fallen,
+          captured: false,
+          sandbox: true
+        }
+        this.settled = true
+        return
+      }
+
+      const world = useWorldStore()
+      const player = usePlayerStore()
       const party = this.context && this.context.partyId ? world.partyById(this.context.partyId) : null
       const settlement =
         this.context && this.context.settlementId
