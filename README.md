@@ -130,10 +130,29 @@ roaming party keep running, which is how you wait out an enemy respawn or bait a
 break it.
 扎营（⛺）是唯一能原地让时间流逝的方式：主角原地休息，但时钟与所有游荡部队照常运转，可以用它等敌方复活，或者把敌军引到别处。点「⛺ 扎营」就地扎营（会中断当前行军），点「🔥 拔营」或点地图任意位置即可拔营。
 
-The day chip doubles as the clock readout — ⏸ 停滞 (frozen), ⏳ 流逝 (on the march) or 🔥 扎营 (camping) — and a
+The **day clock** in the status bar shows the campaign clock: the day counter, the hour inside that day and a bar
+that fills up as the day passes. A day lasts 24 game seconds and one game second is one in-game hour, so the clock
+runs from 00:00 to 23:59 and then the day counter turns over. The bar is green while the clock is running (on the
+march or camping) and gold while it is frozen. The last fifth of the bar is the night.
+状态栏的**时钟**显示战役时钟：天数、当天的时间点，以及一条随一天推进而填满的进度条。一天是 24 秒游戏时间，而 1 秒游戏时间正好是游戏里的 1 小时，因此时钟从 00:00 走到 23:59 后天数加一。时钟在走动（行军或扎营）时进度条是绿色，冻结时是金色；进度条的最后五分之一是夜晚。
+
+#### 昼夜 · Day and night
+
+**The last fifth of every day is night** (from 19:12 to 24:00). At night the sky darkens and everything moves
+slower: the deepest night is **25% slower**, so the lord covers less ground — and so do the warbands that roam the
+map. The night is not a hard switch: the first and last quarter of it are dusk and dawn, where the darkness fades
+in and out, and the lord keeps a lantern light around himself so the ground stays readable.
+**每天的最后五分之一是夜晚**（19:12 – 24:00）。夜里天会黑下来，整个世界都变慢：最深的夜里**慢 25%**，主角能走的距离更短，地图上游荡的部队同样变慢。夜晚不是瞬间切换的：夜晚的前四分之一是黄昏、后四分之一是黎明，黑度渐变渐退；主角身边始终有一圈灯光，脚下依旧看得清。
+
+The night does not change the clock: a day is still 24 seconds of game time, so the lord simply gets less done in
+the dark.
+夜晚不会改变时钟：一天仍然是 24 秒游戏时间，只是主角在黑暗里能做的事更少。
+
+The same clock appears in the settlement screen (where time passes while the lord rests) and in the lord panel, and
+the day chip also carries the clock state — ⏸ 停滞 (frozen), ⏳ 流逝 (on the march) or 🔥 扎营 (camping) — and a
 camped lord is drawn beside a tent and campfire, so the state is readable on the map itself. Time is not part of
 the save: loading always resumes with the lord standing still and the clock frozen.
-天数芯片同时充当时钟读数——⏸ 停滞（冻结）、⏳ 流逝（行进中）或 🔥 扎营（扎营中）——扎营的主角身边会画出帐篷与篝火，状态在地图上直接可见。时间状态不写进存档：读档后总是站在原地、时钟冻结。
+同一个时钟也出现在据点界面（主角休整时时间在走）与角色信息面板里；天数芯片同时显示时钟状态——⏸ 停滞、⏳ 流逝 或 🔥 扎营——扎营的主角身边会画出帐篷与篝火，状态在地图上直接可见。时间状态不写进存档：读档后总是站在原地、时钟冻结。
 
 ### 4.2 小地图与全图 · Minimap and detailed atlas
 
@@ -205,11 +224,50 @@ An exam is scored `通过 / 结束` by `correct ≥ ceil(questions / 2)`, but th
 you go, so a failed paper still pays for what you got right.
 考试以「答对 ≥ ceil(题数 / 2)」判定「通过 / 结束」，但金币是按答对逐题结算的，所以即使没通过，答对的题也照样给钱。
 
+#### 难度 · Difficulty
+
+The difficulty decides how much gold a correct answer pays. It is picked on the home screen before a new campaign
+and can be changed at any time from the 🎚 chip on the world map; the setting belongs to the lord and is saved
+with the campaign.
+难度决定「答对一道题能拿多少金币」。开新局前在首页选择，游戏过程中也能随时用世界地图上的 🎚 芯片修改；难度属于领主本人，会随存档保存。
+
+| 难度 Difficulty | 每题金币 Gold per correct answer | 说明 Note |
+| --- | --- | --- |
+| 🟢 简单 Easy | 三年级 20 / 四年级 26（原始数值） | 原来的数值。The original numbers. |
+| 🟡 普通 Normal | 三年级 19 / 四年级 25 | 每题少 1 个金币。One gold less per question. |
+| 🔴 困难 Hard | 三年级 18 / 四年级 24 | 每题少 2 个金币。Two gold less per question. |
+
+The subject bonus (逻辑推理 +6、百科知识 +4) still applies on top, and a reward never drops below one gold.
+科目加成（逻辑推理 +6、百科知识 +4）依然照常叠加，而且奖励最低为 1 个金币。
+
+An old save without a difficulty is an easy game, so nothing changes for a campaign that started before the setting
+existed.
+旧存档没有难度字段时按「简单」处理，因此在难度设置出现之前开的局不会突然变难。
+
 Subjects · 科目：英文 English · 语文 Chinese · 数学 Math · 逻辑推理 Logic · 百科知识 Encyclopedia.
 
 The subject list is not hard-coded — it is whatever the mod registry currently holds, so a new question pack appears
 in the exam setup as soon as it is registered. See 「题库扩展 · Question mods」 in section 13.
 科目列表不是写死的：考试设置里显示的就是题库注册表当前持有的全部科目，因此新题库包一旦注册就会立刻出现在界面上。见第 13 节「题库扩展」。
+
+#### 语文题型 · Chinese question types
+
+The Chinese subject carries **reading comprehension** and a wide **ancient-poem** bank on top of the usual word
+work. Each type is its own template, so the memory curve tracks them separately.
+语文科目除了字词基础，还包含**阅读理解**与丰富的**古诗**题库；每种题型都是独立的模板，因此记忆曲线会分别记录。
+
+| 题型 Type | 说明 What it asks |
+| --- | --- |
+| 📖 阅读理解 comprehension | 12 篇短文，每篇三题：主要内容、细节与词句体会。12 short passages, three questions each: the main idea, a detail and the meaning of a word. |
+| 🏮 古诗接龙 poem | 下一句接上句，覆盖 30 首小学必背古诗。The next line of a line, over 30 poems children learn by heart. |
+| 🖋️ 补全诗句 poemFill | 诗句里缺一个字，补上它。Fill in the missing character of a line. |
+| 🏛️ 诗题 poemTitle | 由诗句猜诗题。Which poem do these lines come from? |
+| 🧑‍🏫 作者 poemAuthor | 这首诗是谁写的。Who wrote this poem? |
+| 🪶 上一句 poemPrev | 上一句是什么。Which line comes before this one? |
+| 💭 诗意 poemMeaning | 这首诗表达了什么。What does the poem express? |
+
+Every poem question carries an explanation, so a wrong answer teaches the title, the poet and the dynasty.
+每道古诗题都带解析，答错时会告诉孩子诗题、作者与朝代。
 
 #### 记忆曲线 · Memory curve
 
@@ -240,10 +298,52 @@ A paper is not a flat random draw. Every question carries a memory level from **
 Battles open automatically when a hostile party reaches within **1.3 tiles** of the player.
 当敌对部队进入到玩家 **1.3 格**范围内时自动进入战斗。
 
-The arena is a flat **900 × 560** plains field. Every troop group you bring — one family at one rank — is an
+The arena is a **1000 × 680** field that is bigger than a phone screen, so the camera follows the fighting
+instead of showing everything at once. Every troop group you bring — one family at one rank — is an
 independent **squad** with its own order, formation and density, so you can send the spearmen forward, hold the
 archers back and scatter the cavalry, all in the same fight.
-战场是一片 **900 × 560** 的平原地形。你带来的每个兵种档位（同一个家族 + 同一个档位）都是一支独立的**小队**，各自拥有命令、队形与密度，因此可以同时做到：长枪兵压上、弓箭手原地待命、骑兵散开包抄。
+战场是一片 **1000 × 680** 的场地，比手机屏幕还大，因此镜头会跟着战斗走，而不是把整块战场一次塞进屏幕。你带来的每个兵种档位（同一个家族 + 同一个档位）都是一支独立的**小队**，各自拥有命令、队形与密度，因此可以同时做到：长枪兵压上、弓箭手原地待命、骑兵散开包抄。
+
+#### 战场地形 · Battlefield terrain
+
+The field is not a flat lawn: it is divided into cells, and every cell carries a piece of terrain that changes how
+a soldier fights there. The terrain is generated from the battle seed, so the same fight always looks the same.
+战场不是一块平地：它被分成若干格子，每格有一种地形，会改变站在那里的士兵的战斗表现。地形由战斗种子生成，因此同一场战斗每次看到的地图都一样。
+
+| 地形 Terrain | 效果 Effect |
+| --- | --- |
+| 🌳 森林 Forest | 树木掩体：防御 +15%，移动 −20%。Cover: defence +15%, movement −20%. |
+| 🏜️ 沙地 Desert | 体力消耗：攻击 −10%，移动 −10%。The heat tires the troops: attack −10%, movement −10%. |
+| 🌊 河流 River | 涉水而行：移动 −30%，防御 −5%。Wading is slow: movement −30%, defence −5%. |
+| 💧 湖泊 Lake | 深水：无法通行，士兵会绕着走。Deep water: impassable, the soldiers walk around it. |
+| ⛰️ 山地 Mountain | 居高临下：攻击 +10%，防御 −10%。The high ground: attack +10%, defence −10%. |
+
+The ground under the fighters is read in `strike()`: the attacker's cell adds to its attack and the defender's
+cell adds to its defence, so a fight that happens in a forest is a different fight from one on the plain.
+攻击者脚下的格子会加攻击，防守者脚下的格子会加防御，因此森林里的一场和平原上的一场是两场不同的仗。
+
+The lake is the only impassable ground. It never stands where an army deploys, and a soldier that gets stuck
+behind one is nudged sideways, so a fight can never stall.
+湖泊是唯一不可通行的地面。它不会出现在军队的出发位置上，而被湖泊挡住去路的士兵会被侧向推开，因此战斗永远不会卡住。
+
+#### 战斗速度 · Battle speed
+
+The ⚙ button in the corner of the battle screen opens the battle tools: the **speed** and the **terrain legend**.
+The speed is **slow by default**, so a child can read the field and give orders before the next clash happens.
+战斗界面角落的 ⚙ 按钮打开「战斗工具」面板：里面是**速度**与**地形说明**。速度**默认是慢速**，这样孩子来得及看清战场、赶在下一次交手前下达命令。
+
+| 速度 Speed | 倍率 Multiplier | 说明 Note |
+| --- | --- | --- |
+| 🐢 慢速 Slow | ×0.6 | 默认。战斗慢半拍，方便看清每一个动作。The default: the fight crawls, so every move can be read. |
+| 🚶 正常 Normal | ×1 | 游戏原本的速度。The speed the game always had. |
+| 🐇 快速 Fast | ×1.8 | 战局推进很快，适合熟练之后。For a player who knows the ropes. |
+
+#### 镜头 · Camera
+
+The camera zooms with the armies: when they are far apart the whole field is seen from a distance, and when they
+meet it zooms in. A finger drag pans the field and stops the auto-follow, and the 🎯 button brings the camera
+back to the fighting.
+镜头会随两军距离缩放：双方拉开时看全景，交手后自动拉近。用手指拖动战场可以自由查看，并会停止自动跟随；点 🎯 按钮让镜头重新回到战斗。
 
 Tap a squad chip at the bottom (or 全军 for all of them), then give the order:
 点底部的小队按钮选择部队（或选「全军」），然后下达命令：
@@ -277,10 +377,10 @@ Tapping the battlefield normally moves your commander marker; when the selected 
 plants its yellow rally flag instead.
 点击战场通常是移动指挥官标记；当选中的小队处于「移动」时，同一次点击会改为插下它的黄色目标十字。
 
-Damage is `max(1, round(atk × 攻击加成 × 克制系数 − 目标防御 × 0.5 + 随机值))`; melee units swing every 1.0 s and
+Damage is `max(1, round(atk × 攻击加成 × 克制系数 × 脚下地形攻击 × 目标防御 × 脚下地形防御 × 0.5 + 随机值))`; melee units swing every 1.0 s and
 ranged units fire a projectile every 1.6 s. Melee units engage inside 26 px; archers shoot at 150 px and every rank
 beyond 初级 adds 10%.
-伤害为 `max(1, round(攻击 × 攻击加成 × 克制系数 − 目标防御 × 0.5 + 随机值))`；近战单位每 1.0 秒攻击一次，远程单位每 1.6 秒射出一支箭。近战单位在 26 px 内接战；弓箭手射程 150 px，每升一档 +10%。
+伤害为 `max(1, round(攻击 × 攻击加成 × 克制系数 × 脚下地形攻击 × 目标防御 × 脚下地形防御 × 0.5 + 随机值))`；近战单位每 1.0 秒攻击一次，远程单位每 1.6 秒射出一支箭。近战单位在 26 px 内接战；弓箭手射程 150 px，每升一档 +10%。
 
 The three families form a rock-paper-scissors cycle — **长枪兵克制骑兵、骑兵克制弓箭手、弓箭手克制长枪兵** —
 worth **+40% attack when countering and −25% when countered**.
@@ -358,17 +458,21 @@ Every settlement belongs to exactly one holder, and the holder decides what the 
 
 | 归属 Owner | 城镇 Town | 村庄 Village | 说明 Notes |
 | --- | --- | --- | --- |
-| 无主 Neutral | 可进入，可**占领** | 可进入 | 谁都可以进；无主的城镇可以直接插旗占领。Open to everybody; an unclaimed town can simply be claimed. |
+| 无主 Neutral | 可进入，可**占领** | 可进入 | 谁都可以进；无主的城镇如果没人防守，插旗就能拿下，有人守军就要先打下来。Open to everybody; an unclaimed town nobody defends is taken by raising the flag, one that holds soldiers has to be stormed. |
 | 苍狼 / 赤鹰 A kingdom | 可进入，也可**攻打** | 可进入 | 可以先进去考试与招募，也可以打下来据为己有。You may walk in and trade, or take it by force. |
 | 强盗 Bandits | **永远不占城镇** | 不可进入，可攻打 | 强盗只能控制村庄。Bandits never hold a town. |
-| 你的 Your own | 可进入 | 可进入 | 夺下来之后就是你的。Yours once you take it. |
+| 你的 Your own | 可进入 | 可进入 | 自己的城镇没有占领与围城按钮，只有「进入」。Your own town has no claim and no siege button — just the door. |
 
 - The map draws an **ownership ring** in the colour of the holder around every settlement, and the troop badge
   in the corner shows the **garrison** that defends it.
   地图上每个据点都有一圈**归属光环**，颜色就是归属方的颜色；右上角的兵力角标是它的**驻军**。
-- An **unclaimed town** has no defenders: the bottom bar offers **🚩 占领**, and the town becomes the lord's
-  without a fight. It starts over as a poor hamlet.
-  **无主的城镇**没有守军，底部按钮是 **🚩 占领**，不需要打就能拿下，城镇从零开始发展。
+- An **unclaimed town** belongs to nobody. When it holds **no soldiers** the bottom bar offers **🚩 占领** and
+  the lord simply raises his flag; the town becomes his without a fight and starts over as a poor hamlet.
+  When it still **holds a garrison** the button becomes **⚔️ 攻城** with the number of defenders — the flag has
+  to be planted the hard way, so the garrison has to be beaten first. Winning hands the town over; losing leaves
+  it to its defenders, and the lord may try again.
+  **无主的城镇**谁都可以进。**没有守军**时底部是 **🚩 占领**，插旗就能拿下，城镇从零开始发展；**还有守军**时按钮变成
+  **⚔️ 攻城**（并显示守军人数），必须先把守军打下来才能占领。打赢了城镇归你，打输了城镇仍归原样，可以再来一次。
 - A **bandit village** cannot be entered. The bottom bar offers **⚔️ 赶走强盗** instead, which starts a fight
   against the bandits in the village. Win and the village becomes unclaimed and can be entered.
   **强盗村庄**进不去，底部按钮变成 **⚔️ 赶走强盗**，直接与村中的强盗士兵开战；打下来之后村庄变成无主，可以进入。
@@ -383,6 +487,13 @@ Every settlement belongs to exactly one holder, and the holder decides what the 
 - When the preparation is over the button becomes **⚔️ 攻打**. The garrison fights for the town, and if the lord
   wins the town is **his**: no garrison, level 1, and a fresh start.
   准备结束后按钮变成 **⚔️ 攻打**，驻军为城镇而战；主角打下来，城镇就归他所有：驻军清空、等级回到 1、重新开始。
+- A siege can always be **called off**: while it is prepared the bottom bar shows the countdown and a
+  **🚫 取消围城** button, and the same button is there once the preparation is over. Calling it off stops the
+  clock as well, so the world freezes again.
+  围城随时可以**中断**：准备期间底部会显示倒计时和 **🚫 取消围城** 按钮，准备结束后同样有这个按钮；中断后时钟也会停下，世界重新冻结。
+- A **failed assault breaks the siege**: the lord has to gather his troops and **prepare the siege again**
+  before he may attack a second time.
+  **攻打失败会中断围城**：主角必须重新集结部队、**重新准备围城**，才能再次发起进攻。
 
 ### 4.12 城镇发展与设施 · Town development and facilities
 
@@ -390,22 +501,25 @@ A captured town is a project. It develops through exams, and its level decides h
 夺下来的城镇是一项长期工程：靠考试发展，等级决定它能有多好。
 
 ```
-考试 exam ──▶ 资金 funds ──▶ 设施 facilities
-   │            
-   └──▶ 发展 development ──▶ 繁荣度 prosperity ──▶ 等级 level
+考试 exam ──▶ 主角的钱袋 lord's purse ──▶ 注入资金 inject ──▶ 城镇金库 town funds ──▶ 设施 facilities
+   │                                                                        │
+   └──▶ 发展 development ──▶ 繁荣度 prosperity ──▶ 等级 level ◀────────────┘
 ```
 
-- **考试 → 资金与发展.** In a town the lord owns, the exam pays **60% of the reward into the town treasury**
-  and every correct answer adds **+2 开发**. In a town he does not own, the exam still pays him personally.
-  **考试 → 资金与发展。** 在自己的城镇里，考试的 **60% 收入进入城镇资金**，每答对一题 **+2 发展**；
-  在别人的城镇里，考试收入仍然归主角自己。
+- **考试 → 资金与发展.** The exam always pays the **lord personally** — even in a town he owns, so he is never
+  short of money. In a town he owns, every correct answer additionally adds **+2 开发** to that town.
+  **考试 → 资金与发展。** 考试收入**永远进主角的钱袋**——即使在自己的城镇里也不会缺钱；
+  而在自己城镇里，每答对一题还会额外给城镇 **+2 开发**。
+- **注入资金 · Inject funds.** The 「🏛️ 城镇」 panel has an **注入资金** button: it moves **100** gold from the
+  lord's purse into the town treasury, which is where the money for the facilities comes from.
+  **注入资金。** 「🏛️ 城镇」页签里的「注入资金」按钮会从主角钱袋里拿出 **100** 金币放进城镇金库，
+  建造设施用的就是这笔钱。
 - **发展 → 繁荣度.** Every day a town gains or loses prosperity: above **40** development it climbs
   (`(发展 − 40) × 0.15` per day), below 40 it slides back. A town also earns **繁荣度 × 0.15** gold a day.
   **发展 → 繁荣度。** 每天城镇的繁荣度随发展变化：高于 **40** 时按 `(发展 − 40) × 0.15` 上涨，低于 40 时下滑；
   城镇每天还有 `繁荣度 × 0.15` 的收入。
-- **投入发展.** The town can also spend **60 资金** for **+6 开发**, which is the second way to grow when the
-  exams are not enough.
-  **投入发展。** 城镇还可以花 **60 资金** 换 **+6 开发**，考试不够时这是第二条成长路线。
+- **投入发展.** Surplus town money can also be turned into development: **60 城镇资金 → +6 开发**.
+  **投入发展。** 城镇里多余的钱也可以换成发展：**60 城镇资金 → +6 开发**。
 - **繁荣度 → 等级.** Prosperity reaching the next threshold promotes the town: **40 → Lv.2 小镇**,
   **70 → Lv.3 城镇**, **90 → Lv.4 大城**. The level is shown in the **top left corner of the town screen** and
   on the map name plate.
@@ -507,9 +621,9 @@ Your commander is a separate marker on the battlefield (120 HP, speed 150) used 
 | --- | --- | --- |
 | 首页 Home | `#/` | 输入领主名字、开始新游戏 / 继续进度、最近玩过的名字、进入介绍、分享入口。Name entry, new/continue game, recent names, guide and share links. |
 | 游戏介绍 Guide | `#/guide` | 目标、地图、据点、考试、科目（含百科知识与已加载的 Mod 科目）、记忆曲线、兵种克制循环与**兵种升级图**（逐档属性与升级价）、战术 / 队形 / 密度说明，以及题库扩展方式。Goals, map, settlements, exams, the subject list (encyclopedia plus any loaded mod subjects), the memory curve, the RPS cycle and the generated **unit upgrade diagram**, plus the tactics / formation / density tables and how to extend the question bank. |
-| 世界地图 World map | `#/world` | 全屏 canvas 地图、右上角小地图与图例（图标 + 势力色块）、📖 详细地图浮层（拖动平移、回到主角）、顶部状态栏（含 👤 角色详情 芯片与带着时钟状态的 📅 天数芯片）、底部按钮（进入 / ⛺ 扎营 / ⚔️ 赶走强盗 / 🏰 准备围城 / ⚔️ 攻打）与四个功能按钮、提示条、扎营时的帐篷与篝火、据点上的归属光环与驻军角标、存档提示浮层。Full-screen canvas map, the corner minimap with its sprite legend, the 📖 detailed atlas overlay (drag to pan, recentre on the lord), status chips (including the 👤 lord info chip and the 📅 day chip that doubles as the clock readout), the bottom buttons (enter / ⛺ camp / ⚔️ drive off bandits / 🏰 prepare a siege / ⚔️ storm) plus four action buttons, hint bar, a tent and campfire while camping, the ownership ring and garrison badge on every settlement, and toasts. |
-| 据点 Settlement | `#/settlement?id=…` | 据点标题栏（左上角显示城镇等级，右侧显示归属）、招募 / 升级 / 市场 / 城镇 / 考试 五个页签。Header (town level in the top-left corner, owner on the right) plus Recruit / Upgrade / Market / Town / Exam tabs. |
-| 战斗 Battle | `#/battle` | 战场 canvas、顶部双方兵力、小队选择条（每档一个按钮）、攻击 / 防守 / 跟随 / 移动 四个命令、可折叠的队形与密度面板、提示行、战斗结果面板。Arena canvas, both sides' strength, a squad chip bar, the four orders, a collapsible formation / density sheet, a hint line and the result panel. |
+| 世界地图 World map | `#/world` | 全屏 canvas 地图、右上角小地图与图例（图标 + 势力色块）、📖 详细地图浮层（拖动平移、回到主角）、顶部状态栏（含 👤 角色详情 芯片、📅 天数时钟芯片（天数 + 时刻 + 当天进度条）与 🎚 难度芯片）、点难度芯片弹出的难度设置面板、底部按钮（进入 / ⛺ 扎营 / ⚔️ 赶走强盗 / 🏰 准备围城 / ⏳ 围城倒计时 / 🚫 取消围城 / ⚔️ 攻打 / 🚩 占领 / ⚔️ 攻城）与四个功能按钮、提示条、扎营时的帐篷与篝火、据点上的归属光环与驻军角标、存档提示浮层。Full-screen canvas map, the corner minimap with its sprite legend, the 📖 detailed atlas overlay (drag to pan, recentre on the lord), status chips (including the 👤 lord info chip, the 📅 day clock chip with the day, the hour and a day-progress bar, and the 🎚 difficulty chip), the difficulty sheet behind that chip, the bottom buttons (enter / ⛺ camp / ⚔️ drive off bandits / 🏰 prepare a siege / ⏳ siege countdown / 🚫 cancel the siege / ⚔️ storm / 🚩 claim / ⚔️ assault) plus four action buttons, hint bar, a tent and campfire while camping, the ownership ring and garrison badge on every settlement, and toasts. |
+| 据点 Settlement | `#/settlement?id=…` | 据点标题栏（左上角显示城镇等级，中间是 📅 天数时钟芯片，右侧显示归属与金币 / 兵力）、招募 / 升级 / 市场 / 城镇 / 考试 五个页签。Header (town level in the top-left corner, the 📅 day clock chip in the middle, owner, gold and troops on the right) plus Recruit / Upgrade / Market / Town / Exam tabs. |
+| 战斗 Battle | `#/battle` | 战场 canvas（带地形、可拖动的镜头）、顶部双方兵力、右上角的 ⚙ 战斗工具（速度 🐢/🚶/🐇 与地形说明）与 🎯 回中按钮、小队选择条（每档一个按钮）、攻击 / 防守 / 跟随 / 移动 四个命令、可折叠的队形与密度面板、提示行、战斗结果面板。Arena canvas (with terrain and a draggable camera), both sides' strength, the ⚙ battle tools (speed 🐢/🚶/🐇 and the terrain legend) plus the 🎯 recentre button, a squad chip bar, the four orders, a collapsible formation / density sheet, a hint line and the result panel. |
 
 A first-run intro modal shows the guide before the campaign starts, so new players always see the rules.
 首次开始游戏会先弹出介绍弹窗，保证新玩家一定看到规则。
@@ -518,16 +632,21 @@ A first-run intro modal shows the guide before the campaign starts, so new playe
 
 ## 7. 游戏操作 · Controls
 
+- **查看时间 See the time** — 世界地图顶部的 📅 芯片显示第几天、几点几分（一天 24 秒，1 秒 = 游戏里的 1 小时）和当天的进度条；据点界面与角色信息面板里也有同样的时钟。The 📅 chip in the world-map status bar shows the day, the hour of that day (a day is 24 seconds, one second is one in-game hour) and a bar for the day's progress; the settlement screen and the lord panel carry the same clock.
+- **昼夜 Day and night** — 每天的最后五分之一（19:12 起）是夜晚：地图变暗、主角与所有部队都变慢 25%，主角身边有一圈灯光。The last fifth of every day (from 19:12) is night: the map darkens, the lord and every warband slow down by 25%, and the lord keeps a lantern light around him.
 - **移动 Move** — 点击世界地图任意位置；游戏时间只在移动时流逝。Tap anywhere on the world map; game time advances only while the lord walks.
 - **扎营 Camp** — 点底部「⛺ 扎营」原地扎营，时间与敌军照常流转；点「🔥 拔营」或点地图移动即结束。Tap 「⛺ 扎营」 to rest in place while time keeps running; 「🔥 拔营」 or a map tap breaks camp.
 - **进入据点 Enter** — 靠近后点击底部的「进入」按钮。Tap the "enter" button once you are close.
 - **赶走强盗 Drive off bandits** — 强盗村庄不能进入，底部按钮是「⚔️ 赶走强盗」，打一场就能进。Tap 「⚔️ 赶走强盗」 at a bandit village and win the fight to open it up.
-- **占领无主城镇 Claim a town** — 无主的城镇没有守军，底部按钮「🚩 占领」直接拿下。An unclaimed town has no defenders: tap 「🚩 占领」 to take it.
-- **准备围城 / 攻打 Prepare a siege / storm** — 想把别人的城镇据为己有：先「🏰 准备围城」等 2 天（时间会流逝），再「⚔️ 攻打」；只是进去办事就不用打。To take someone else's town: 「🏰 准备围城」 (two days, the clock runs) and then 「⚔️ 攻打」; walking in to trade needs no fight.
-- **城镇管理 Town management** — 据点里的「🏛️ 城镇」页签：繁荣度、发展、资金、设施与驻军。The 「🏛️ 城镇」 tab inside a settlement: prosperity, development, funds, facilities and the garrison.
+- **占领无主城镇 Claim an unclaimed town** — 无主的城镇如果没人防守，底部按钮「🚩 占领」直接拿下；如果还有守军，按钮变成「⚔️ 攻城」，必须打赢守军才能占领。An unclaimed town nobody defends is taken with 「🚩 占领」; one that still holds soldiers offers 「⚔️ 攻城」 and has to be stormed.
+- **准备围城 / 攻打 / 取消围城 Prepare a siege / storm / cancel** — 想把别人的城镇据为己有：先「🏰 准备围城」等 2 天（时间会流逝），再「⚔️ 攻打」；只是进去办事就不用打。围城期间随时可以点「🚫 取消围城」中断，准备的进度全部作废；攻打失败后也要重新准备围城。To take someone else's town: 「🏰 准备围城」 (two days, the clock runs) and then 「⚔️ 攻打」; walking in to trade needs no fight. Tap 「🚫 取消围城」 at any time to call the siege off, and a failed assault means the siege has to be prepared all over again.
+- **难度 Difficulty** — 首页开局时选择难度，世界地图上点 🎚 芯片可随时更改；难度决定考试每答对一题给多少金币。Pick the difficulty on the home screen and change it any time with the 🎚 chip on the world map; it decides how much gold a correct exam answer pays.
+- **城镇管理 Town management** — 据点里的「🏛️ 城镇」页签：繁荣度、发展、资金、设施与驻军；「注入资金」把自己钱袋里的钱放进城镇金库。The 「🏛️ 城镇」 tab inside a settlement: prosperity, development, funds, facilities and the garrison; 「注入资金」 moves the lord's own gold into the town treasury.
 - **开战 Start a fight** — 靠近敌对部队即自动开战。Getting close to a hostile party starts the battle automatically.
 - **战术 Orders** — 战斗中先点小队按钮选部队（或「全军」），再切 ⚔️ 攻击 / 🛡️ 防守 / 🏇 跟随 / 🎯 移动。Pick a squad chip (or 全军) first, then switch ⚔️ attack / 🛡️ defend / 🏇 follow / 🎯 move.
 - **队形与密度 Formation and density** — 展开战斗底部的「▦ 队形」面板，给选中的小队换队形（方队 / 一行 / 两行 / 三行 / 尖形 / 随机）和密度（松散 / 紧凑）。Open the 「▦ 队形」 sheet to change the selected squad's formation (square / single rank / two ranks / three ranks / wedge / scatter) and density (loose / tight).
+- **战斗速度与地形 Battle speed and terrain** — 战斗界面右上角 ⚙ 打开工具面板：切换 🐢 慢速 / 🚶 正常 / 🐇 快速（默认慢速），并查看五种战场地形的效果。Tap the ⚙ button in the corner of the battle screen for the tools panel: the speed (🐢 slow by default, 🚶 normal, 🐇 fast) and the effect of every kind of battlefield terrain.
+- **镜头 Camera** — 用手指拖动战场可以自由查看，点 🎯 让镜头回到战斗。Drag the field with a finger to look around, and tap 🎯 to bring the camera back to the fighting.
 - **查看角色信息 View lord info** — 点击世界地图顶部的 👤 角色详情 芯片，查看士兵、资金、物资与战绩。Tap the 👤 lord info chip on the world map to review troops, treasury, supplies and record.
 - **看全图 Open the atlas** — 点右上角小地图打开 📖 详细地图；在图上按住拖动查看不同区域，点「🎯 回到主角」拉回视野，点 ✕ 或按 Esc 关闭。Tap the minimap in the top-right corner to open the detailed atlas; press and drag on it to look at another region, 「🎯 回到主角」 recentres on the lord, and ✕ or Esc closes it.
 - **指挥 Commander** — 点击战场移动指挥官标记；若选中部队处于「移动」，同一次点击改为插下目标十字。Tap the field to move the commander marker; when the selected squad is on 移动 the tap plants its rally flag instead.
@@ -554,8 +673,8 @@ Friends must be on the same network (WiFi) to open the shared link.
 
 | 项目 Item | 数值 Value |
 | --- | --- |
-| 答对奖励（三年级）Reward, grade 3 | 20 金币 |
-| 答对奖励（四年级）Reward, grade 4 | 26 金币 |
+| 答对奖励（三年级）Reward, grade 3 | 20 金币（简单）／19（普通）／18（困难） 20 gold (easy) / 19 (normal) / 18 (hard) |
+| 答对奖励（四年级）Reward, grade 4 | 26 金币（简单）／25（普通）／24（困难） 26 gold (easy) / 25 (normal) / 24 (hard) |
 | 逻辑推理加成 Logic bonus | +6 金币 |
 | 百科知识加成 Encyclopedia bonus | +4 金币 |
 | 初始资金 Starting gold | 120 金币 |
@@ -563,6 +682,9 @@ Friends must be on the same network (WiFi) to open the shared link.
 | 胜利战利品 Victory loot | 按敌方部队价值的 35% 结算 35% of the defeated warband's value |
 | 收编俘虏 Prisoners | 60% 概率，最多 +4 民兵 60% chance, up to +4 militia |
 | 战败结果 On defeat | 队伍只保留幸存者，并被推离敌人 3 格 Your warband keeps only its survivors and is pushed 3 tiles clear |
+
+The difficulty only changes the exam reward, nothing else: the enemies, the garrisons and the prices stay the same.
+难度只影响考试的奖励，其他一切不变：敌人、驻军与价格都一样。
 
 A defeated enemy party is removed from the map and stops hunting you for 45 s, and after you lose a battle the
 same party cannot engage again for 60 s.
@@ -583,7 +705,10 @@ All state lives in `localStorage`; there is no server.
 | `kids-war-game:users` | 玩过的领主名字列表。The list of player names used on this browser. |
 | `kids-war-game:save:<name>` | 单个存档：世界种子、地形（压缩为地形 id 数组）、据点、部队、玩家坐标、天数、金币、兵员、物资、统计。One save slot: world seed, terrain (stored as a compact terrain-id array), settlements, parties, player position, day, gold, troops, supplies and stats. |
 
-Saved fields · 存档字段：`seed` `gridIds` `settlements` `parties` `playerPos` `day` `gold` `troops` `supplies` `stats` `questionStats`.
+Saved fields · 存档字段：`seed` `gridIds` `settlements` `parties` `playerPos` `day` `gold` `troops` `supplies` `stats` `questionStats` `difficulty`.
+
+`difficulty` carries the difficulty of the campaign; a save without it is an easy game.
+`difficulty` 保存本局的难度；没有这个字段的旧存档按「简单」处理。
 
 `day` carries the campaign clock across a reload; the in-flight clock accumulator and the camp flag are not
 saved, so a resumed game always starts standing still with the clock frozen.
@@ -634,6 +759,17 @@ The canvas caps device pixel ratio at 2 and caches its vignette gradient per res
 The detailed atlas is panned with **pointer events** and `touch-action: none`, so a finger drag scrolls the map
 instead of the page, and `setPointerCapture` keeps the drag alive when the finger leaves the canvas.
 详细地图用 **pointer 事件**加 `touch-action: none` 拖动，因此手指拖动的是地图而不是页面；`setPointerCapture` 保证手指移出画布后拖动仍然连续。
+
+The **battle field** is designed the same way: it is bigger than a phone screen, so the camera follows the fighting
+and a finger drag pans the field (the battle canvas uses the same pointer-event scheme, and a drag never plants a
+rally flag). The battle tools sit in the top-right corner instead of the command bar, so the field stays as tall as
+possible on a phone.
+**战场**也是同样的思路：它比手机屏幕大，因此镜头跟着战斗走，手指拖动可以平移战场（战斗 canvas 用同一套 pointer
+事件，拖动时不会误插旗）。战斗工具放在右上角而不是底部命令栏，这样手机上的战场能留到最大。
+
+The battle runs **slow by default**, so a child can read the field and give orders before the next clash — the fast
+speed is one tap away in the ⚙ panel.
+战斗**默认慢速**，孩子来得及看清战场、赶在下一次交手前下令；想加速，点 ⚙ 面板即可。
 
 ---
 
@@ -746,6 +882,46 @@ Note that `TERRAIN_KEYS` order is the serialisation order used by `gridToIds()`,
 or old saves will read the wrong ids.
 注意 `TERRAIN_KEYS` 的顺序就是 `gridToIds()` 的序列化顺序，因此新地形请追加到末尾，否则旧存档会读错 id。
 
+### 新增战场地形 · Add battlefield terrain
+
+The terrain of a **battle** is a separate table: `ARENA_TERRAIN` in `src/game/arena.js`. One record is enough —
+it carries the colour the field is painted with, the speed, attack and defence modifiers it applies and whether
+a soldier may walk on it. `generateArenaTerrain()` places the kinds on the field, `damageOf()` reads the ground
+under the fighters and `BattleMap.vue` paints the cells.
+**战场**的地形是另一张表：`src/game/arena.js` 里的 `ARENA_TERRAIN`。加一条记录就够——它带着这块地皮的颜色、
+它给出的速度 / 攻击 / 防御修正，以及士兵能不能走上去。`generateArenaTerrain()` 负责把这些地形摆到战场上，
+`damageOf()` 读取交战双方脚下的地形，`BattleMap.vue` 负责把格子画出来。
+
+```js
+myterrain: {
+  key: 'myterrain',
+  name: '沼泽',
+  en: 'Marsh',
+  color: '#5c6b3a',
+  speedMul: 0.6,   // 移动变慢 movement
+  atkMul: 0.9,     // 攻击下降 attack
+  defMul: 1.05,    // 防御上升 defence
+  walkable: true,
+  note: '沼泽：移动 −40%，攻击 −10%，防御 +5%。'
+}
+```
+
+A kind that is not walkable must never stand where an army deploys: `generateArenaTerrain()` clears the
+deployment columns, and a soldier that gets stuck behind water is nudged sideways in `stepBattle()`, so a fight
+can never stall.
+不可通行的地形不能出现在军队的出发位置上：`generateArenaTerrain()` 会清空出发区域，而被水挡住去路的士兵
+会在 `stepBattle()` 里被侧向推开，因此战斗不会卡住。
+
+### 新增难度 · Add a difficulty
+
+The difficulty table is `DIFFICULTIES` in `src/game/difficulty.js`. A record carries the key, the names, the icon
+and `rewardDelta`: how much gold a correct exam answer loses on that difficulty. The reward formula reads it
+through `rewardFor(question, difficulty)`, so a new difficulty needs no other change — but it should also be
+added to the two pickers (the home screen and the world map sheet) if it is meant to be visible.
+难度表是 `src/game/difficulty.js` 里的 `DIFFICULTIES`。一条记录包含 key、名称、图标以及 `rewardDelta`：
+该难度下每答对一题少拿多少金币。奖励公式通过 `rewardFor(question, difficulty)` 读取它，因此新增难度不需要改
+其他地方——但若要让人看到它，还需要把它加进两个选择器（首页与世界地图的难度面板）。
+
 ### 题库扩展 · Question mods
 
 Every subject is a **mod**, the five built-ins included, and both paths use the same contract — so adding a
@@ -830,6 +1006,18 @@ because the exam UI and the reward formula read only those fields; `choice()` ke
 every question has 2–4 options.
 每个生成函数必须返回 `choice()` 的形状（`prompt`、`options`、答案下标 `answer`，`explain` 可选），因为考试界面和奖励计算只读这些字段；`choice()` 最多保留 3 个干扰项，因此每道题都是 2–4 个选项。
 
+The Chinese bank shows the two shapes a bigger subject needs. `POEM_BANK` holds one record per poem (title,
+author, dynasty, theme and the lines), and every poem question is generated from it, so a new poem only means a
+new record. `PASSAGES` holds the reading passages, each with its own questions; the passage text is prepended to
+the prompt, and the exam styles the question box with `white-space: pre-wrap` so the passage keeps its breaks.
+语文题库展示了大型科目需要的两种写法。`POEM_BANK` 每首诗一条记录（诗题、作者、朝代、主题与诗句），
+所有古诗题都由它生成，加一首诗就是加一条记录；`PASSAGES` 存放阅读短文与各自的题目，
+短文会被拼进题干，考试界面的题目框用 `white-space: pre-wrap` 保留换行。
+
+A generator needs a **bank of at least four items**, otherwise a paper would repeat the same prompt; the
+`tools/verify-chinese.mjs` check enforces that.
+每个生成函数的题库**至少要有四条**，否则一份卷子会重复出题；`tools/verify-chinese.mjs` 会守住这条线。
+
 ### 新增势力 · Add a faction
 
 Add it to `FACTIONS` and `NPC_FACTIONS` in `src/game/factions.js`; `buildParties()` will then spawn its warbands
@@ -865,10 +1053,14 @@ The game has five dependency-free checks under `tools/`, all runnable with plain
 | 命令 Command | 作用 What it does |
 | --- | --- |
 | `node tools/verify-upgrade.mjs` | 99 项检查：每条升级边的 `type` / `tier` / 价格、民兵 → 三个家族、家族内升档、非法边被拒、钱不够不动兵，以及界面那条「把边的 `type`/`tier` 原样喂回 store」的路径。99 checks: every edge's `type` / `tier` / price, militia into the three families, rank climbs inside a family, illegal edges refused, a broke lord keeping his soldiers, and the exact panel path that feeds an edge's `type` / `tier` back into the store. |
+| `node tools/verify-chinese.mjs` | 32 项检查：语文题型齐全（阅读理解 + 6 种古诗题）、年级内题型名唯一（它们是记忆曲线的 key）、上千道采样题全部合法（2–4 个选项、答案在选项里、题干不重复）、短文带着全文且长度适合手机。32 checks: the Chinese types are complete (reading comprehension plus six poem types), the type names are unique per grade (they are the memory-curve keys), a thousand sampled questions are all well formed (2–4 options, the answer among them, no repeated prompt) and the passages carry their text at a phone-friendly length. |
 | `node tools/verify-settlements.mjs` | 69 项检查：据点归属（强盗不占城镇）、驻军、`{ type, tier, count, hp }` 形状与旧档迁移、恢复速率、战败存活判定、围城（天数 / 时钟 / 援军 / 占领）、强盗村庄、城镇经济（考试 → 资金 + 发展 → 繁荣度 → 等级）、设施与更高等级的兵源。69 checks: settlement ownership (no bandit town), garrisons, the `{ type, tier, count, hp }` shape and its migration, the recovery rates, the survival roll, sieges (days / clock / relief / capture), the bandit village, the town economy (exam → funds + development → prosperity → level), the facilities and the richer recruit list. |
 | `node tools/verify-upgrade-head.mjs` | 同一套升级检查跑在修复前的源码上（`291eddaa81d`），用来复现旧缺陷：升级后会写入一个没有 `type` 的兵员，界面回退显示成民兵，并且只扣 8 金币保底价。The same upgrade suite against the pre-fix sources (`291eddaa81d`), reproducing the old defect: a soldier with no `type` is written, the panel falls back to militia, and only the 8-gold floor is charged. |
 | `node tools/verify-upgrade-browser.mjs` | 真实 Chrome（headless + CDP）走一遍界面：预置一份站在村庄旁的存档，进村、打开「升级」页签、真的点「升级」按钮，再读回 DOM 与金币。Real Chrome (headless over CDP) walks the interface: a save with the lord next to a village, into the village, the 升级 tab, a real click on 升级, and the DOM and treasury read back. |
-| `node tools/verify-settlements-browser.mjs` | 真实 Chrome 走一遍据点玩法：地图上的归属光环、角色面板里的伤兵、赶走强盗、准备围城并攻打城镇，以及城镇面板（等级 / 繁荣度 / 资金 / 建医院 / 投入发展）。Real Chrome walks the settlement features: the ownership ring on the map, the wounded in the lord panel, driving off bandits, preparing a siege and storming the town, and the town panel (level / prosperity / funds / building a hospital / investing). |
+| `node tools/verify-settlements-browser.mjs` | 真实 Chrome 走一遍据点玩法：地图上的归属光环、角色面板里的伤兵、赶走强盗、准备围城并攻打城镇，以及城镇面板（等级 / 繁荣度 / 资金 / 建医院 / 注入资金 / 投入发展）。Real Chrome walks the settlement features: the ownership ring on the map, the wounded in the lord panel, driving off bandits, preparing a siege and storming the town, and the town panel (level / prosperity / funds / building a hospital / injecting money / investing). |
+| `node tools/verify-battle.mjs` | 64 项检查：难度（三种难度的金币、科目加成、存档读写）、战斗速度（默认慢速、慢速推进更少）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）。64 checks: the difficulty (the gold of the three levels, the subject bonus, the save round trip), the battle speed (slow by default, the slow speed advances less), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), twelve battles that always end, and the sieges (they can be called off, a failed assault needs a new preparation, a won assault takes the town). |
+| `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、战斗界面的速度按钮与地形说明、镜头拖动与回中、控制台 0 报错。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, the speed buttons and the terrain legend on the battle screen, dragging and recentring the camera, and a clean console. |
+| `node tools/verify-chinese-browser.mjs` | 真实 Chrome 考一张只选「语文」的卷子，走完全部题目并读回题干：卷子里要有**阅读理解短文**与**古诗题**，短文保持换行、同一份卷子里没有重复题目、控制台 0 报错。Real Chrome takes a Chinese-only paper, walks every question and reads the prompts back: the paper must carry a **reading passage** and an **ancient-poem question**, the passage keeps its line breaks, no question repeats inside one paper and the console stays clean. |
 
 The skill `.agents/skills/kids-war-game-testing/` runs all of them in one command:
 `node .agents/skills/kids-war-game-testing/scripts/run-checks.mjs --browser`.
@@ -890,13 +1082,20 @@ kids-war-game/
 ├── public/mods/                # 外部题库包：index.json 清单 + 每个科目一个 JSON
 ├── tools/pixel-assets/
 │   └── generate.mjs            # 素材生成脚本，经 Pixelorama 桥接作画
+├── tools/verify-chinese.mjs    # 语文题库自检（无头，32 项检查）
+├── tools/verify-chinese-browser.mjs # 真实 Chrome 考一张语文卷，读回短文与古诗题
+├── tools/verify-chinese.entry.mjs # 语文题库检查的用例
+├── tools/make-chinese-save.entry.mjs # 生成「主角站在自己城镇旁」的存档，供语文走查使用
 ├── tools/verify-upgrade.mjs    # 升级路径自检（无头，99 项检查）
 ├── tools/verify-settlements.mjs # 据点 / 围城 / 城镇经济自检（无头，69 项检查）
 ├── tools/verify-upgrade-head.mjs # 同一套检查跑在修复前的源码上，复现旧缺陷
 ├── tools/verify-upgrade-browser.mjs # 真实 Chrome 走一遍「升级」界面
 ├── tools/verify-settlements-browser.mjs # 真实 Chrome 走一遍据点、围城与城镇面板
+├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 战场地形 / 围城中断自检（无头，64 项检查）
+├── tools/verify-battle-browser.mjs # 真实 Chrome 走一遍难度、速度、地形与围城中断
 ├── tools/verify-upgrade.entry.mjs # 升级检查的用例
 ├── tools/verify-settlements.entry.mjs # 据点检查的用例
+├── tools/verify-battle.entry.mjs # 难度 / 战斗 / 围城检查的用例
 ├── tools/make-save.entry.mjs   # 生成「主角站在村庄旁」的存档，供界面自检使用
 ├── tools/make-settlement-save.entry.mjs # 生成强盗村庄 / 敌城 / 自有城镇三种存档
 ├── tools/reporter.mjs          # 自检脚本共用的输出器
@@ -911,6 +1110,9 @@ kids-war-game/
     ├── game/
     │   ├── rng.js              # 种子随机 + 值噪声
     │   ├── terrain.js          # 地形定义与序列化映射
+    │   ├── difficulty.js       # 难度设置：三种难度与考试金币增减
+    │   ├── daynight.js         # 昼夜：夜晚占一天的五分之一，黑度与减速系数
+    │   ├── arena.js            # 战场地形：五种地形、生成、效果与不可通行
     │   ├── factions.js         # 势力定义
     │   ├── units.js            # 兵种家族、档位、升级树与升级价格、克制、伤兵与旧存档改写
     │   ├── settlement.js       # 据点归属、驻军、围城常量、城镇经济（繁荣度 / 发展 / 等级）与设施
@@ -919,7 +1121,7 @@ kids-war-game/
     │   ├── atlas.js            # 小地图与详细地图：地形缓存、兵力角标、两个整图画法
     │   ├── worldgen.js         # 世界生成（地形 + 最大连通陆地 + 据点 + 部队）
     │   ├── pathfinding.js      # A* + 二叉堆 + 尽力靠近回退
-    │   ├── battle.js           # 战斗模拟（小队、命令、队形、密度、克制、远程风筝）
+    │   ├── battle.js           # 战斗模拟（小队、命令、队形、密度、克制、远程风筝、地形、速度档）
     │   ├── save.js             # localStorage 存档槽
     │   └── quiz/
     │       ├── index.js        # 出卷、奖励、科目与年级定义
@@ -940,13 +1142,14 @@ kids-war-game/
     │   ├── WorldMap.vue        # 世界地图 canvas 与点击移动
     │   ├── MiniMap.vue         # 右上角小地图，点击打开全图
     │   ├── WorldAtlas.vue      # 可拖动的详细地图浮层
-    │   ├── BattleMap.vue       # 战场 canvas、指挥官与特效
+    │   ├── BattleMap.vue       # 战场 canvas、地形绘制、可拖动镜头与特效
     │   ├── RecruitPanel.vue    # 招募
     │   ├── UpgradePanel.vue    # 升级
     │   ├── TownPanel.vue       # 城镇：繁荣度、发展、资金、设施与驻军
     │   ├── MarketPanel.vue     # 市场
     │   ├── ExamModal.vue       # 考试流程
     │   ├── CharacterPanel.vue  # 角色信息面板（兵力 / 资金 / 物资 / 战绩）
+    │   ├── DayClock.vue        # 战役时钟：天数、当天时刻与进度条
     │   ├── ShareModal.vue      # 二维码分享
     │   └── GuideContent.vue    # 复用的游戏介绍内容
     └── views/
@@ -964,9 +1167,12 @@ kids-war-game/
 | `src/game/worldgen.js` | 世界生成的全部规则。All world-generation rules. |
 | `src/game/units.js` | 兵种家族、档位、升级树 / 价格与克制关系；介绍里的升级图也从这里生成。Unit families, ranks, the upgrade tree and prices, the counter cycle and the guide's upgrade diagram. |
 | `src/game/settlement.js` | 据点归属、驻军、围城规则、城镇经济（繁荣度 / 发展 / 等级）与设施效果。Settlement ownership, garrisons, the siege rules, the town economy (prosperity / development / level) and the facility effects. |
-| `src/game/battle.js` | 战斗模拟：小队命令、队形 / 密度、克制伤害、远程风筝与胜负判定。Battle simulation: squad orders, formations / densities, counter damage, ranged kiting and win/lose logic. |
-| `src/stores/battle.js` | 战后结算（幸存者、战利品、敌方同步）。Post-battle settlement. |
-| `src/stores/world.js` | 每帧的世界推进：移动、游戏时钟门控与扎营、部队 AI、遭遇判定。Per-frame world tick: movement, the clock gate and camping, party AI and encounter detection. |
+| `src/game/battle.js` | 战斗模拟：小队命令、队形 / 密度、克制伤害、远程风筝、地形效果、速度档与胜负判定。Battle simulation: squad orders, formations / densities, counter damage, ranged kiting, the terrain effects, the speed settings and win/lose logic. |
+| `src/game/arena.js` | 战场地形：五种地形的定义、生成与效果，以及不可通行规则。Battlefield terrain: the five kinds, how they are placed and what they do. |
+| `src/game/difficulty.js` | 难度设置：三种难度与它们对考试金币的增减。The difficulty setting: the three levels and what they take off the exam reward. |
+| `src/game/daynight.js` | 昼夜规则：夜晚占一天的五分之一、黑度曲线与夜晚的减速系数。The day and night rules: the night share of the day, the darkness curve and the night slowdown. |
+| `src/stores/battle.js` | 战斗状态：模拟循环、速度档、镜头、战后结算（幸存者、战利品、敌方同步）。Battle state: the simulation loop, the speed setting, the camera and the post-battle settlement. |
+| `src/stores/world.js` | 每帧的世界推进：移动、游戏时钟门控与扎营、部队 AI、遭遇判定，以及战役时钟读数。Per-frame world tick: movement, the clock gate and camping, party AI, encounter detection, and the campaign clock readout. |
 | `src/game/quiz/index.js` | 出卷入口与奖励公式。Exam entry point and reward formula. |
 | `src/game/quiz/registry.js` | Mod 契约、校验与题目条目展开，改题目结构只动这一处。The mod contract, validation and entry expansion. |
 | `src/game/quiz/scheduler.js` | 记忆曲线的全部常数、权重、遗忘与加权抽取。Every memory-curve constant, weight, forgetting step and weighted pick. |
@@ -1004,12 +1210,32 @@ An upgrade edge has to name its target family: every entry returned by `upgrades
 You must be within about 1.4 tiles of the settlement before the "enter" button appears.
 
 **强盗的村庄进不去 / A bandit village cannot be entered.**
-这是设计如此：强盗控制的村庄禁止进入，底部按钮会变成「⚔️ 赶走强盗」，打赢驻军之后村庄就变成无主，可以进入。别的势力的城镇可以直接进去（考试、招募都行），想据为己有才需要「🏰 准备围城」等 2 天再「⚔️ 攻打」；无主的城镇直接「🚩 占领」。
-That is by design: a bandit village is closed to the lord, so the bottom button becomes 「⚔️ 赶走强盗」 — win against the garrison and the village turns unclaimed and open. A town held by a kingdom can be entered without a fight, and only has to be stormed if the lord wants to own it: prepare a siege for two days, then storm it. An unclaimed town is simply claimed with 「🚩 占领」.
+这是设计如此：强盗控制的村庄禁止进入，底部按钮会变成「⚔️ 赶走强盗」，打赢驻军之后村庄就变成无主，可以进入。别的势力的城镇可以直接进去（考试、招募都行），想据为己有才需要「🏰 准备围城」等 2 天再「⚔️ 攻打」；无主的城镇如果没人防守就「🚩 占领」，有人守军则要「⚔️ 攻城」打下来。
+That is by design: a bandit village is closed to the lord, so the bottom button becomes 「⚔️ 赶走强盗」 — win against the garrison and the village turns unclaimed and open. A town held by a kingdom can be entered without a fight, and only has to be stormed if the lord wants to own it: prepare a siege for two days, then storm it. An unclaimed town nobody defends is claimed with 「🚩 占领」; one that still holds soldiers has to be taken with 「⚔️ 攻城」.
+
+**无主的城镇为什么不能直接占领 / Why can I not claim an unclaimed town right away.**
+因为城里还有守军。按钮会变成「⚔️ 攻城」并显示守军人数，把守军打下来城镇才归你；打输了城镇还是原样，可以再来一次。地图上那些没有守军角标的无主城镇才能直接「🚩 占领」。
+Because the town still holds soldiers. The button becomes 「⚔️ 攻城」 with the number of defenders, and the town is yours only once they are beaten; a lost assault leaves the town as it was and you may try again. An unclaimed town without a garrison badge on the map can be claimed with 「🚩 占领」 right away.
 
 **围城一直没准备好 / The siege never becomes ready.**
 围城准备需要 2 天，而时间只在移动、扎营、城镇休整或**准备围城**时流逝——准备期间时钟会自己走，所以站在原地等也是有效的。
 The preparation takes two days, and the clock only runs while the lord marches, camps, rests in a settlement or **prepares a siege** — so standing still is enough, the siege keeps the clock alive.
+
+**想中断围城 / I want to call off a siege.**
+准备期间（以及准备完成之后）底部都有「🚫 取消围城」按钮，点它即可中断：准备进度作废，时钟也停下来。
+While the siege is prepared — and after the preparation is over — the bottom bar carries a 「🚫 取消围城」 button; tapping it calls the siege off, the preparation is lost and the clock stops again.
+
+**攻打失败后还能再打吗 / Can I storm the town again after losing?**
+不可以。攻打失败会中断这次围城，必须重新「🏰 准备围城」等满 2 天才能再次进攻——这样失败是有代价的。
+No. A failed assault breaks the siege: the lord has to prepare it again (two more days) before he may attack a second time, so a defeat costs something.
+
+**战斗太快看不清 / The battle is too fast to follow.**
+战斗默认是慢速（🐢）。想更快就把战斗界面右上角 ⚙ 打开，切到 🚶 正常或 🐇 快速；想慢下来同理。
+The battle runs slow by default (🐢). Open the ⚙ tools in the corner of the battle screen to switch to 🚶 normal or 🐇 fast, and back again whenever you like.
+
+**战场只看得到一小块 / The battlefield does not fit on the screen.**
+战场比手机屏幕大，镜头会跟着战斗走。用手指拖动可以自由查看，点 🎯 让镜头回到战斗；两军靠近时镜头会自动拉近。
+The field is bigger than a phone screen, so the camera follows the fighting. Drag it with a finger to look around, tap 🎯 to bring it back, and it zooms in on its own when the armies meet.
 
 **伤兵一直不恢复 / The wounded never heal.**
 行军时每点每天只恢复 6 点生命，城镇里是 24 点，自己的城镇更快，医院还会再乘一次。伤兵会带着剩余生命进入下一场战斗。

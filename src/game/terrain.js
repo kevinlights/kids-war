@@ -58,18 +58,6 @@ export function terrainFromId(id) {
   return TERRAIN_BY_ID[id] || TERRAIN.plain
 }
 
-// Battle map terrain presets. Only plain is fully playable today.
-export const BATTLE_TERRAINS = {
-  plain: {
-    key: 'plain',
-    name: '平原',
-    en: 'Plain',
-    floor: '#7cb85a',
-    patch: '#6aa84f',
-    enabled: true
-  },
-  forest: { key: 'forest', name: '森林', en: 'Forest', floor: '#4c8a43', patch: '#3f7a3a', enabled: false },
-  mountain: { key: 'mountain', name: '山地', en: 'Mountain', floor: '#9a917f', patch: '#8a8073', enabled: false },
-  desert: { key: 'desert', name: '沙漠', en: 'Desert', floor: '#dcc484', patch: '#cdb26f', enabled: false },
-  village: { key: 'village', name: '村庄', en: 'Village', floor: '#8fa86a', patch: '#7c945a', enabled: false }
-}
+// The terrain of a *battle* lives in `src/game/arena.js`: the battlefield is
+// tiled with its own kinds (forest, desert, river, lake, mountain) that change
+// how a soldier fights there.

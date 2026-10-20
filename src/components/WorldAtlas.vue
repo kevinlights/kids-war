@@ -104,7 +104,7 @@ onBeforeUnmount(() => {
       <header class="head">
         <div class="title">🗺️ 世界全图</div>
         <div class="meta muted">
-          第 {{ world.day }} 天 · {{ world.settlements.length }} 处聚落 · 拖动查看不同区域
+          第 {{ world.day }} 天 {{ world.clock.text }} · {{ world.settlements.length }} 处聚落 · 拖动查看不同区域
         </div>
         <button class="close" @click="$emit('close')">✕</button>
       </header>

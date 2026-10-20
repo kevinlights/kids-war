@@ -27,6 +27,26 @@
           </button>
         </div>
 
+        <!-- Difficulty: it decides how much gold a correct exam answer pays. -->
+        <div class="difficulty">
+          <div class="field-label">
+            <span>难度</span>
+            <span class="muted diff-note">{{ difficultyNote }}</span>
+          </div>
+          <div class="diff-row">
+            <button
+              v-for="d in difficulties"
+              :key="d.key"
+              class="diff-btn"
+              :class="{ on: difficulty === d.key }"
+              @click="difficulty = d.key"
+            >
+              <span class="diff-icon">{{ d.icon }}</span>
+              <span class="diff-name">{{ d.name }}</span>
+            </button>
+          </div>
+        </div>
+
         <p v-if="canStart && !existingSave" class="hint muted">这个名字是新的，将从零开始建立你的队伍。</p>
         <p v-else-if="canStart && existingSave" class="hint muted">检测到已有的存档，可以继续，也可以重新开始覆盖它。</p>
 
@@ -71,11 +91,17 @@ import GuideContent from '@/components/GuideContent.vue'
 import { newGame, continueGame, hasSave } from '@/composables/gameState'
 import { openShare } from '@/composables/share'
 import { listUsers } from '@/game/save'
+import { DEFAULT_DIFFICULTY, difficultyList, difficultyOf } from '@/game/difficulty'
 
 const router = useRouter()
 const name = ref('')
 const showIntro = ref(false)
 const recent = ref(listUsers())
+// The difficulty of a new campaign: it only changes the exam reward.
+const difficulty = ref(DEFAULT_DIFFICULTY)
+
+const difficulties = difficultyList()
+const difficultyNote = computed(() => difficultyOf(difficulty.value).note)
 
 const canStart = computed(() => name.value.trim().length > 0)
 const existingSave = computed(() => (canStart.value ? hasSave(name.value.trim()) : false))
@@ -89,7 +115,7 @@ function startNew() {
 
 function confirmStart() {
   const trimmed = name.value.trim()
-  newGame(trimmed)
+  newGame(trimmed, difficulty.value)
   router.push('/world')
 }
 
@@ -194,6 +220,62 @@ h1 {
 .actions .btn {
   flex: 1;
   min-width: 160px;
+}
+
+/* Difficulty picker: three big buttons, one per level. */
+.difficulty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.diff-note {
+  font-size: 12px;
+  font-weight: 400;
+  text-align: right;
+}
+
+.diff-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.diff-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 52px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  transition: all 0.15s;
+}
+
+.diff-btn.on {
+  background: rgba(232, 197, 106, 0.2);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.diff-icon {
+  font-size: 18px;
+}
+
+.diff-name {
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .hint {

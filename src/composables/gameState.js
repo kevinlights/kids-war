@@ -4,10 +4,11 @@ import { useWorldStore } from '@/stores/world'
 import { saveGame, loadGame, hasSave } from '@/game/save'
 
 // Start a brand new campaign: reset the player and roll a fresh world.
-export function newGame(username) {
+export function newGame(username, difficulty) {
   const player = usePlayerStore()
   const world = useWorldStore()
   player.reset(username)
+  if (difficulty) player.setDifficulty(difficulty)
   world.generate(Math.floor(Math.random() * 1e9))
   persistGame()
 }
@@ -38,7 +39,8 @@ export function persistGame() {
     troops: player.troops,
     supplies: player.supplies,
     stats: player.stats,
-    questionStats: player.questionStats
+    questionStats: player.questionStats,
+    difficulty: player.difficulty
   })
 }
 

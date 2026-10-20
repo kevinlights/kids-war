@@ -42,7 +42,9 @@ const standingOn = computed(() =>
           <span class="crest">👑</span>
           <div>
             <div class="name">{{ player.username || '领主' }}</div>
-            <div class="muted small">第 {{ world.day }} 天 · 位于{{ standingOn.name }}</div>
+            <div class="muted small">
+              第 {{ world.day }} 天 {{ world.clock.text }} · 位于{{ standingOn.name }}
+            </div>
             <div class="muted small">
               {{ world.camping ? '⛺ 扎营中 · 时间流逝' : world.timeFlowing ? '⏳ 行军中 · 时间流逝' : '⏸ 时间停滞' }}
             </div>

@@ -266,7 +266,11 @@ function buildWorld(seed) {
     st.funds = 0
     st.facilities = { hospital: 0, barracks: 0 }
     st.siege = null
-    st.garrison = makeGarrison(st)
+    // An unclaimed town is not always defended: some of them keep a local
+    // watch that has to be beaten first, the others can be taken by raising
+    // the flag.
+    const undefended = st.owner === NEUTRAL && st.kind === 'town' && rng.next() < 0.45
+    st.garrison = undefended ? [] : makeGarrison(st)
     normalizeSettlement(st)
   }
 

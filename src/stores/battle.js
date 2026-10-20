@@ -15,6 +15,7 @@ import {
 } from '@/game/battle'
 import { warbandValue, woundedCount } from '@/game/units'
 import { survivalChance } from '@/game/settlement'
+import { speedOf } from '@/game/battle'
 import { usePlayerStore } from './player'
 import { useWorldStore } from './world'
 
@@ -26,11 +27,21 @@ export const useBattleStore = defineStore('battle', {
     result: null, // { outcome, loot, summary, recruits }
     settled: false,
     selectedGroup: null, // null means every squad at once
+    // How fast the simulation runs: 'slow' (the default), 'normal' or 'fast'.
+    speed: 'slow',
+    // The camera over the battle field: the field is bigger than a phone
+    // screen, so the view follows the fighting until the player drags it.
+    camX: ARENA.w / 2,
+    camY: ARENA.h / 2,
+    zoom: 1,
+    follow: true,
     // Random source of the survival rolls; a check can replace it.
     rngFn: null
   }),
 
   getters: {
+    /** The speed record of the current setting. */
+    speedInfo: (s) => speedOf(s.speed),
     /** Player squads with their live count, order, formation and density. */
     groups: (s) => (s.data ? battleGroups(s.data, 'player') : []),
     selected: (s) => (s.data && s.selectedGroup ? s.data.groups[s.selectedGroup] || null : null),
@@ -93,6 +104,11 @@ export const useBattleStore = defineStore('battle', {
     /**
      * Storm a town or drive the bandits out of a village. The garrison of the
      * settlement is the enemy, and the outcome changes the ownership.
+     *
+     * The kinds are:
+     *   siege   攻打王国的城镇 —— 打赢就占领
+     *   claim   攻打无主但有守军的城镇 —— 打赢就占领
+     *   bandits 赶走强盗 —— 打赢就变成无主
      */
     startSettlement(settlement, seed, kind) {
       const player = usePlayerStore()
@@ -127,8 +143,83 @@ export const useBattleStore = defineStore('battle', {
 
     tick(dt) {
       if (!this.active || !this.data) return
-      stepBattle(this.data, Math.min(dt, 0.05))
+      // The speed setting scales the clock of the simulation: the slow speed
+      // keeps the battle readable, the fast one hurries it along.
+      const mul = speedOf(this.speed).mul
+      stepBattle(this.data, Math.min(dt * mul, 0.08))
       if (this.data.outcome && !this.settled) this.settle()
+    },
+
+    /** Change how fast the battle runs. */
+    setSpeed(key) {
+      this.speed = speedOf(key).key
+      return this.speed
+    },
+
+    /* -------------------------------- camera -------------------------------- */
+
+    /**
+     * Keep the camera on the fighting.
+     *
+     * The zoom follows the armies: when they are far apart the field is seen
+     * from a distance, and when they meet the camera zooms in. The zoom never
+     * drops below the readable minimum, and the camera never shows the area
+     * outside the field.
+     */
+    updateCamera(viewW, viewH) {
+      if (!this.data || !viewW || !viewH) return
+      const bounds = this.actionBounds()
+      if (bounds) {
+        const needW = Math.max(320, bounds.maxX - bounds.minX + 260)
+        const needH = Math.max(240, bounds.maxY - bounds.minY + 260)
+        const fit = Math.min(viewW / needW, viewH / needH)
+        this.zoom = Math.max(0.7, Math.min(1.5, fit))
+        if (this.follow) {
+          this.camX += (bounds.cx - this.camX) * 0.12
+          // The command bar covers the bottom of the screen, so the fighting
+          // is kept a little above the middle.
+          this.camY += (bounds.cy + 60 - this.camY) * 0.12
+        }
+      } else {
+        this.zoom = Math.max(0.55, Math.min(1.5, Math.min(viewW / 560, viewH / 620)))
+      }
+      // The camera never shows the area outside the field: when the view is
+      // bigger than the field, the field is pinned to the top left corner and
+      // the rest of the screen shows the ground around it.
+      const halfW = viewW / this.zoom / 2
+      const halfH = viewH / this.zoom / 2
+      this.camX = Math.max(halfW, Math.min(ARENA.w - halfW, this.camX))
+      this.camY = Math.max(halfH, Math.min(ARENA.h - halfH, this.camY))
+    },
+
+    /** The box around every living soldier: what the camera likes to watch. */
+    actionBounds() {
+      if (!this.data) return null
+      let minX = Infinity
+      let maxX = -Infinity
+      let minY = Infinity
+      let maxY = -Infinity
+      for (const u of this.data.units) {
+        if (!u.alive) continue
+        if (u.x < minX) minX = u.x
+        if (u.x > maxX) maxX = u.x
+        if (u.y < minY) minY = u.y
+        if (u.y > maxY) maxY = u.y
+      }
+      if (!Number.isFinite(minX)) return null
+      return { minX, maxX, minY, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 }
+    },
+
+    /** Drag the field: the camera follows the finger and stops auto-following. */
+    panCamera(dx, dy) {
+      this.camX -= dx / this.zoom
+      this.camY -= dy / this.zoom
+      this.follow = false
+    },
+
+    /** Let the camera follow the fighting again. */
+    recenter() {
+      this.follow = true
     },
 
     /* ------------------------------ squad commands ----------------------------- */
@@ -257,8 +348,11 @@ export const useBattleStore = defineStore('battle', {
         if (party) world.defeatParty(party.id)
         if (settlement) {
           // The town's soldiers are gone, so the lord takes it over.
-          if (this.context.kind === 'siege') captured = world.captureTown(settlement.id)
-          else if (this.context.kind === 'bandits') captured = world.liberateVillage(settlement.id)
+          if (this.context.kind === 'siege' || this.context.kind === 'claim') {
+            captured = world.captureTown(settlement.id)
+          } else if (this.context.kind === 'bandits') {
+            captured = world.liberateVillage(settlement.id)
+          }
         }
       } else if (party) {
         // Defeat: the enemy holds the field with whoever is still standing, so
@@ -277,6 +371,9 @@ export const useBattleStore = defineStore('battle', {
         // The assault failed: the town still holds its soldiers.
         const survivors = survivorsByType(this.data, 'enemy')
         settlement.garrison = survivors
+        // A failed assault breaks the siege: the lord has to gather his troops
+        // and prepare the attack all over again.
+        if (this.context.kind === 'siege') settlement.siege = null
         // Push the lord back so the fight does not restart immediately.
         const dx = world.playerPos.x - settlement.x
         const dy = world.playerPos.y - settlement.y

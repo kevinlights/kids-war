@@ -17,8 +17,13 @@
  */
 import { unitDef, unitName, counterMultiplier, normalizeTroops } from './units'
 import { createRng } from './rng'
+import { arenaTerrainAt, arenaWalkable, ARENA_CELL, generateArenaTerrain } from './arena'
 
-export const ARENA = { w: 900, h: 560, margin: 48 }
+/**
+ * The battle field. It is deliberately larger than the screen of a phone: the
+ * camera follows the fighting instead, so the armies still have room to manoeuvre.
+ */
+export const ARENA = { w: 1000, h: 680, margin: 50 }
 
 /** Standing orders a squad can be given. */
 export const ORDERS = [
@@ -64,7 +69,22 @@ export const FORMATION_MODS = {
 const MELEE_RANGE = 26
 const AGGRO = 320
 /** Pixels per second at `speed: 1`. */
-const BASE_SPEED = 62
+const BASE_SPEED = 90
+
+/**
+ * How fast the battle runs. The slow speed is the default one, so a child can
+ * read the field and give orders before the next clash happens.
+ */
+export const SPEEDS = [
+  { key: 'slow', name: '慢速', en: 'Slow', icon: '🐢', mul: 0.6, note: '战斗慢半拍，方便看清每一个动作' },
+  { key: 'normal', name: '正常', en: 'Normal', icon: '🚶', mul: 1, note: '游戏原本的速度' },
+  { key: 'fast', name: '快速', en: 'Fast', icon: '🐇', mul: 1.8, note: '战局推进很快，适合熟练之后' }
+]
+
+/** The speed record of a key, falling back to the slow one. */
+export function speedOf(key) {
+  return SPEEDS.find((s) => s.key === key) || SPEEDS[0]
+}
 
 export function orderOf(key) {
   return ORDERS.find((o) => o.key === key) || ORDERS[0]
@@ -183,7 +203,9 @@ function addSide(b, side, troops, dir, atkMul) {
   // One squad per family and rank; duplicates are merged up front so a squad
   // always has a single anchor point.
   const list = normalizeTroops(troops)
-  const originX = side === 'player' ? ARENA.margin + 26 : ARENA.w - ARENA.margin - 26
+  // The armies start in their own half of the field, with room to manoeuvre in
+  // between instead of clashing on the first step.
+  const originX = side === 'player' ? ARENA.w * 0.22 : ARENA.w * 0.78
 
   list.forEach((t, gi) => {
     const def = unitDef(t.type, t.tier)
@@ -241,6 +263,13 @@ export function createBattle({ playerTroops, enemyTroops, enemyFaction, seed, pl
   const b = {
     rng: createRng(seed),
     enemyFaction,
+    // The terrain of this field: it is generated from the seed, so the same
+    // fight always looks the same.
+    terrain: generateArenaTerrain(
+      seed,
+      Math.round(ARENA.w / ARENA_CELL),
+      Math.round(ARENA.h / ARENA_CELL)
+    ),
     // Army-wide modifiers: the barracks of the lord's towns train his soldiers,
     // so the whole warband hits and holds harder.
     playerAtkMul,
@@ -252,9 +281,9 @@ export function createBattle({ playerTroops, enemyTroops, enemyFaction, seed, pl
       id: 'commander',
       side: 'player',
       type: 'commander',
-      x: ARENA.margin + 20,
+      x: ARENA.w * 0.16,
       y: ARENA.h / 2,
-      tx: ARENA.margin + 20,
+      tx: ARENA.w * 0.16,
       ty: ARENA.h / 2,
       maxHp: 120,
       hp: 120,
@@ -314,26 +343,38 @@ function nearestFoeTo(b, side, x, y) {
   return best
 }
 
-function moveToward(unit, tx, ty, speed, dt) {
+function moveToward(unit, tx, ty, speed, dt, blocked) {
   const dx = tx - unit.x
   const dy = ty - unit.y
   const d = Math.hypot(dx, dy)
   if (d < 1) return
   const step = Math.min(d, speed * dt)
-  unit.x += (dx / d) * step
-  unit.y += (dy / d) * step
+  // The two axes move on their own, so a soldier slides along the shore of a
+  // lake instead of walking into it.
+  const nx = unit.x + (dx / d) * step
+  const ny = unit.y + (dy / d) * step
+  if (!blocked || !blocked(nx, unit.y)) unit.x = nx
+  if (!blocked || !blocked(unit.x, ny)) unit.y = ny
   if (Math.abs(dx) > 2) unit.facing = dx >= 0 ? 1 : -1
 }
 
 /** Walk straight away from a point, used by ranged skirmishers. */
-function moveAwayFrom(unit, fx, fy, speed, dt) {
+function moveAwayFrom(unit, fx, fy, speed, dt, blocked) {
   const dx = unit.x - fx
   const dy = unit.y - fy
   const d = Math.hypot(dx, dy)
   if (d < 1) return
   const step = speed * dt
-  unit.x += (dx / d) * step
-  unit.y += (dy / d) * step
+  const nx = unit.x + (dx / d) * step
+  const ny = unit.y + (dy / d) * step
+  if (!blocked || !blocked(nx, unit.y)) unit.x = nx
+  if (!blocked || !blocked(unit.x, ny)) unit.y = ny
+}
+
+/** True when a position is off the field or inside a lake. */
+function blockedAt(b, x, y) {
+  if (x < 16 || y < 16 || x > ARENA.w - 16 || y > ARENA.h - 16) return true
+  return !arenaWalkable(b.terrain, x, y)
 }
 
 /**
@@ -374,17 +415,30 @@ function updateGroupTargets(b) {
   }
 }
 
+/**
+ * The damage one strike deals.
+ *
+ * The ground under the fighters matters: a desert tires the attacker and a
+ * forest hides the defender, so the same swing hurts more on open ground.
+ */
+export function damageOf(b, unit, target) {
+  const def = unit.def
+  const group = b.groups[unit.group]
+  const atkMul = group ? groupMods(group).atkMul : 1
+  const counter = counterMultiplier(unit.type, target.type)
+  const atkGround = arenaTerrainAt(b.terrain, unit.x, unit.y)
+  const defGround = arenaTerrainAt(b.terrain, target.x, target.y)
+  const effAtk = def.atk * (unit.atkMul || 1) * atkMul * counter * atkGround.atkMul
+  const sideDef = target.side === 'player' ? b.playerDefMul || 1 : 1
+  const effDef = (target.def.def || 0) * defMulOf(b, target) * sideDef * defGround.defMul
+  return Math.max(1, Math.round(effAtk - effDef * 0.5 + b.rng.float(-1, 1)))
+}
+
 function strike(b, unit, target) {
   const def = unit.def
   const cooldown = def.ranged ? 1.6 : 1.0
   if (unit.cd > 0) return
-  const group = b.groups[unit.group]
-  const atkMul = group ? groupMods(group).atkMul : 1
-  const counter = counterMultiplier(unit.type, target.type)
-  const effAtk = def.atk * (unit.atkMul || 1) * atkMul * counter
-  const sideDef = target.side === 'player' ? b.playerDefMul || 1 : 1
-  const effDef = (target.def.def || 0) * defMulOf(b, target) * sideDef
-  const dmg = Math.max(1, Math.round(effAtk - effDef * 0.5 + b.rng.float(-1, 1)))
+  const dmg = damageOf(b, unit, target)
   unit.cd = cooldown
 
   if (def.ranged) {
@@ -431,7 +485,7 @@ export function stepBattle(b, dt) {
 
   // Move the commander smoothly toward its click target.
   if (cmd.alive) {
-    moveToward(cmd, cmd.tx, cmd.ty, cmd.speed, dt)
+    moveToward(cmd, cmd.tx, cmd.ty, cmd.speed, dt, (x, y) => blockedAt(b, x, y))
     if (cmd.cd > 0) cmd.cd -= dt
   }
 
@@ -450,6 +504,12 @@ export function stepBattle(b, dt) {
     const { unit: foe, dist } = nearestEnemy(b, unit)
     const engage = def.ranged ? def.range : MELEE_RANGE
     const holding = group.order !== 'attack'
+    // The ground the soldier stands on slows it down: a forest or a river
+    // costs time, a mountain gives a better view but a slippery footing.
+    const ground = arenaTerrainAt(b.terrain, unit.x, unit.y)
+    const speed = def.speed * BASE_SPEED * mods.speedMul * ground.speedMul
+    const prevX = unit.x
+    const prevY = unit.y
     // Ranged squads ordered to attack keep the enemy at arm's length: once a foe
     // closes to half their range they back away, still facing it and still
     // shooting. Squads holding a position never fall back, so an archer told to
@@ -464,17 +524,39 @@ export function stepBattle(b, dt) {
     const tx = group.tx + (crowd === null ? slot.ox : Math.max(-crowd, Math.min(crowd, slot.ox)))
     const ty = group.ty + (crowd === null ? slot.oy : Math.max(-crowd, Math.min(crowd, slot.oy)))
 
+    let wantsToMove = false
     if (kiting) {
-      moveAwayFrom(unit, foe.x, foe.y, def.speed * BASE_SPEED * mods.speedMul, dt)
+      wantsToMove = true
+      moveAwayFrom(unit, foe.x, foe.y, speed, dt, (x, y) => blockedAt(b, x, y))
       unit.facing = foe.x >= unit.x ? 1 : -1
     } else {
       // Walk to the slot unless this soldier is already shooting / swinging.
       const dSlot = Math.hypot(tx - unit.x, ty - unit.y)
       if (dSlot > 5 && (holding || !foe || dist > engage)) {
-        moveToward(unit, tx, ty, def.speed * BASE_SPEED * mods.speedMul, dt)
+        wantsToMove = true
+        moveToward(unit, tx, ty, speed, dt, (x, y) => blockedAt(b, x, y))
       }
     }
     if (foe && dist <= engage) strike(b, unit, foe)
+
+    // A soldier that wants to move but cannot (a lake in the way) gets a
+    // sideways nudge, so no fight can stall for ever.
+    const moved = Math.hypot(unit.x - prevX, unit.y - prevY)
+    unit.stuck = wantsToMove && moved < 0.2 ? (unit.stuck || 0) + dt : 0
+    if (unit.stuck > 0.8) {
+      unit.stuck = 0
+      const dx = tx - unit.x
+      const dy = ty - unit.y
+      const len = Math.hypot(dx, dy) || 1
+      unit.detour = unit.detour === 1 ? -1 : 1
+      const step = 26 * unit.detour
+      const nx = unit.x + (-dy / len) * step
+      const ny = unit.y + (dx / len) * step
+      if (!blockedAt(b, nx, ny)) {
+        unit.x = nx
+        unit.y = ny
+      }
+    }
 
     unit.x = clamp(unit.x, 16, ARENA.w - 16)
     unit.y = clamp(unit.y, 16, ARENA.h - 16)

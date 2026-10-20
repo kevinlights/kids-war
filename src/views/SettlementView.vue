@@ -8,6 +8,7 @@
         <span v-if="settlement" class="chip level" title="城镇等级">Lv.{{ level.level }} {{ level.name }}</span>
       </div>
       <div class="head-right">
+        <DayClock note="⏳ 休整中" live />
         <span v-if="settlement" class="chip owner" :style="{ borderColor: owner.color, color: owner.color }">
           {{ owner.name }}
         </span>
@@ -68,6 +69,7 @@ import UpgradePanel from '@/components/UpgradePanel.vue'
 import MarketPanel from '@/components/MarketPanel.vue'
 import TownPanel from '@/components/TownPanel.vue'
 import ExamModal from '@/components/ExamModal.vue'
+import DayClock from '@/components/DayClock.vue'
 import { levelOf, ownerOf } from '@/game/settlement'
 import { persistGame } from '@/composables/gameState'
 

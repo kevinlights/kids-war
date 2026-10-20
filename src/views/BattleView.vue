@@ -16,6 +16,40 @@
 
     <div v-if="hungry" class="warn">🌾 军粮不足，部队士气低落（攻击下降）</div>
 
+    <!-- Battle tools: speed, terrain legend and the camera. -->
+    <div class="hud-tools">
+      <button class="tool" :class="{ on: showTools }" @click="showTools = !showTools">
+        ⚙ {{ speedInfo.name }}
+      </button>
+      <button class="tool" title="回到战斗" @click="battle.recenter()">🎯</button>
+    </div>
+
+    <div v-if="showTools" class="tools-panel panel">
+      <div class="tools-title">战斗速度</div>
+      <div class="speed-row">
+        <button
+          v-for="s in SPEEDS"
+          :key="s.key"
+          class="speed-btn"
+          :class="{ on: battle.speed === s.key }"
+          :title="s.note"
+          @click="battle.setSpeed(s.key)"
+        >
+          <span class="sp-icon">{{ s.icon }}</span>
+          <span class="sp-name">{{ s.name }}</span>
+        </button>
+      </div>
+      <div class="tools-title">战场地形</div>
+      <div class="terrain-list">
+        <div v-for="t in TERRAINS" :key="t.key" class="terrain-row">
+          <i class="terrain-dot" :style="{ background: t.color }"></i>
+          <span class="terrain-name">{{ t.name }}</span>
+          <span class="terrain-note">{{ t.note }}</span>
+        </div>
+      </div>
+      <p class="tools-hint">用手指拖动战场可以查看别的地方，点「🎯」让镜头回到战斗。</p>
+    </div>
+
     <div class="command">
       <!-- Squad selector: one chip per family and rank, plus 全军. -->
       <div class="chips">
@@ -134,7 +168,8 @@ import { useRouter } from 'vue-router'
 import BattleMap from '@/components/BattleMap.vue'
 import { useBattleStore } from '@/stores/battle'
 import { useWorldStore } from '@/stores/world'
-import { ORDERS, FORMATIONS, DENSITIES, orderOf, formationOf, densityOf } from '@/game/battle'
+import { ORDERS, FORMATIONS, DENSITIES, SPEEDS, orderOf, formationOf, densityOf } from '@/game/battle'
+import { ARENA_TERRAIN_LIST } from '@/game/arena'
 import { factionOf } from '@/game/factions'
 import { unitSprite } from '@/game/units'
 import { spriteUrl } from '@/game/pixelAssets'
@@ -146,12 +181,17 @@ const world = useWorldStore()
 
 const result = ref(null)
 const showSheet = ref(false)
+// Battle tools panel: the speed setting and the terrain legend.
+const showTools = ref(false)
 
 const groups = computed(() => battle.groups)
 const order = computed(() => battle.order)
 const formation = computed(() => battle.formation)
 const density = computed(() => battle.density)
 const hungry = computed(() => !!battle.context?.hungry)
+// The terrain kinds of the field, for the legend.
+const TERRAINS = ARENA_TERRAIN_LIST
+const speedInfo = computed(() => battle.speedInfo)
 
 const enemyName = computed(() => (battle.context ? factionOf(battle.context.faction).name : '敌军'))
 const enemyColor = computed(() => (battle.context ? factionOf(battle.context.faction).color : '#d8533f'))
@@ -283,6 +323,125 @@ watch(
 }
 
 /* ------------------------------- command bar ------------------------------- */
+
+/* Battle tools: the speed setting and the camera, kept out of the command
+   bar so the field stays as tall as possible on a phone. */
+.hud-tools {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 6;
+}
+
+.tool {
+  min-width: 44px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(8, 12, 8, 0.78);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tool.on {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.tools-panel {
+  position: absolute;
+  top: calc(60px + env(safe-area-inset-top));
+  right: 12px;
+  width: min(300px, calc(100% - 24px));
+  padding: 12px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tools-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.speed-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.speed-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 48px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid transparent;
+}
+
+.speed-btn.on {
+  background: rgba(232, 197, 106, 0.22);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.sp-icon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.sp-name {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.terrain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.terrain-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.terrain-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.terrain-name {
+  font-weight: 700;
+  color: var(--ink);
+  flex: none;
+}
+
+.terrain-note {
+  color: var(--ink-dim);
+}
+
+.tools-hint {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--ink-dim);
+}
 
 .command {
   position: absolute;
@@ -594,6 +753,33 @@ watch(
     gap: 8px;
     padding: 6px 12px;
     font-size: 13px;
+    /* The battle tools sit in the top-right corner, so the strength bar keeps
+       to the left of them on a narrow screen. */
+    left: 12px;
+    right: auto;
+    transform: none;
+    max-width: calc(100% - 116px);
+    overflow: hidden;
+  }
+
+  .hud-tools {
+    top: calc(10px + env(safe-area-inset-top));
+    right: 10px;
+    gap: 6px;
+  }
+
+  .tool {
+    min-width: 40px;
+    min-height: 38px;
+    padding: 5px 8px;
+    font-size: 12px;
+  }
+
+  .tools-panel {
+    top: calc(54px + env(safe-area-inset-top));
+    right: 10px;
+    width: min(280px, calc(100% - 20px));
+    padding: 10px;
   }
 
   .warn {

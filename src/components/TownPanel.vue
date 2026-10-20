@@ -51,17 +51,20 @@
       </div>
     </div>
 
-    <!-- Development: the exam feeds it, the town's own money can too. -->
+    <!-- Development: the exam feeds it, the lord's gold can too. -->
     <div v-if="mine" class="block panel">
       <div class="block-head">
         <b>📈 投入发展</b>
         <span class="muted small">发展高于 40 时繁荣度上升，低于 40 时下降</span>
       </div>
       <div class="block-body">
-        <button class="btn small" :disabled="settlement.funds < investCost" @click="invest">
-          投入 {{ investCost }} 资金 · 发展 +{{ investGain }}
+        <button class="btn small" :disabled="player.gold < injectCost" @click="inject">
+          注入资金 🪙 {{ injectCost }} → 城镇金库
         </button>
-        <span class="muted small">考试答对也能提升发展，并给城镇带来资金。</span>
+        <button class="btn small" :disabled="settlement.funds < investCost" @click="invest">
+          投入发展 · 城镇资金 {{ investCost }} → 发展 +{{ investGain }}
+        </button>
+        <span class="muted small">考试的收入先进你的钱袋，再由你注入城镇；答对的题目也会提升城镇发展。</span>
       </div>
     </div>
 
@@ -114,8 +117,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { usePlayerStore } from '@/stores/player'
 import {
   FACILITIES,
+  INJECT_COST,
   INVEST_COST,
   INVEST_GAIN,
   buildFacility,
@@ -123,6 +128,7 @@ import {
   facilityCost,
   facilityLevel,
   garrisonCount,
+  injectFunds,
   investDevelopment,
   levelOf,
   nextThreshold,
@@ -133,6 +139,7 @@ import { spriteUrl } from '@/game/pixelAssets'
 import { persistGame } from '@/composables/gameState'
 
 const props = defineProps({ settlement: { type: Object, required: true } })
+const player = usePlayerStore()
 const toast = ref('')
 let timer = 0
 
@@ -141,6 +148,7 @@ const owner = computed(() => ownerOf(props.settlement))
 const next = computed(() => nextThreshold(props.settlement))
 const mine = computed(() => props.settlement.owner === 'player')
 const facilityList = Object.values(FACILITIES)
+const injectCost = INJECT_COST
 const investCost = INVEST_COST
 const investGain = INVEST_GAIN
 
@@ -189,6 +197,22 @@ function invest() {
     return
   }
   flash(`发展 +${INVEST_GAIN}`)
+  persistGame()
+}
+
+/** Put the lord's own gold into the town treasury. */
+function inject() {
+  if (!player.spendGold(injectCost)) {
+    flash('金币不足')
+    return
+  }
+  const res = injectFunds(props.settlement, injectCost)
+  if (!res.ok) {
+    player.addGold(injectCost)
+    flash(res.reason)
+    return
+  }
+  flash(`已注入 ${injectCost} 金币，城镇金库 +${injectCost}`)
   persistGame()
 }
 </script>

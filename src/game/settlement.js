@@ -152,7 +152,42 @@ export function isPlayerTown(settlement) {
 export function isAttackable(settlement) {
   if (!settlement) return false
   if (settlement.owner === BANDIT) return settlement.kind === 'village'
-  return settlement.kind === 'town' && settlement.owner !== PLAYER && settlement.owner !== NEUTRAL
+  if (settlement.owner === NEUTRAL) {
+    // An unclaimed town that still holds soldiers has to be stormed.
+    return settlement.kind === 'town' && garrisonCount(settlement.garrison) > 0
+  }
+  return settlement.kind === 'town' && settlement.owner !== PLAYER
+}
+
+/**
+ * Can the lord take the settlement without a fight?
+ *
+ * An unclaimed town nobody defends is simply claimed — the lord walks in and
+ * raises his flag. As soon as the town holds soldiers, the flag has to be
+ * planted the hard way: the garrison has to be beaten first.
+ */
+export function claimIsFree(settlement) {
+  if (!settlement) return false
+  if (settlement.owner !== NEUTRAL) return false
+  return garrisonCount(settlement.garrison) === 0
+}
+
+/** An unclaimed town that still holds soldiers and has to be stormed. */
+export function needsAssault(settlement) {
+  if (!settlement) return false
+  if (settlement.owner !== NEUTRAL) return false
+  if (settlement.kind !== 'town') return false
+  return garrisonCount(settlement.garrison) > 0
+}
+
+/**
+ * A town the lord may besiege: one held by a kingdom. A neutral town is
+ * claimed without a fight, and a town of the lord's own needs no war at all.
+ */
+export function canSiege(settlement) {
+  if (!settlement) return false
+  if (settlement.kind !== 'town') return false
+  return settlement.owner === 'wolf' || settlement.owner === 'eagle'
 }
 
 /** Cost of the next hospital or barracks level. */
@@ -324,23 +359,32 @@ export function syncLevel(settlement) {
 }
 
 /**
- * What an exam earns the town: part of the reward becomes building money and
- * the correct answers lift the development.
+ * What an exam gives the town: the correct answers lift the development.
+ *
+ * The gold of the exam always goes to the lord's own purse — the town is paid
+ * by an injection, so a lord who owns his towns is never short of money.
  */
-export function examReward(settlement, { reward = 0, correct = 0 } = {}) {
-  if (!isPlayerTown(settlement)) return { funds: 0, development: 0 }
-  const funds = Math.round(reward * 0.6)
+export function examReward(settlement, { correct = 0 } = {}) {
+  if (!isPlayerTown(settlement)) return { development: 0 }
   const development = correct * 2
-  settlement.funds = (settlement.funds || 0) + funds
   settlement.development = Math.min(100, (settlement.development || 0) + development)
-  return { funds, development }
+  return { development }
 }
 
+/** Personal gold the lord pays to fill the town treasury. */
+export const INJECT_COST = 100
 /** Development bought with the town's own money. */
 export const INVEST_COST = 60
 export const INVEST_GAIN = 6
 
-/** Turn town funds into development. */
+/** Move the lord's gold into the town treasury. */
+export function injectFunds(settlement, amount = INJECT_COST) {
+  if (!isPlayerTown(settlement)) return { ok: false, reason: '这不是你的城镇' }
+  settlement.funds = (settlement.funds || 0) + amount
+  return { ok: true, amount }
+}
+
+/** Development bought with the town's own money. */
 export function investDevelopment(settlement) {
   if (!isPlayerTown(settlement)) return { ok: false, reason: '这不是你的城镇' }
   if ((settlement.funds || 0) < INVEST_COST) return { ok: false, reason: '资金不足' }
@@ -382,10 +426,14 @@ export function captureSettlement(settlement) {
 /**
  * Take over an unclaimed settlement without a fight: nobody defends it, so the
  * lord simply walks in and raises his flag.
+ *
+ * A town that still holds soldiers is refused here — it has to be stormed
+ * first, the same way a kingdom town does.
  */
 export function claimSettlement(settlement) {
   if (!settlement) return { ok: false, reason: '找不到这个据点' }
   if (settlement.owner !== NEUTRAL) return { ok: false, reason: '这里已经有主人了' }
+  if (!claimIsFree(settlement)) return { ok: false, reason: '城里还有守军，要先打下来' }
   captureSettlement(settlement)
   return { ok: true, settlement }
 }
@@ -417,9 +465,10 @@ export function normalizeSettlement(settlement) {
   settlement.facilities.hospital = facilityLevel(settlement, 'hospital')
   settlement.facilities.barracks = facilityLevel(settlement, 'barracks')
   settlement.garrison = normalizeTroops(settlement.garrison)
-  // A town the lord holds keeps no enemy garrison; every other settlement
-  // fields one.
-  if (!settlement.garrison.length && settlement.owner !== PLAYER) {
+  // A town the lord holds keeps no enemy garrison, and an unclaimed town may
+  // have nobody inside; every other settlement fields one.
+  const undefended = settlement.owner === NEUTRAL && settlement.kind === 'town'
+  if (!settlement.garrison.length && settlement.owner !== PLAYER && !undefended) {
     settlement.garrison = makeGarrison(settlement)
   }
   if (!settlement.siege) settlement.siege = null

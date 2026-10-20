@@ -41,7 +41,8 @@ export function saveGame(username, state) {
     troops: state.troops,
     supplies: state.supplies,
     stats: state.stats,
-    questionStats: state.questionStats || {}
+    questionStats: state.questionStats || {},
+    difficulty: state.difficulty || 'easy'
   }
   localStorage.setItem(saveKey(username), JSON.stringify(payload))
   rememberUser(username)

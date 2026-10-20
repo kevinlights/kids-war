@@ -33,7 +33,13 @@ export function buildScenarioSave(scenario, { seed = 20261019, username = 'teste
   } else if (scenario === 'siege') {
     target = settlements.find((s) => s.kind === 'town' && (s.owner === 'wolf' || s.owner === 'eagle'))
   } else if (scenario === 'claim') {
+    // An unclaimed town that still holds a garrison: it has to be stormed.
+    target = settlements.find((s) => s.kind === 'town' && s.owner === 'neutral' && s.garrison.length > 0)
+    if (!target) target = settlements.find((s) => s.kind === 'town' && s.owner === 'neutral')
+  } else if (scenario === 'claimFree') {
+    // An unclaimed town nobody defends: it can be claimed by raising the flag.
     target = settlements.find((s) => s.kind === 'town' && s.owner === 'neutral')
+    if (target) target.garrison = []
   } else {
     target = settlements.find((s) => s.kind === 'town')
     target.owner = 'player'

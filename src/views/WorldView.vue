@@ -7,12 +7,30 @@
       <div class="chip">👑 {{ player.username || '领主' }}</div>
       <div class="chip gold">🪙 {{ player.gold }}</div>
       <div class="chip">🛡️ {{ player.totalTroops }} 兵</div>
-      <div class="chip day" :class="{ live: world.timeFlowing }">
-        📅 第 {{ world.day }} 天
-        <span class="flow">{{ flowLabel }}</span>
-      </div>
+      <DayClock :note="flowLabel" :live="world.timeFlowing" />
       <div class="chip">🏆 胜 {{ player.stats.wins }} / {{ player.stats.battles }}</div>
       <button class="chip role-btn" title="查看角色信息" @click="showCharacter = true">👤 角色详情</button>
+      <button class="chip diff-chip" title="难度设置" @click="showSettings = !showSettings">
+        🎚 {{ difficulty.name }}
+      </button>
+    </div>
+
+    <!-- Settings sheet: the difficulty of the campaign. -->
+    <div v-if="showSettings" class="settings panel">
+      <div class="settings-title">难度设置</div>
+      <div class="diff-row">
+        <button
+          v-for="d in difficulties"
+          :key="d.key"
+          class="diff-btn"
+          :class="{ on: player.difficulty === d.key }"
+          @click="pickDifficulty(d.key)"
+        >
+          <span class="diff-icon">{{ d.icon }}</span>
+          <span class="diff-name">{{ d.name }}</span>
+        </button>
+      </div>
+      <p class="muted settings-note">{{ difficulty.note }}</p>
     </div>
 
     <!-- Right column: the minimap sits in the corner, the legend under it -->
@@ -48,23 +66,29 @@
         >
           ⚔️ 赶走强盗 {{ nearby.name }}
         </button>
-        <template v-if="nearby && canEnter(nearby) && nearby.kind === 'town' && nearby.owner !== 'neutral'">
+        <template v-if="nearby && canEnter(nearby) && nearby.kind === 'town' && canSiege(nearby)">
           <button v-if="!siege.active" class="btn action-btn danger" @click="prepareSiege(nearby)">
             🏰 准备围城 {{ nearby.name }}
           </button>
-          <button v-else-if="!siege.ready" class="btn action-btn" disabled>
-            ⏳ 围城准备中 · 还需 {{ siege.daysLeft }} 天
-          </button>
-          <button v-else class="btn action-btn danger" @click="stormTown(nearby)">
-            ⚔️ 攻打 {{ nearby.name }}
-          </button>
+          <template v-else>
+            <button v-if="siege.ready" class="btn action-btn danger" @click="stormTown(nearby)">
+              ⚔️ 攻打 {{ nearby.name }}
+            </button>
+            <span v-else class="siege-chip">⏳ 围城准备中 · 还需 {{ siege.daysLeft }} 天</span>
+            <!-- A siege can always be called off: the lord changes his mind. -->
+            <button class="btn action-btn" @click="cancelSiege(nearby)">🚫 取消围城</button>
+          </template>
         </template>
+        <!-- An unclaimed town: taken for free when nobody defends it, stormed
+             when it still holds soldiers. -->
         <button
           v-if="nearby && nearby.owner === 'neutral' && nearby.kind === 'town'"
           class="btn action-btn"
+          :class="{ danger: townGuarded }"
           @click="claimTown(nearby)"
         >
-          🚩 占领 {{ nearby.name }}
+          {{ townGuarded ? '⚔️ 攻城' : '🚩 占领' }} {{ nearby.name }}
+          <span v-if="townGuarded" class="btn-note">守军 {{ townGuardCount }} 名</span>
         </button>
         <button class="btn camp-btn" :class="{ on: world.camping }" @click="toggleCamp">
           {{ world.camping ? '🔥 拔营' : '⛺ 扎营' }}
@@ -101,13 +125,15 @@ import WorldMap from '@/components/WorldMap.vue'
 import MiniMap from '@/components/MiniMap.vue'
 import WorldAtlas from '@/components/WorldAtlas.vue'
 import CharacterPanel from '@/components/CharacterPanel.vue'
+import DayClock from '@/components/DayClock.vue'
 import { useWorldStore } from '@/stores/world'
 import { usePlayerStore } from '@/stores/player'
 import { useBattleStore } from '@/stores/battle'
 import { persistGame } from '@/composables/gameState'
 import { openShare } from '@/composables/share'
 import { FACTIONS, NPC_FACTIONS } from '@/game/factions'
-import { canEnter as canEnterSettlement, SIEGE_PREPARE_DAYS } from '@/game/settlement'
+import { canEnter as canEnterSettlement, canSiege as canSiegeSettlement, garrisonCount, needsAssault, SIEGE_PREPARE_DAYS } from '@/game/settlement'
+import { difficultyList, difficultyOf } from '@/game/difficulty'
 import { spriteUrl } from '@/game/pixelAssets'
 
 const router = useRouter()
@@ -121,14 +147,25 @@ const showLegend = ref(window.innerWidth > 560)
 const showCharacter = ref(false)
 // Detailed map overlay, opened from the minimap.
 const showAtlas = ref(false)
+// Difficulty sheet on the world map.
+const showSettings = ref(false)
 const toast = ref('')
 let toastTimer = 0
 let autosave = 0
 
 const nearby = computed(() => world.nearbySettlement)
 const canEnter = computed(() => (st) => canEnterSettlement(st))
+// Only a town held by a kingdom can be besieged: a neutral town is claimed and
+// a town of the lord's own needs no war at all.
+const canSiege = computed(() => (st) => canSiegeSettlement(st))
 // Progress of the siege of the settlement the lord is standing next to.
 const siege = computed(() => world.siegeState(nearby.value))
+// An unclaimed town that still holds soldiers: it has to be stormed.
+const townGuarded = computed(() => needsAssault(nearby.value))
+const townGuardCount = computed(() => (nearby.value ? garrisonCount(nearby.value.garrison) : 0))
+// Difficulty of the campaign and the list of levels.
+const difficulties = difficultyList()
+const difficulty = computed(() => difficultyOf(player.difficulty))
 
 // Legend rows mirror exactly what the world map draws: the lord, one commander
 // sprite per faction and the two settlement kinds. The colour comes straight
@@ -199,6 +236,24 @@ function stormTown(st) {
   router.push('/battle')
 }
 
+/** Call off a siege: the preparations stop and the clock stops with them. */
+function cancelSiege(st) {
+  const res = world.cancelSiege(st.id)
+  if (!res.ok) {
+    flash('这里没有正在进行的围城')
+    return
+  }
+  flash(`🚫 已取消对 ${st.name} 的围城准备`)
+  persistGame()
+}
+
+/** Change the difficulty of the campaign from the world map. */
+function pickDifficulty(key) {
+  player.setDifficulty(key)
+  flash(`🎚 难度：${difficultyOf(key).name}`)
+  persistGame()
+}
+
 /** Drive the bandits out of a village. */
 function driveOffBandits(st) {
   world.stop()
@@ -208,8 +263,19 @@ function driveOffBandits(st) {
   router.push('/battle')
 }
 
-/** An unclaimed town has no defenders: the lord simply raises his flag. */
+/**
+ * Take an unclaimed town. A town nobody defends is simply claimed; a town that
+ * still holds soldiers has to be stormed first.
+ */
 function claimTown(st) {
+  if (needsAssault(st)) {
+    world.stop()
+    world.stopCamp()
+    battle.startSettlement(st, Math.floor(Math.random() * 1e9), 'claim')
+    persistGame()
+    router.push('/battle')
+    return
+  }
   const res = world.claimSettlement(st.id)
   if (!res.ok) {
     flash(res.reason)
@@ -302,6 +368,84 @@ onBeforeUnmount(() => {
 
 .role-btn:hover {
   background: rgba(232, 197, 106, 0.26);
+}
+
+/* Difficulty chip and the settings sheet it opens. */
+.diff-chip {
+  color: #fff;
+  border-color: var(--gold-deep);
+  background: rgba(232, 197, 106, 0.14);
+  font-weight: 700;
+}
+
+.settings {
+  position: absolute;
+  top: calc(84px + env(safe-area-inset-top));
+  left: 12px;
+  width: min(260px, calc(100% - 24px));
+  padding: 12px;
+  z-index: 6;
+}
+
+.settings-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 8px;
+}
+
+.diff-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.diff-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-height: 46px;
+  padding: 6px 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid transparent;
+  transition: all 0.15s;
+}
+
+.diff-btn.on {
+  background: rgba(232, 197, 106, 0.22);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.diff-icon {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.diff-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-note {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* The siege countdown is a readout, not a button: the cancel button sits next
+   to it so a siege can always be called off. */
+.siege-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(10, 14, 10, 0.88);
+  border: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--ink);
 }
 
 .legend {
@@ -418,6 +562,18 @@ onBeforeUnmount(() => {
   color: #ffd9d0;
 }
 
+/* The garrison count on the assault button. */
+.btn-note {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(214, 120, 90, 0.5);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* Camp toggle: the warm variant is the "you are resting here" state. */
 .camp-btn {
   font-size: 15px;
@@ -430,20 +586,7 @@ onBeforeUnmount(() => {
   background: rgba(200, 110, 40, 0.3);
 }
 
-/* Clock state beside the day counter. */
-.chip.day .flow {
-  margin-left: 6px;
-  font-size: 11.5px;
-  letter-spacing: 0.02em;
-}
-
-.chip.day.live .flow {
-  color: #9ce08a;
-}
-
-.chip.day:not(.live) .flow {
-  color: var(--ink-dim);
-}
+/* The clock state lives inside the DayClock chip now. */
 
 .hint-chip {
   padding: 8px 14px;

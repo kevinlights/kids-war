@@ -17,6 +17,7 @@ import {
 } from './registry'
 import { ensureModsLoaded, loadModsFromText, modApi, registerBuiltins } from './mods'
 import { MEMORY, applyForgetting, pickWeighted, updateProgress, weightFor } from './scheduler'
+import { rewardDelta } from '../difficulty'
 
 // Register the built-in packs as soon as the module is imported, so even a
 // headless import can generate questions without awaiting the network loader.
@@ -103,10 +104,17 @@ export function generateExam({ grade = 3, types = null, count = 5, seed = Date.n
   return papers
 }
 
-// Money reward for a single correct answer, scaled by grade and subject.
-export function rewardFor(question) {
+/**
+ * Money reward for a single correct answer, scaled by grade and subject.
+ *
+ * The difficulty setting takes a few gold off every correct answer: the easy
+ * mode pays the original numbers, the normal mode one gold less and the hard
+ * mode two gold less. The reward never drops below one gold.
+ */
+export function rewardFor(question, difficulty = 'easy') {
   const base = question.grade === 4 ? 26 : 20
-  return base + (REWARD_BONUS[question.type] || 0)
+  const total = base + (REWARD_BONUS[question.type] || 0) + rewardDelta(difficulty)
+  return Math.max(1, total)
 }
 
 export function typeLabel(key) {

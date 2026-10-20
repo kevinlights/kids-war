@@ -18,6 +18,7 @@ import {
   warbandHealth
 } from '@/game/units'
 import { MEMORY, applyForgetting, levelFor, updateProgress, weightFor } from '@/game/quiz/scheduler'
+import { DEFAULT_DIFFICULTY, difficultyKey, difficultyOf } from '@/game/difficulty'
 
 /** The warband every new lord starts with. */
 function startingTroops() {
@@ -35,7 +36,10 @@ export const usePlayerStore = defineStore('player', {
     stats: { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 },
     // Memory curve bookkeeping: question key → { level, right, wrong, lastSeen }.
     questionStats: {},
-    gradePref: 3
+    gradePref: 3,
+    // Difficulty of the campaign: it only changes how much gold a correct
+    // exam answer pays.
+    difficulty: DEFAULT_DIFFICULTY
   }),
 
   getters: {
@@ -50,6 +54,8 @@ export const usePlayerStore = defineStore('player', {
     // Memory-curve weight of one question key (0.05 … 1.0).
     questionWeight: (s) => (key) => weightFor(s.questionStats[key]),
     questionLevel: (s) => (key) => levelFor(s.questionStats[key]),
+    // The difficulty record of the campaign.
+    difficultyInfo: (s) => difficultyOf(s.difficulty),
     // How much of the bank is mastered: tracked questions and those at level 4+.
     memorySummary: (s) => {
       const entries = Object.values(s.questionStats)
@@ -89,6 +95,7 @@ export const usePlayerStore = defineStore('player', {
       this.stats = { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 }
       this.questionStats = {}
       this.gradePref = 3
+      this.difficulty = DEFAULT_DIFFICULTY
     },
 
     // Hydrate from a stored save payload, migrating pre-standard rosters.
@@ -101,6 +108,14 @@ export const usePlayerStore = defineStore('player', {
       this.stats = data.stats ?? { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 }
       // Older saves have no memory records yet, which is a valid empty state.
       this.questionStats = data.questionStats && typeof data.questionStats === 'object' ? data.questionStats : {}
+      // A save without a difficulty is an easy game: the original numbers.
+      this.difficulty = difficultyKey(data.difficulty || DEFAULT_DIFFICULTY)
+    },
+
+    /** Change the difficulty of the campaign. */
+    setDifficulty(key) {
+      this.difficulty = difficultyKey(key)
+      return this.difficulty
     },
 
     addGold(n) {

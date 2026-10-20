@@ -190,6 +190,33 @@ function drawPath() {
   ctx.restore()
 }
 
+/**
+ * The night: a dark blue veil over the whole map, with a soft lantern light
+ * around the lord that keeps the ground under him readable.
+ */
+function drawNight() {
+  const phase = world.dayPhase
+  if (phase.darkness <= 0.01) return
+
+  ctx.save()
+  ctx.fillStyle = `rgba(9,14,36,${0.58 * phase.darkness})`
+  ctx.fillRect(0, 0, W, H)
+
+  // The lord's lantern: a hole in the darkness around him.
+  const lx = world.playerPos.x * TILE + TILE / 2 - world.camX
+  const ly = world.playerPos.y * TILE + TILE / 2 - world.camY
+  const radius = TILE * 2.8
+  const glow = ctx.createRadialGradient(lx, ly, radius * 0.12, lx, ly, radius)
+  glow.addColorStop(0, `rgba(0,0,0,${0.95 * phase.darkness})`)
+  glow.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.globalCompositeOperation = 'destination-out'
+  ctx.fillStyle = glow
+  ctx.beginPath()
+  ctx.arc(lx, ly, radius, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.restore()
+}
+
 function render() {
   if (!ctx) return
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
@@ -211,6 +238,8 @@ function render() {
   drawPath()
   for (const st of world.settlements) drawSettlement(st)
   for (const p of world.parties) drawParty(p)
+  // The dark comes after the world, so the lord and his campfire stay lit.
+  drawNight()
   drawPlayer()
 
   // Vignette for depth.

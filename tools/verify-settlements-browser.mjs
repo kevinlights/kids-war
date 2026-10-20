@@ -324,6 +324,24 @@ try {
   /* ------------------------------ 3. own town ------------------------------ */
   console.log('the lord\'s own town')
   const own = await loadScenario('town')
+  const ownButtons = await evaluate(`
+    [...document.querySelectorAll('.hud-bottom button')].map((b) => b.textContent.trim())
+  `)
+  check(
+    'the lord\'s own town has no claim button',
+    !ownButtons.some((t) => t.includes('占领')),
+    JSON.stringify(ownButtons)
+  )
+  check(
+    'the lord\'s own town has no siege button',
+    !ownButtons.some((t) => t.includes('围城') || t.includes('攻打')),
+    JSON.stringify(ownButtons)
+  )
+  check(
+    'the lord can still enter his own town',
+    ownButtons.some((t) => t.includes('进入')),
+    JSON.stringify(ownButtons)
+  )
   await clickByText('.hud-bottom button', '进入')
   await waitFor("!!document.querySelector('.tabs')", 'the settlement screen')
   await sleep(500)
@@ -349,6 +367,54 @@ try {
   await waitFor("!!document.querySelector('.exam-card')", 'the exam card')
   const examCopy = await evaluate("document.querySelector('.exam-card').textContent.replace(/\\s+/g, ' ').trim()")
   check('the exam says it develops the town', examCopy.includes('城镇资金'), examCopy)
+
+  // Take a real paper: the gold must land in the lord's purse, not the town.
+  const purseBeforeExam = await evaluate("window.kidsWarGame.stores.player.gold")
+  const townFundsBeforeExam = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(own.name)})
+      return st.funds
+    })()
+  `)
+  await clickByText('.exam-card button', '开始考试')
+  await waitFor("!!document.querySelector('.exam .body')", 'the exam modal')
+  await clickByText('.exam .actions button', '开始考试')
+  await waitFor("!!document.querySelector('.answers .answer')", 'the first question')
+  // Answer every question and hand the paper in.
+  for (let i = 0; i < 14; i += 1) {
+    const finished = await evaluate(`
+      (() => {
+        const answers = [...document.querySelectorAll('.answers .answer')]
+        if (!answers.length) return true
+        if (!answers[0].disabled) answers[0].click()
+        const next = [...document.querySelectorAll('.exam .actions button')].find((b) => b.textContent.includes('下一题') || b.textContent.includes('查看成绩'))
+        if (next && !next.disabled) next.click()
+        return false
+      })()
+    `)
+    if (finished) break
+    await sleep(250)
+  }
+  await sleep(800)
+  const examResult = await evaluate(`
+    (() => {
+      const p = window.kidsWarGame.stores.player
+      const w = window.kidsWarGame.stores.world
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(own.name)})
+      return { gold: p.gold, funds: st.funds, development: st.development }
+    })()
+  `)
+  check(
+    'the exam pays the lord personally',
+    examResult.gold > purseBeforeExam,
+    `${purseBeforeExam} -> ${examResult.gold}`
+  )
+  check(
+    'the exam does not pay into the town treasury',
+    examResult.funds === townFundsBeforeExam,
+    `${townFundsBeforeExam} -> ${examResult.funds}`
+  )
   await clickByText('.tab', '城镇')
   await waitFor("!!document.querySelector('.meters')", 'the town panel')
 
@@ -395,13 +461,36 @@ try {
     })()
   `)
   check('the town can invest in its development', afterInvest.development === before.development + 6, JSON.stringify(afterInvest))
-  check('the investment costs money', afterInvest.funds === afterBuild.funds - 60, `${afterBuild.funds} -> ${afterInvest.funds}`)
+  check('the investment costs town money', afterInvest.funds === afterBuild.funds - 60, `${afterBuild.funds} -> ${afterInvest.funds}`)
+
+  // Injecting money moves the lord's own gold into the town treasury.
+  const purseBefore = await evaluate("window.kidsWarGame.stores.player.gold")
+  await clickByText('.block-body button', '注入资金')
+  await sleep(400)
+  const afterInject = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const p = window.kidsWarGame.stores.player
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(own.name)})
+      return { funds: st.funds, gold: p.gold }
+    })()
+  `)
+  check(
+    'the injection fills the town treasury',
+    afterInject.funds === afterInvest.funds + 100,
+    `${afterInvest.funds} -> ${afterInject.funds}`
+  )
+  check(
+    'the injection costs the lord his own gold',
+    afterInject.gold === purseBefore - 100,
+    `${purseBefore} -> ${afterInject.gold}`
+  )
 
   check('the console stayed clean', consoleErrors.length === 0, consoleErrors.join(' | '))
 
   /* --------------------------- 4. an unclaimed town --------------------------- */
   console.log('an unclaimed town')
-  const free = await loadScenario('claim')
+  const free = await loadScenario('claimFree')
   const claimButtons = await evaluate(`
     [...document.querySelectorAll('.hud-bottom button')].map((b) => b.textContent.trim())
   `)
@@ -411,7 +500,7 @@ try {
     JSON.stringify(claimButtons)
   )
   check(
-    'an unclaimed town can be claimed',
+    'an undefended unclaimed town can be claimed',
     claimButtons.some((t) => t.includes('占领')),
     JSON.stringify(claimButtons)
   )
@@ -426,6 +515,66 @@ try {
   `)
   check('the unclaimed town changes hands', claimed.owner === 'player', JSON.stringify(claimed))
   check('the claimed town starts poor', claimed.level === 1 && claimed.prosperity === 25, JSON.stringify(claimed))
+
+  /* ------------------ 5. an unclaimed town with a garrison -------------------- */
+  console.log('an unclaimed town with a garrison')
+  const guarded = await loadScenario('claim')
+  const guardButtons = await evaluate(`
+    [...document.querySelectorAll('.hud-bottom button')].map((b) => b.textContent.trim())
+  `)
+  check(
+    'a guarded unclaimed town offers an assault instead of a free claim',
+    guardButtons.some((t) => t.includes('攻城')) && !guardButtons.some((t) => t.includes('占领')),
+    JSON.stringify(guardButtons)
+  )
+  check(
+    'the assault button shows how many soldiers hold the town',
+    guardButtons.some((t) => t.includes('守军')),
+    JSON.stringify(guardButtons)
+  )
+  await clickByText('.hud-bottom button', '攻城')
+  await waitFor("!!document.querySelector('.battle-view, .arena, canvas')", 'the battle screen')
+  await sleep(700)
+  const claimFight = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      const w = window.kidsWarGame.stores.world
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(guarded.name)})
+      return {
+        kind: b.context?.kind,
+        enemies: b.data ? b.data.units.filter((u) => u.side === 'enemy').length : 0,
+        garrison: st ? st.garrison.reduce((n, g) => n + g.count, 0) : 0,
+        owner: st ? st.owner : null,
+        route: location.hash
+      }
+    })()
+  `)
+  check('the assault on the unclaimed town starts', claimFight.kind === 'claim', JSON.stringify(claimFight))
+  check(
+    'the garrison of the town is the enemy',
+    claimFight.enemies > 0 && claimFight.enemies === claimFight.garrison,
+    JSON.stringify(claimFight)
+  )
+  check('the town is still unclaimed during the fight', claimFight.owner === 'neutral', JSON.stringify(claimFight))
+  // Winning the fight hands the town over.
+  await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      b.data.outcome = 'win'
+      b.settle()
+      return true
+    })()
+  `)
+  await sleep(400)
+  const won = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(guarded.name)})
+      return { owner: st.owner, garrison: st.garrison.reduce((n, g) => n + g.count, 0) }
+    })()
+  `)
+  check('winning the assault takes the unclaimed town', won.owner === 'player', JSON.stringify(won))
+  check('the taken town has no garrison left', won.garrison === 0, JSON.stringify(won))
 } finally {
   await cleanup()
 }

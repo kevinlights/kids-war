@@ -4,6 +4,7 @@ import { generateWorld, WORLD_W, WORLD_H, TILE } from '@/game/worldgen'
 import { TERRAIN } from '@/game/terrain'
 import { findPath } from '@/game/pathfinding'
 import { factionOf, NPC_FACTIONS } from '@/game/factions'
+import { darknessOf, isNight, speedFactorOf } from '@/game/daynight'
 import { normalizeTroops, healTroops, unitDef } from '@/game/units'
 import { createRng } from '@/game/rng'
 import {
@@ -117,7 +118,50 @@ export const useWorldStore = defineStore('world', {
         .filter((st) => st.owner === PLAYER)
         .reduce((best, st) => Math.max(best, facilityLevel(st, 'hospital')), 0),
     // A siege is being prepared somewhere, so the clock has to keep running.
-    siegeActive: (s) => s.settlements.some((st) => st.siege && !st.siege.ready)
+    siegeActive: (s) => s.settlements.some((st) => st.siege && !st.siege.ready),
+    /**
+     * The clock of the campaign.
+     *
+     * A day lasts 24 game seconds, so one game second is one in-game hour:
+     * the accumulator is read as an hour of the day. The clock only moves
+     * while time flows, which makes it a readout of how the day counter
+     * actually advances.
+     */
+    clock: (s) => {
+      const acc = Math.max(0, s.timeAcc || 0)
+      const hour = Math.min(23, Math.floor(acc))
+      const minute = Math.min(59, Math.floor((acc - hour) * 60))
+      const text = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+      return {
+        day: s.day,
+        hour,
+        minute,
+        text,
+        // How much of the day is gone, in percent.
+        progress: Math.max(0, Math.min(1, acc / 24))
+      }
+    },
+    /**
+     * The phase of the day: daylight, dusk, night or dawn.
+     *
+     * The last fifth of every day is night — the sky darkens and everything
+     * moves a little slower.
+     */
+    dayPhase: (s) => {
+      const progress = Math.max(0, Math.min(1, (s.timeAcc || 0) / 24))
+      const night = isNight(progress)
+      const darkness = darknessOf(progress)
+      return {
+        progress,
+        night,
+        darkness,
+        // The factor every movement of the world is scaled by.
+        speedMul: speedFactorOf(progress),
+        label: night ? '夜晚' : '白天',
+        en: night ? 'Night' : 'Day',
+        icon: night ? '🌙' : '☀️'
+      }
+    }
   },
 
   actions: {
@@ -428,10 +472,13 @@ export const useWorldStore = defineStore('world', {
     // Advance the player, roaming parties and the day counter.
     tick(dt) {
       const player = usePlayerStore()
+      // The night slows the whole world down: the lord walks a quarter slower
+      // in the deepest night, and so does every roaming warband.
+      const nightFactor = this.dayPhase.speedMul
       // --- player movement -------------------------------------------------
       // `travelled` is the world distance covered this frame: it is what
       // decides whether game time advances at all.
-      let remaining = 3.9 * dt
+      let remaining = 3.9 * dt * nightFactor
       let travelled = 0
       let guard = 0
       while (remaining > 0 && this.path.length && guard++ < 200) {
@@ -528,7 +575,8 @@ export const useWorldStore = defineStore('world', {
         const dy = p.targetY - p.y
         const d = Math.hypot(dx, dy)
         if (d > 0.05) {
-          const speed = 1.7 * p.speed
+          // The warbands slow down at night as well.
+          const speed = 1.7 * p.speed * nightFactor
           const step = Math.min(d, speed * gdt)
           const nx = p.x + (dx / d) * step
           const ny = p.y + (dy / d) * step

@@ -105,11 +105,11 @@
           </div>
           <div class="result-item">
             <div class="big gold">+{{ earned }}</div>
-            <div class="muted">{{ isPlayerTown(settlement) ? '城镇收入' : '获得金币' }}</div>
+            <div class="muted">获得金币</div>
           </div>
         </div>
         <p v-if="isPlayerTown(settlement)" class="muted center-text">
-          城镇获得资金 {{ townFunds }}，发展 +{{ townDevelopment }}。发展越高，繁荣度涨得越快。
+          金币已进入你的钱袋；这座城镇的发展 +{{ townDevelopment }}。需要给城镇添置设施时，用「注入资金」把钱放进城镇金库。
         </p>
         <p v-else class="muted center-text">金币已到账，可以用来招募士兵或购买物资。</p>
         <div class="actions">
@@ -133,8 +133,7 @@ const emit = defineEmits(['close'])
 
 const player = usePlayerStore()
 
-// Money the exam paid into the town instead of into the lord's purse.
-const townFunds = ref(0)
+// Development the exam gave the town.
 const townDevelopment = ref(0)
 
 const step = ref('setup')
@@ -200,7 +199,7 @@ function choose(i) {
   const correct = i === current.value.answer
   player.recordAnswer(current.value.item, correct)
   if (correct) {
-    const r = rewardFor(current.value)
+    const r = rewardFor(current.value, player.difficulty)
     correctCount.value += 1
     earned.value += r
     lastReward.value = r
@@ -223,15 +222,15 @@ function finishEarly() {
 }
 
 function finish() {
-  // A town the lord owns spends the exam on itself: the money becomes
-  // building funds and the correct answers lift the development.
+  // The exam always pays the lord personally — even in one of his own towns,
+  // where the money would otherwise be stuck in the treasury.
+  player.addGold(earned.value)
+  // A town the lord owns grows from the exam as well: the correct answers lift
+  // its development.
   const town = isPlayerTown(props.settlement)
   if (town) {
-    const gain = examReward(props.settlement, { reward: earned.value, correct: correctCount.value })
-    townFunds.value = gain.funds
+    const gain = examReward(props.settlement, { correct: correctCount.value })
     townDevelopment.value = gain.development
-  } else {
-    player.addGold(earned.value)
   }
   player.stats.exams += 1
   player.stats.correct += correctCount.value
@@ -357,6 +356,8 @@ h2 {
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line);
+  /* A reading passage keeps its own line breaks. */
+  white-space: pre-wrap;
 }
 
 .answers {
