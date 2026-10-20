@@ -6,6 +6,7 @@ const routes = [
   { path: '/world', name: 'world', component: () => import('@/views/WorldView.vue') },
   { path: '/settlement', name: 'settlement', component: () => import('@/views/SettlementView.vue') },
   { path: '/battle', name: 'battle', component: () => import('@/views/BattleView.vue') },
+  { path: '/quick', name: 'quick', component: () => import('@/views/QuickBattleView.vue') },
   { path: '/guide', name: 'guide', component: () => import('@/views/GuideView.vue') }
 ]
 

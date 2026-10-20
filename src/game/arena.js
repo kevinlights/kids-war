@@ -102,13 +102,75 @@ export const ARENA_TERRAIN_LIST = ARENA_TERRAIN_KEYS.map((k) => ARENA_TERRAIN[k]
 export const ARENA_CELL = 40
 
 /**
+ * The battlefields a field can be laid out on.
+ *
+ * A battlefield is a preset of the terrain generator: it decides which kinds
+ * of ground the field holds. The quick battle simulator offers them all, and
+ * a fight on the plain plays very differently from a fight in the woods.
+ * 战场预设：地形生成器按预设摆放地形，快速战斗里可以挑选。
+ */
+export const ARENA_MAPS = [
+  {
+    key: 'mixed',
+    name: '混战',
+    en: 'Mixed',
+    icon: '🗺️',
+    note: '森林、河流、山地与湖泊俱全，最常见的战场。'
+  },
+  {
+    key: 'plain',
+    name: '平原',
+    en: 'Plain',
+    icon: '🌾',
+    note: '一马平川：没有掩体，也没有地形加成。'
+  },
+  {
+    key: 'forest',
+    name: '密林',
+    en: 'Forest',
+    icon: '🌲',
+    note: '大片树林：防御 +15%，移动 −20%。'
+  },
+  {
+    key: 'mountain',
+    name: '山地',
+    en: 'Mountain',
+    icon: '⛰️',
+    note: '起伏的山地：攻击 +10%，防御 −10%。'
+  },
+  {
+    key: 'river',
+    name: '大河',
+    en: 'River',
+    icon: '🌊',
+    note: '一条大河横穿战场：涉水移动 −30%，防御 −5%。'
+  },
+  {
+    key: 'lake',
+    name: '湖泽',
+    en: 'Lake',
+    icon: '🏞️',
+    note: '中央一个大湖，深水不可通行，只能绕行。'
+  }
+]
+
+/** The battlefield record of a key, falling back to the mixed one. */
+export function arenaMapOf(key) {
+  return ARENA_MAPS.find((m) => m.key === key) || ARENA_MAPS[0]
+}
+
+/**
  * Generate the terrain of a battle field.
  *
  * The field is `cols` by `rows` cells. A winding river crosses it, a lake and
  * a mountain sit in the corners and a couple of forests and a stretch of sand
  * break up the plain.
+ *
+ * The `map` preset decides which of those pieces the field holds:
+ * `mixed` is the full set, `plain` is empty ground and the other presets put
+ * one kind of terrain in the middle of the field.
  */
-export function generateArenaTerrain(seed, cols = 25, rows = 17) {
+export function generateArenaTerrain(seed, cols = 25, rows = 17, map = 'mixed') {
   const rng = createRng((seed || 1) * 2654435761)
   const cells = new Uint8Array(cols * rows)
   const index = (c, r) => r * cols + c
@@ -132,30 +194,58 @@ export function generateArenaTerrain(seed, cols = 25, rows = 17) {
     }
   }
 
+  // Which pieces of terrain this battlefield holds.
+  const wantRiver = map === 'mixed' || map === 'river'
+  const wantLake = map === 'mixed' || map === 'lake'
+  const wantMountain = map === 'mixed' || map === 'mountain'
+  const wantForest = map === 'mixed' || map === 'forest'
+  const wantDesert = map === 'mixed'
+
   // The river winds from the top to the bottom of the field.
   let riverCol = Math.floor(cols * (0.3 + rng.next() * 0.4))
-  for (let r = 0; r < rows; r += 1) {
-    const width = rng.next() < 0.25 ? 2 : 1
-    for (let c = riverCol; c < riverCol + width; c += 1) set(c, r, 'river')
-    riverCol += rng.next() < 0.5 ? 0 : rng.next() < 0.5 ? -1 : 1
-    riverCol = Math.max(1, Math.min(cols - 3, riverCol))
+  if (wantRiver) {
+    for (let r = 0; r < rows; r += 1) {
+      const width = map === 'river' ? 3 : rng.next() < 0.25 ? 2 : 1
+      for (let c = riverCol; c < riverCol + width; c += 1) set(c, r, 'river')
+      riverCol += rng.next() < 0.5 ? 0 : rng.next() < 0.5 ? -1 : 1
+      riverCol = Math.max(1, Math.min(cols - 3, riverCol))
+    }
   }
 
   // A lake and a mountain, each in its own half of the field.
-  blob(Math.floor(cols * 0.45), Math.floor(rows * 0.68), 2, 'lake')
-  blob(Math.floor(cols * 0.78), Math.floor(rows * 0.26), 3, 'mountain')
+  if (wantLake) {
+    if (map === 'lake') blob(Math.floor(cols * 0.5), Math.floor(rows * 0.5), 4, 'lake')
+    else blob(Math.floor(cols * 0.45), Math.floor(rows * 0.68), 2, 'lake')
+  }
+  if (wantMountain) {
+    if (map === 'mountain') {
+      blob(Math.floor(cols * 0.32), Math.floor(rows * 0.35), 4, 'mountain')
+      blob(Math.floor(cols * 0.68), Math.floor(rows * 0.65), 4, 'mountain')
+    } else {
+      blob(Math.floor(cols * 0.78), Math.floor(rows * 0.26), 3, 'mountain')
+    }
+  }
 
   // Forests and a stretch of sand.
-  blob(Math.floor(cols * 0.18), Math.floor(rows * 0.28), 3, 'forest')
-  blob(Math.floor(cols * 0.72), Math.floor(rows * 0.74), 3, 'forest')
-  blob(Math.floor(cols * 0.5), Math.floor(rows * 0.12), 2, 'desert')
+  if (wantForest) {
+    if (map === 'forest') {
+      blob(Math.floor(cols * 0.25), Math.floor(rows * 0.3), 4, 'forest')
+      blob(Math.floor(cols * 0.75), Math.floor(rows * 0.7), 4, 'forest')
+    } else {
+      blob(Math.floor(cols * 0.18), Math.floor(rows * 0.28), 3, 'forest')
+      blob(Math.floor(cols * 0.72), Math.floor(rows * 0.74), 3, 'forest')
+    }
+  }
+  if (wantDesert) blob(Math.floor(cols * 0.5), Math.floor(rows * 0.12), 2, 'desert')
 
   // The lake must not swallow the road between the two army lines.
-  for (let r = 0; r < rows; r += 1) {
-    for (let c = 0; c < cols; c += 1) {
-      if (get(c, r) !== 'lake') continue
-      const nearRiver = Math.abs(c - riverCol) <= 2
-      if (nearRiver) set(c, r, 'river')
+  if (wantRiver) {
+    for (let r = 0; r < rows; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        if (get(c, r) !== 'lake') continue
+        const nearRiver = Math.abs(c - riverCol) <= 2
+        if (nearRiver) set(c, r, 'river')
+      }
     }
   }
 

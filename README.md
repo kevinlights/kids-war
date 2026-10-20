@@ -559,6 +559,85 @@ bandits wander onto the map.
   sometimes a rank-2 veteran instead of a raw recruit.
   **每天补一名士兵。** 势力没到上限时，每天给它最强的一支部队补一名士兵，偶尔补的是二级老兵而不是新兵。
 
+### 4.14 版本号与更新内容 · Version and changelog
+
+The version of the build lives in `src/game/versions/`: `index.js` exports `VERSION` and `CHANGELOG`, one file per
+release (`v0.0.1.js`, …) holds the batches that release shipped, and `batches.js` is generated from `progress.md`.
+版本号集中在 `src/game/versions/`：`index.js` 导出 `VERSION` 与 `CHANGELOG`，每个发布版本一个文件（`v0.0.1.js` …）写着这次发布包含的批次，而 `batches.js` 是从 `progress.md` 生成的。
+
+- **The number is `major.minor.patch`, and only the patch moves.** The game is still in its early stage, so every
+  release bumps the last digit only: `v0.0.1` → `v0.0.2` → `v0.0.3`; the major and minor numbers stay at zero.
+  **版本号是 `主版本.次版本.修订号`，目前只更新修订号。** 游戏还处于早期阶段，每次发布只加最后一位：
+  `v0.0.1` → `v0.0.2` → `v0.0.3`，主版本与次版本一直是 0。
+- **The home screen shows it.** The title carries a `版本 v0.0.1` badge, and the badge at the bottom of the page opens
+  a dialog with the update notes of the current release: a short summary and every batch it shipped.
+  **首页会显示它。** 标题下面有「版本 v0.0.1」徽章，页面底部的徽章点开是一个对话框，写着本次发布的更新内容：
+  一段摘要加上这次发布包含的每个批次。
+- **The notes come from `progress.md`.** `node tools/build-versions.mjs` parses the 「已完成功能」 section of the
+  progress file and writes it into `src/game/versions/batches.js`, so the progress file stays the one source of truth.
+  **更新内容来自 `progress.md`。** `node tools/build-versions.mjs` 解析进度文件的「已完成功能」一节，写进
+  `src/game/versions/batches.js`，因此进度文件是唯一的事实来源。
+- **Only game features reach the dialog.** Every bullet of that section starts with either `▶` (a change a player
+  can see or feel) or `🔧` (an internal note). The generator keeps the `▶` bullets and drops the `🔧` ones, so the
+  dialog never shows file names, scripts or test counts — and a batch with nothing player-facing (a batch of pure
+  documentation, say) does not appear at all.
+  **对话框里只有游戏功能。** 「已完成功能」一节的每条内容都以 `▶`（玩家看得见的变化）或 `🔧`（开发层面的改动）开头；
+  生成脚本只保留 `▶`，因此对话框里不会出现文件名、脚本名或检查项数量 —— 一条功能都没有的批次（比如纯文档批次）干脆不显示。
+- **Helpers.** `versionLabel('0.0.1')` renders `v0.0.1`, `nextPatchVersion('0.0.1')` gives `0.0.2` and
+  `changelogOf(version)` filters the notes of one version.
+  **辅助函数。** `versionLabel('0.0.1')` 输出 `v0.0.1`，`nextPatchVersion('0.0.1')` 得到 `0.0.2`，
+  `changelogOf(version)` 取出某一个版本的更新内容。
+
+### 4.15 练兵 · Training
+
+While the camp is pitched, the world map offers a **🎯 练兵** button that opens the battle field as a drill ground.
+扎营时，世界地图上会出现「🎯 练兵」按钮，点它就把战场变成一块训练场。
+
+- **No enemy at all.** The field holds the lord's own soldiers and eight **wooden dummies** standing on the far
+  side; the dummies never fight back, they only take blows.
+  **完全没有敌人。** 场上只有主角自己的士兵和对面的八个**训练木桩**，木桩只挨打，绝不还手。
+- **Nothing can be lost.** A training session has no outcome at all: it does not end, no soldier can die, and the
+  warband, the purse, the food store and the record are left exactly as they were.
+  **练兵不会损失任何东西。** 训练场没有胜负，不会结束，士兵不会阵亡，队伍、金币、军粮与战绩都原样不动。
+- **The dummies stand back up.** A dummy that is knocked down is on its feet again two seconds later, so a drill
+  never runs out of targets.
+  **木桩会自己立起来。** 木桩被打倒后两秒重新立起，训练永远有靶子。
+- **Everything still works.** The whole command bar is live: pick a squad, give it an order (攻击 / 防守 / 跟随 / 移动),
+  change its formation and density, drag the camera and plant rally flags.
+  **照常操练。** 命令栏一切照旧：选小队、下命令（攻击 / 防守 / 跟随 / 移动）、换队形与密度、拖动镜头、插下目标十字。
+- **Leaving is one tap.** The 🏕 结束练兵 button at the bottom of the command bar returns to the world map, and the
+  camp is still pitched.
+  **一键退出。** 命令栏上的「🏕 结束练兵」回到世界地图，营地还保持着。
+
+### 4.16 快速战斗 · Quick battle
+
+The home screen carries a **⚡ 快速战斗** entry: it opens a simulator that answers "who would win?" without a
+campaign. Pick the battlefield, the two sides and the size of the armies, and the simulation fights the fight many
+times over and counts the results.
+首页有一个「⚡ 快速战斗」入口：它打开一个模拟器，不用打战役就能回答「谁打得过谁」。选好战场、敌我势力与兵力规模，
+模拟器会一遍遍地把这场仗打完并统计结果。
+
+- **The battlefield can be picked.** `ARENA_MAPS` in `src/game/arena.js` holds six presets — 混战 (mixed), 平原
+  (plain), 密林 (forest), 山地 (mountain), 大河 (river) and 湖泽 (lake) — and `generateArenaTerrain()` lays the
+  ground out after the preset. The same presets work in a real battle: `createBattle()` takes an `arenaMap`.
+  **战场可以选。** `src/game/arena.js` 的 `ARENA_MAPS` 有六种预设 —— 混战 / 平原 / 密林 / 山地 / 大河 / 湖泽 ——
+  `generateArenaTerrain()` 按预设摆地形；真实战斗也用同一套预设（`createBattle()` 有 `arenaMap` 参数）。
+- **Both sides can be picked.** The lord fields one of four armies (民兵 / 长枪兵 / 弓箭手 / 骑兵, at the middle
+  rank) and the enemy is one of the three factions (强盗 / 苍狼王国 / 赤鹰王国), each with its own mix of
+  families.
+  **敌我势力可以选。** 己方四选一（民兵 / 长枪兵 / 弓箭手 / 骑兵，中级档），敌方三选一（强盗 / 苍狼王国 / 赤鹰王国），
+  每个势力有自己的兵种配比。
+- **The size of the armies can be picked.** 小队 8×8 / 中队 16×16 / 大队 32×32 / 大军 64×64, and 5, 20 or 50 fights.
+  **士兵规模可以选。** 小队 8×8 / 中队 16×16 / 大队 32×32 / 大军 64×64，可以跑 5 / 20 / 50 场。
+- **It is the real battle.** `src/game/quickBattle.js` reuses `createBattle()` and `stepBattle()` from
+  `src/game/battle.js` — only the step is as large as it can be, because nobody watches it — so the numbers come
+  from the same fight the campaign fights.
+  **这就是真战斗。** `src/game/quickBattle.js` 复用 `src/game/battle.js` 的 `createBattle()` 与 `stepBattle()`，
+  只是把步长开到最大（没人观看），因此数字与战役里那场仗同源。
+- **The report.** The win rate, the wins, losses and draws, the average survivors and fallen on both sides, the
+  average length of a fight and the detail of every round.
+  **结果一览。** 胜率、胜 / 负 / 平场次、双方平均剩余与阵亡、平均时长，以及每一场的明细。
+
 ---
 
 ## 5. 势力与兵种 · Factions and Units
@@ -619,11 +698,12 @@ Your commander is a separate marker on the battlefield (120 HP, speed 150) used 
 
 | 界面 Screen | 路由 Route | 内容 Contents |
 | --- | --- | --- |
-| 首页 Home | `#/` | 输入领主名字、开始新游戏 / 继续进度、最近玩过的名字、进入介绍、分享入口。Name entry, new/continue game, recent names, guide and share links. |
+| 首页 Home | `#/` | 输入领主名字、开始新游戏 / 继续进度、最近玩过的名字、进入介绍、快速战斗与分享入口，以及标题下的**版本号徽章**；点版本徽章会**弹出更新内容对话框**。Name entry, new/continue game, recent names, guide, quick battle and share links, plus the **version badge** under the title; tapping it **opens the update notes in a dialog**. |
+| 快速战斗 Quick battle | `#/quick` | 战场地图（六种预设）、敌我势力、士兵规模与场次的四组选择，模拟进度条，以及胜率、胜 / 负 / 平、平均剩余与阵亡和每场明细。Four pickers — battlefield (six presets), the two sides, the size of the armies and the number of rounds — a progress bar and the report: win rate, wins / losses / draws, average survivors and fallen, and every round. |
 | 游戏介绍 Guide | `#/guide` | 目标、地图、据点、考试、科目（含百科知识与已加载的 Mod 科目）、记忆曲线、兵种克制循环与**兵种升级图**（逐档属性与升级价）、战术 / 队形 / 密度说明，以及题库扩展方式。Goals, map, settlements, exams, the subject list (encyclopedia plus any loaded mod subjects), the memory curve, the RPS cycle and the generated **unit upgrade diagram**, plus the tactics / formation / density tables and how to extend the question bank. |
 | 世界地图 World map | `#/world` | 全屏 canvas 地图、右上角小地图与图例（图标 + 势力色块）、📖 详细地图浮层（拖动平移、回到主角）、顶部状态栏（含 👤 角色详情 芯片、📅 天数时钟芯片（天数 + 时刻 + 当天进度条）与 🎚 难度芯片）、点难度芯片弹出的难度设置面板、底部按钮（进入 / ⛺ 扎营 / ⚔️ 赶走强盗 / 🏰 准备围城 / ⏳ 围城倒计时 / 🚫 取消围城 / ⚔️ 攻打 / 🚩 占领 / ⚔️ 攻城）与四个功能按钮、提示条、扎营时的帐篷与篝火、据点上的归属光环与驻军角标、存档提示浮层。Full-screen canvas map, the corner minimap with its sprite legend, the 📖 detailed atlas overlay (drag to pan, recentre on the lord), status chips (including the 👤 lord info chip, the 📅 day clock chip with the day, the hour and a day-progress bar, and the 🎚 difficulty chip), the difficulty sheet behind that chip, the bottom buttons (enter / ⛺ camp / ⚔️ drive off bandits / 🏰 prepare a siege / ⏳ siege countdown / 🚫 cancel the siege / ⚔️ storm / 🚩 claim / ⚔️ assault) plus four action buttons, hint bar, a tent and campfire while camping, the ownership ring and garrison badge on every settlement, and toasts. |
 | 据点 Settlement | `#/settlement?id=…` | 据点标题栏（左上角显示城镇等级，中间是 📅 天数时钟芯片，右侧显示归属与金币 / 兵力）、招募 / 升级 / 市场 / 城镇 / 考试 五个页签。Header (town level in the top-left corner, the 📅 day clock chip in the middle, owner, gold and troops on the right) plus Recruit / Upgrade / Market / Town / Exam tabs. |
-| 战斗 Battle | `#/battle` | 战场 canvas（带地形、可拖动的镜头）、顶部双方兵力、右上角的 ⚙ 战斗工具（速度 🐢/🚶/🐇 与地形说明）与 🎯 回中按钮、小队选择条（每档一个按钮）、攻击 / 防守 / 跟随 / 移动 四个命令、可折叠的队形与密度面板、提示行、战斗结果面板。Arena canvas (with terrain and a draggable camera), both sides' strength, the ⚙ battle tools (speed 🐢/🚶/🐇 and the terrain legend) plus the 🎯 recentre button, a squad chip bar, the four orders, a collapsible formation / density sheet, a hint line and the result panel. |
+| 战斗 Battle | `#/battle` | 战场 canvas（带地形、可拖动的镜头）、顶部双方兵力、右上角的 ⚙ 战斗工具（速度 🐢/🚶/🐇 与地形说明）与 🎯 回中按钮、小队选择条（每档一个按钮）、攻击 / 防守 / 跟随 / 移动 四个命令、可折叠的队形与密度面板、提示行、战斗结果面板；**练兵模式**下顶部写着「🎯 练兵」、对面是训练木桩，底部多出「🏕 结束练兵」。Arena canvas (with terrain and a draggable camera), both sides' strength, the ⚙ battle tools (speed 🐢/🚶/🐇 and the terrain legend) plus the 🎯 recentre button, a squad chip bar, the four orders, a collapsible formation / density sheet, a hint line and the result panel; in **training mode** the bar reads 「🎯 练兵」, the other side is the wooden dummies and a 🏕 结束练兵 button sits under the command bar. |
 
 A first-run intro modal shows the guide before the campaign starts, so new players always see the rules.
 首次开始游戏会先弹出介绍弹窗，保证新玩家一定看到规则。
@@ -636,6 +716,8 @@ A first-run intro modal shows the guide before the campaign starts, so new playe
 - **昼夜 Day and night** — 每天的最后五分之一（19:12 起）是夜晚：地图变暗、主角与所有部队都变慢 25%，主角身边有一圈灯光。The last fifth of every day (from 19:12) is night: the map darkens, the lord and every warband slow down by 25%, and the lord keeps a lantern light around him.
 - **移动 Move** — 点击世界地图任意位置；游戏时间只在移动时流逝。Tap anywhere on the world map; game time advances only while the lord walks.
 - **扎营 Camp** — 点底部「⛺ 扎营」原地扎营，时间与敌军照常流转；点「🔥 拔营」或点地图移动即结束。Tap 「⛺ 扎营」 to rest in place while time keeps running; 「🔥 拔营」 or a map tap breaks camp.
+- **练兵 Drill** — 扎营时底部多出「🎯 练兵」按钮，点它进入训练场：场上只有自己的士兵和训练木桩，没有敌人，不会死人，练习完点「🏕 结束练兵」回到世界地图。While the camp is pitched the bottom bar grows a 「🎯 练兵」 button: it opens a drill ground with the lord's own soldiers and wooden dummies, no enemy and no losses, and 「🏕 结束练兵」 takes you back to the world map.
+- **快速战斗 Quick battle** — 首页的「⚡ 快速战斗」进入模拟器：选战场、选敌我势力、选士兵规模，点「⚡ 开始模拟」跑出胜率。The 「⚡ 快速战斗」 entry on the home screen opens the simulator: pick a battlefield, the two sides and the size of the armies, then 「⚡ 开始模拟」 reports the win rate.
 - **进入据点 Enter** — 靠近后点击底部的「进入」按钮。Tap the "enter" button once you are close.
 - **赶走强盗 Drive off bandits** — 强盗村庄不能进入，底部按钮是「⚔️ 赶走强盗」，打一场就能进。Tap 「⚔️ 赶走强盗」 at a bandit village and win the fight to open it up.
 - **占领无主城镇 Claim an unclaimed town** — 无主的城镇如果没人防守，底部按钮「🚩 占领」直接拿下；如果还有守军，按钮变成「⚔️ 攻城」，必须打赢守军才能占领。An unclaimed town nobody defends is taken with 「🚩 占领」; one that still holds soldiers offers 「⚔️ 攻城」 and has to be stormed.
@@ -922,6 +1004,31 @@ added to the two pickers (the home screen and the world map sheet) if it is mean
 该难度下每答对一题少拿多少金币。奖励公式通过 `rewardFor(question, difficulty)` 读取它，因此新增难度不需要改
 其他地方——但若要让人看到它，还需要把它加进两个选择器（首页与世界地图的难度面板）。
 
+### 版本与更新内容 · Version and changelog
+
+The version and the update notes live in `src/game/versions/`: `index.js` exports `VERSION`, `VERSIONS` / `CHANGELOG`
+and the helpers, one file per release (`v0.0.1.js`, …) holds the batches of that release, and `batches.js` is the
+generated list of every shipped batch.
+版本号与更新内容都写在 `src/game/versions/`：`index.js` 导出 `VERSION`、`VERSIONS` / `CHANGELOG` 与辅助函数，
+每个发布版本一个文件（`v0.0.1.js` …）写着这次发布的批次，而 `batches.js` 是所有已发布批次的生成结果。
+
+Releasing a new build is three edits:
+发布一个新版本只要动三处：
+
+1. raise `VERSION` to the next patch number — `nextPatchVersion(VERSION)` gives it, and only the last digit moves;
+   把 `VERSION` 改成下一个修订号（`nextPatchVersion(VERSION)` 可以算出来，目前只加最后一位）；
+2. add a release file `v0.0.2.js` (with its `version`, `date`, `title`, `summary` and `batches`) and list it in
+   `VERSIONS`;
+   新增一个发布文件 `v0.0.2.js`（写上 `version`、`date`、`title`、`summary` 与 `batches`），并把它加进 `VERSIONS`；
+3. write the shipped work down in `progress.md` and run `node tools/build-versions.mjs` to regenerate
+   `src/game/versions/batches.js`, then note the release in `README.md`.
+   把这次的工作写进 `progress.md`，运行 `node tools/build-versions.mjs` 重新生成 `src/game/versions/batches.js`，
+   再在 `README.md` 里记一笔。
+
+Nothing else has to change: the home screen reads the module, so the badge and the update notes follow the number
+on their own.
+其它地方都不用动：首页读的就是这个模块，版本号与更新内容会自己跟着变。
+
 ### 题库扩展 · Question mods
 
 Every subject is a **mod**, the five built-ins included, and both paths use the same contract — so adding a
@@ -1060,7 +1167,12 @@ The game has five dependency-free checks under `tools/`, all runnable with plain
 | `node tools/verify-settlements-browser.mjs` | 真实 Chrome 走一遍据点玩法：地图上的归属光环、角色面板里的伤兵、赶走强盗、准备围城并攻打城镇，以及城镇面板（等级 / 繁荣度 / 资金 / 建医院 / 注入资金 / 投入发展）。Real Chrome walks the settlement features: the ownership ring on the map, the wounded in the lord panel, driving off bandits, preparing a siege and storming the town, and the town panel (level / prosperity / funds / building a hospital / injecting money / investing). |
 | `node tools/verify-battle.mjs` | 64 项检查：难度（三种难度的金币、科目加成、存档读写）、战斗速度（默认慢速、慢速推进更少）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）。64 checks: the difficulty (the gold of the three levels, the subject bonus, the save round trip), the battle speed (slow by default, the slow speed advances less), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), twelve battles that always end, and the sieges (they can be called off, a failed assault needs a new preparation, a won assault takes the town). |
 | `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、战斗界面的速度按钮与地形说明、镜头拖动与回中、控制台 0 报错。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, the speed buttons and the terrain legend on the battle screen, dragging and recentring the camera, and a clean console. |
+| `node tools/verify-training-browser.mjs` | 真实 Chrome 走一遍新功能：首页显示版本号、点徽章展开更新内容；世界地图上**没扎营时没有「练兵」按钮**、扎营后出现；点进去后战斗界面写着「🎯 练兵」、对面是训练木桩、store 认得出这是训练、没有敌人、**没有胜负**、金币 / 军粮 / 队伍都不变；木桩真的挨打而士兵毫发无伤；点「🏕 结束练兵」回到世界地图，营地还在，控制台 0 报错。Real Chrome walks the new features: the home screen shows the version and the badge opens the update notes; the world map has **no drill button before the camp** and one after it; inside, the battle screen reads 「🎯 练兵」, the other side is the wooden dummies, the store knows it is a drill, there is no enemy, **no outcome**, and the purse, the food and the warband do not move; the dummies really take the blows while the soldiers stay untouched; 「🏕 结束练兵」 returns to the world map with the camp still pitched, and the console stays clean. |
 | `node tools/verify-chinese-browser.mjs` | 真实 Chrome 考一张只选「语文」的卷子，走完全部题目并读回题干：卷子里要有**阅读理解短文**与**古诗题**，短文保持换行、同一份卷子里没有重复题目、控制台 0 报错。Real Chrome takes a Chinese-only paper, walks every question and reads the prompts back: the paper must carry a **reading passage** and an **ancient-poem question**, the passage keeps its line breaks, no question repeats inside one paper and the console stays clean. |
+| `node tools/verify-quick-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的「⚡ 快速战斗」与开始 / 继续按钮**同级**；点版本徽章弹出**更新对话框**（写着版本号、列出批次、**没有任何开发细节**）、关闭后消失；快速战斗页有六种战场、七个敌我选项、四个规模与三档场次，换选项后模拟出胜率、每场明细与平均数据；控制台 0 报错。Real Chrome walks the new features: the 「⚡ 快速战斗」 entry sits **on the same level** as the start / continue buttons; tapping the version badge opens the **update dialog** (the version, the batches and **no development details** at all) and it closes again; the quick battle screen offers six battlefields, seven side choices, four army sizes and three round counts, and the simulation reports the win rate, every round and the averages, with a clean console. |
+| `node tools/verify-quick-battle.mjs` | 32 项检查：六种战场预设各生成正确的地形、湖泽的深水不可通行；敌军按配比凑够人数且带满血；每一场都能分出结果；五场模拟的胜 / 负 / 平相加等于场次、胜率与胜场一致；模拟足够快。32 checks: every battlefield preset lays out the right ground and the deep water of the lake map is impassable; the enemy army adds up to the asked size and starts healthy; every round resolves; the wins, losses and draws of five rounds add up and the win rate follows the wins; and the simulation is quick. |
+| `node tools/build-versions.mjs` | 从 `progress.md` 的「## 2. 已完成功能」一节重新生成 `src/game/versions/batches.js`，并打印解析到的每个批次。Regenerates `src/game/versions/batches.js` from the 「## 2. 已完成功能」 section of `progress.md` and prints every batch it found. |
+| `node tools/verify-training.mjs` | 58 项检查：版本号格式与更新内容（版本从 v0.0.1 起、只更新修订号、最新条目就是当前版本、更新内容由 `progress.md` 生成）、练兵场（只有自己的士兵与训练木桩、没有敌人、训练不会结束、士兵不会受伤、木桩挨打后会自己立起来）、练兵对战役零影响（金币 / 军粮 / 队伍 / 战绩都不变），以及界面上确实有版本号、练兵按钮与「结束练兵」按钮。58 checks: the version format and the update notes (the version starts at v0.0.1, only the patch moves, the newest entry is the current version, the notes are generated from `progress.md`), the drill ground (only the lord's own soldiers and the wooden dummies, no enemy, the session never ends, nobody is hurt, the dummies stand back up), that a drill changes nothing in the campaign (purse / food / warband / record), and that the interface really carries the version, the drill button and the end-of-drill button. |
 
 The skill `.agents/skills/kids-war-game-testing/` runs all of them in one command:
 `node .agents/skills/kids-war-game-testing/scripts/run-checks.mjs --browser`.
@@ -1093,6 +1205,14 @@ kids-war-game/
 ├── tools/verify-settlements-browser.mjs # 真实 Chrome 走一遍据点、围城与城镇面板
 ├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 战场地形 / 围城中断自检（无头，64 项检查）
 ├── tools/verify-battle-browser.mjs # 真实 Chrome 走一遍难度、速度、地形与围城中断
+├── tools/verify-training.mjs  # 版本号与练兵自检（无头，58 项检查）
+├── tools/verify-training-browser.mjs # 真实 Chrome 走一遍版本号与练兵
+├── tools/verify-training.entry.mjs # 版本号与练兵检查的用例
+├── tools/verify-quick-battle.mjs # 快速战斗模拟器自检（无头，32 项检查）
+├── tools/verify-quick-battle.entry.mjs # 快速战斗检查的用例
+├── tools/verify-quick-battle-browser.mjs # 真实 Chrome 走一遍更新对话框与快速战斗
+├── tools/build-versions.mjs   # 从 progress.md 的「已完成功能」一节生成更新内容
+├── tools/rewrite-progress-features.mjs # 把「已完成功能」一节改写成「▶ 功能 / 🔧 技术」两类条目
 ├── tools/verify-upgrade.entry.mjs # 升级检查的用例
 ├── tools/verify-settlements.entry.mjs # 据点检查的用例
 ├── tools/verify-battle.entry.mjs # 难度 / 战斗 / 围城检查的用例
@@ -1102,7 +1222,7 @@ kids-war-game/
 └── src/
     ├── main.js                 # 应用入口：Pinia + Router，预加载像素素材并启动题库 Mod 加载
     ├── App.vue                 # 根容器，承载全局分享弹窗
-    ├── router/index.js         # hash 路由：home / world / settlement / battle / guide
+    ├── router/index.js         # hash 路由：home / world / settlement / battle / quick / guide
     ├── styles/global.css       # 主题变量、按钮、面板、手机断点
     ├── composables/
     │   ├── gameState.js        # 新游戏 / 继续 / 持久化
@@ -1111,6 +1231,10 @@ kids-war-game/
     │   ├── rng.js              # 种子随机 + 值噪声
     │   ├── terrain.js          # 地形定义与序列化映射
     │   ├── difficulty.js       # 难度设置：三种难度与考试金币增减
+    │   ├── versions/             # 版本号（只更新修订号）与更新内容：一个发布一个文件，批次由 progress.md 生成
+    │   │   ├── index.js          #   VERSION / VERSIONS / CHANGELOG 与辅助函数
+    │   │   ├── v0.0.1.js         #   首个版本的更新内容
+    │   │   └── batches.js        #   由 tools/build-versions.mjs 从 progress.md 生成
     │   ├── daynight.js         # 昼夜：夜晚占一天的五分之一，黑度与减速系数
     │   ├── arena.js            # 战场地形：五种地形、生成、效果与不可通行
     │   ├── factions.js         # 势力定义
@@ -1121,7 +1245,8 @@ kids-war-game/
     │   ├── atlas.js            # 小地图与详细地图：地形缓存、兵力角标、两个整图画法
     │   ├── worldgen.js         # 世界生成（地形 + 最大连通陆地 + 据点 + 部队）
     │   ├── pathfinding.js      # A* + 二叉堆 + 尽力靠近回退
-    │   ├── battle.js           # 战斗模拟（小队、命令、队形、密度、克制、远程风筝、地形、速度档）
+    │   ├── battle.js           # 战斗模拟（小队、命令、队形、密度、克制、远程风筝、地形、速度档、练兵木桩）
+    │   ├── quickBattle.js      # 快速战斗模拟器：战场 / 敌我势力 / 兵力规模 / 场次与战报
     │   ├── save.js             # localStorage 存档槽
     │   └── quiz/
     │       ├── index.js        # 出卷、奖励、科目与年级定义
@@ -1156,7 +1281,8 @@ kids-war-game/
         ├── HomeView.vue        # 登录 / 继续 / 首次介绍
         ├── WorldView.vue       # 世界地图屏
         ├── SettlementView.vue  # 据点屏
-        ├── BattleView.vue      # 战斗屏
+        ├── BattleView.vue      # 战斗屏（练兵时多一个「结束练兵」）
+        ├── QuickBattleView.vue # 快速战斗：选战场 / 敌我 / 规模，跑出胜率
         └── GuideView.vue       # 介绍页
 ```
 

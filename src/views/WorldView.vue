@@ -93,6 +93,8 @@
         <button class="btn camp-btn" :class="{ on: world.camping }" @click="toggleCamp">
           {{ world.camping ? '🔥 拔营' : '⛺ 扎营' }}
         </button>
+        <!-- Drill the troops: the training field holds no enemy at all. -->
+        <button v-if="world.camping" class="btn train-btn" @click="startTraining">🎯 练兵</button>
         <div v-if="!nearby" class="hint-chip" :class="{ warning: player.totalTroops === 0 }">
           {{ hintText }}
         </div>
@@ -204,6 +206,21 @@ function flash(msg) {
 function toggleCamp() {
   world.toggleCamp()
   flash(world.camping ? '⛺ 已扎营：时间开始流逝，敌人也会行动' : '🔥 已拔营：时间停止，直到你再次移动或扎营')
+}
+
+/**
+ * Drill the troops: the lord walks onto a training field that holds his own
+ * soldiers and a row of wooden dummies, and nothing else. Nobody dies there
+ * and the campaign is not touched.
+ */
+function startTraining() {
+  if (player.totalTroops <= 0) {
+    flash('🛡️ 没有士兵可以练兵，先去村庄招募民兵吧')
+    return
+  }
+  world.stop()
+  battle.startTraining(Math.floor(Math.random() * 1e9))
+  router.push('/battle')
 }
 
 function enterSettlement() {
@@ -586,6 +603,18 @@ onBeforeUnmount(() => {
   background: rgba(200, 110, 40, 0.3);
 }
 
+/* The drill button: it only shows up while the camp is pitched. */
+.train-btn {
+  font-size: 15px;
+  padding: 14px 18px;
+  border-color: rgba(120, 190, 255, 0.7);
+  color: #d9edff;
+}
+
+.train-btn:hover {
+  background: rgba(90, 160, 230, 0.22);
+}
+
 /* The clock state lives inside the DayClock chip now. */
 
 .hint-chip {
@@ -667,13 +696,15 @@ onBeforeUnmount(() => {
   }
 
   /* Camp only, no settlement button: let it take the whole row. */
-  .left.solo .camp-btn {
+  .left.solo .camp-btn,
+  .left.solo .train-btn {
     grid-column: 1 / -1;
   }
 
   .left .enter-btn,
   .left .action-btn,
-  .left .camp-btn {
+  .left .camp-btn,
+  .left .train-btn {
     width: 100%;
     font-size: 14px;
     padding: 12px 8px;

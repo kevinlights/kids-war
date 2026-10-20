@@ -7,7 +7,7 @@
         <span class="dot" style="background: #4aa3ff"></span>
         我方 {{ playerAlive }}
       </div>
-      <div class="vs">⚔️ 战斗</div>
+      <div class="vs">{{ training ? '🎯 练兵' : '⚔️ 战斗' }}</div>
       <div class="side enemy">
         <span class="dot" :style="{ background: enemyColor }"></span>
         {{ enemyName }} {{ enemyAlive }}
@@ -51,6 +51,9 @@
     </div>
 
     <div class="command">
+      <!-- Training: the session ends whenever the lord wants it to. -->
+      <button v-if="training" class="end-train" @click="returnToWorld">🏕 结束练兵，回到世界地图</button>
+
       <!-- Squad selector: one chip per family and rank, plus 全军. -->
       <div class="chips">
         <button class="chip all" :class="{ on: battle.selectedGroup === null }" @click="battle.selectGroup(null)">
@@ -189,12 +192,20 @@ const order = computed(() => battle.order)
 const formation = computed(() => battle.formation)
 const density = computed(() => battle.density)
 const hungry = computed(() => !!battle.context?.hungry)
+// A training session: no enemy, no losses, the field is the practice ground.
+const training = computed(() => battle.isTraining)
 // The terrain kinds of the field, for the legend.
 const TERRAINS = ARENA_TERRAIN_LIST
 const speedInfo = computed(() => battle.speedInfo)
 
-const enemyName = computed(() => (battle.context ? factionOf(battle.context.faction).name : '敌军'))
-const enemyColor = computed(() => (battle.context ? factionOf(battle.context.faction).color : '#d8533f'))
+const enemyName = computed(() => {
+  if (training.value) return '训练木桩'
+  return battle.context ? factionOf(battle.context.faction).name : '敌军'
+})
+const enemyColor = computed(() => {
+  if (training.value) return '#d9b26a'
+  return battle.context ? factionOf(battle.context.faction).color : '#d8533f'
+})
 
 const playerAlive = computed(() => (battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'player').length : 0))
 const enemyAlive = computed(() => (battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'enemy').length : 0))
@@ -211,6 +222,7 @@ const sheetNote = computed(
 )
 
 const hint = computed(() => {
+  if (training.value) return '🎯 练兵：这里没有敌人，练习移动、队形与命令，木桩打倒会自动立起来'
   if (order.value === 'move') return `${scopeName.value}：点击战场放置移动目标（黄色十字）`
   if (order.value === 'follow') return `${scopeName.value}跟随指挥官，点击战场可移动指挥官`
   if (order.value === 'defend') return `${scopeName.value}原地结阵防守，远程单位原地射击`
@@ -635,6 +647,23 @@ watch(
   font-size: 12.5px;
   color: var(--ink-dim);
   text-align: center;
+}
+
+/* The button that ends a training session: it sits above the command bar so
+   the field stays as big as possible. */
+.end-train {
+  min-height: 42px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: rgba(10, 14, 10, 0.88);
+  border: 1px solid var(--gold-deep);
+  color: var(--gold);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.end-train:hover {
+  background: rgba(232, 197, 106, 0.18);
 }
 
 /* --------------------------------- result --------------------------------- */

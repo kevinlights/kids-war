@@ -259,16 +259,29 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
   })
 }
 
-export function createBattle({ playerTroops, enemyTroops, enemyFaction, seed, playerAtkMul = 1, playerDefMul = 1 }) {
+export function createBattle({
+  playerTroops,
+  enemyTroops,
+  enemyFaction,
+  seed,
+  playerAtkMul = 1,
+  playerDefMul = 1,
+  training = false,
+  arenaMap = 'mixed'
+}) {
   const b = {
     rng: createRng(seed),
     enemyFaction,
+    // A training session has no enemy army: it only carries the lord's own
+    // soldiers, so the fight never ends and nothing is lost.
+    training: !!training,
     // The terrain of this field: it is generated from the seed, so the same
-    // fight always looks the same.
+    // fight always looks the same. The preset decides which ground it holds.
     terrain: generateArenaTerrain(
       seed,
       Math.round(ARENA.w / ARENA_CELL),
-      Math.round(ARENA.h / ARENA_CELL)
+      Math.round(ARENA.h / ARENA_CELL),
+      arenaMap
     ),
     // Army-wide modifiers: the barracks of the lord's towns train his soldiers,
     // so the whole warband hits and holds harder.
@@ -304,6 +317,108 @@ export function createBattle({ playerTroops, enemyTroops, enemyFaction, seed, pl
   addSide(b, 'player', playerTroops, 1, playerAtkMul)
   addSide(b, 'enemy', enemyTroops, -1, 1)
   return b
+}
+
+/* --------------------------------- training -------------------------------- */
+
+/**
+ * The training dummy: a wooden post that takes blows but never fights back.
+ *
+ * It is the target of a training session, so the lord can practise the attack
+ * order and the formations without risking a single soldier.
+ */
+export const TRAINING_DUMMY_DEF = {
+  key: 'dummy',
+  type: 'dummy',
+  name: '训练木桩',
+  en: 'Training dummy',
+  tier: 1,
+  tiered: false,
+  atk: 0,
+  def: 1,
+  // Soft enough that a single soldier knocks it down within a few blows, so a
+  // short drill already shows something.
+  hp: 60,
+  ranged: false,
+  range: 0,
+  speed: 0,
+  note: '训练用的木桩：只挨打，不会还手，打倒后会自动立起来。'
+}
+
+/** How many dummies stand in the training field. */
+export const TRAINING_DUMMY_COUNT = 8
+
+/**
+ * Put the training dummies on the right-hand side of the field, in two ranks.
+ *
+ * They belong to the enemy side so the ordinary targeting code finds them,
+ * but they carry the `isDummy` flag: they never strike back and they never
+ * move away from their post.
+ */
+export function spawnTrainingDummies(b, count = TRAINING_DUMMY_COUNT) {
+  const key = 'enemy:training:1'
+  const anchorX = ARENA.w * 0.76
+  const anchorY = ARENA.h / 2
+  const group = {
+    key,
+    side: 'enemy',
+    type: 'dummy',
+    tier: 1,
+    name: TRAINING_DUMMY_DEF.name,
+    formation: 'line2',
+    density: 'tight',
+    order: 'defend',
+    isDummy: true,
+    anchor: { x: anchorX, y: anchorY },
+    rally: null,
+    tx: anchorX,
+    ty: anchorY,
+    count,
+    unitCount: count,
+    slots: formationSlots(count, 'line2', 'tight', -1)
+  }
+  b.groups[key] = group
+  for (let i = 0; i < count; i += 1) {
+    const slot = group.slots[i] || { ox: 0, oy: 0 }
+    b.units.push({
+      id: `${key}#${i}`,
+      side: 'enemy',
+      group: key,
+      slotIndex: i,
+      type: 'dummy',
+      tier: 1,
+      def: TRAINING_DUMMY_DEF,
+      atkMul: 1,
+      maxHp: TRAINING_DUMMY_DEF.hp,
+      hp: TRAINING_DUMMY_DEF.hp,
+      x: clamp(anchorX + slot.ox, 18, ARENA.w - 18),
+      y: clamp(anchorY + slot.oy, 18, ARENA.h - 18),
+      cd: 0,
+      alive: true,
+      facing: -1,
+      hitFlash: 0,
+      isDummy: true,
+      // When a dummy went down, so it can stand back up a moment later.
+      downAt: 0
+    })
+  }
+  return group
+}
+
+/**
+ * Stand the dummies back up. A training session never ends, so the dummies
+ * come back after they have been knocked down and the practice can go on.
+ */
+export function reviveTrainingDummies(b) {
+  let revived = 0
+  for (const u of b.units) {
+    if (!u.isDummy) continue
+    u.hp = u.maxHp
+    u.alive = true
+    u.hitFlash = 0
+    revived += 1
+  }
+  return revived
 }
 
 /* -------------------------------- simulation -------------------------------- */
@@ -384,6 +499,12 @@ function blockedAt(b, x, y) {
  */
 function updateGroupTargets(b) {
   for (const g of Object.values(b.groups)) {
+    // A training dummy holds its post: it never charges the lord.
+    if (g.isDummy) {
+      g.tx = g.anchor.x
+      g.ty = g.anchor.y
+      continue
+    }
     if (g.side === 'player') {
       if (g.order === 'follow') {
         g.tx = b.commander.x - 40
@@ -435,6 +556,8 @@ export function damageOf(b, unit, target) {
 }
 
 function strike(b, unit, target) {
+  // A training dummy only takes blows: it never swings back.
+  if (unit.isDummy) return
   const def = unit.def
   const cooldown = def.ranged ? 1.6 : 1.0
   if (unit.cd > 0) return
@@ -473,6 +596,12 @@ function applyDamage(b, target, dmg) {
   target.hitFlash = 0.18
   if (target.hp <= 0) {
     target.alive = false
+    if (target.isDummy) {
+      // A dummy that goes down stands back up a moment later, so a drill
+      // never runs out of targets and nobody is hurt.
+      target.downAt = b.time
+      return
+    }
     if (target.side === 'enemy') b.kills++
     else b.losses++
   }
@@ -543,7 +672,7 @@ export function stepBattle(b, dt) {
     // sideways nudge, so no fight can stall for ever.
     const moved = Math.hypot(unit.x - prevX, unit.y - prevY)
     unit.stuck = wantsToMove && moved < 0.2 ? (unit.stuck || 0) + dt : 0
-    if (unit.stuck > 0.8) {
+    if (unit.stuck > 0.8 && !unit.isDummy) {
       unit.stuck = 0
       const dx = tx - unit.x
       const dy = ty - unit.y
@@ -588,7 +717,21 @@ export function stepBattle(b, dt) {
     .map((e) => ({ ...e, t: e.t + dt }))
     .filter((e) => e.t < e.life)
 
-  // Resolve the outcome once a side is wiped out.
+  // Resolve the outcome once a side is wiped out. A training session has no
+  // outcome at all: it goes on until the lord leaves the field.
+  if (b.training) {
+    // Every dummy that was knocked down stands back up after two seconds, so
+    // the practice never runs out of targets.
+    for (const u of b.units) {
+      if (!u.isDummy || u.alive) continue
+      if (b.time - (u.downAt || 0) > 2) {
+        u.hp = u.maxHp
+        u.alive = true
+        u.hitFlash = 0
+      }
+    }
+    return b
+  }
   const playerAlive = aliveUnits(b, 'player')
   const enemyAlive = aliveUnits(b, 'enemy')
   if (!cmd.alive) b.outcome = 'lose'

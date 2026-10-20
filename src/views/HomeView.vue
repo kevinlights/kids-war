@@ -7,6 +7,7 @@
         <div class="crest">⚔️</div>
         <h1>少年战记</h1>
         <p class="sub">KIDS WAR CHRONICLE · 2D 俯视策略游戏</p>
+        <div class="version-badge" :title="`游戏版本 ${versionLabel(VERSION)}`">版本 {{ versionLabel(VERSION) }}</div>
       </header>
 
       <section class="panel login pop">
@@ -25,6 +26,8 @@
           <button class="btn ghost" :disabled="!canStart || !existingSave" @click="continueExisting">
             📜 继续上次进度
           </button>
+          <!-- The quick battle sits on the same level as the two game buttons. -->
+          <button class="btn ghost" @click="router.push('/quick')">⚡ 快速战斗</button>
         </div>
 
         <!-- Difficulty: it decides how much gold a correct exam answer pays. -->
@@ -52,6 +55,7 @@
 
         <div class="footer-links">
           <button class="link" @click="router.push('/guide')">📖 查看游戏介绍与玩法</button>
+          <button class="link" @click="showChangelog = true">📋 更新内容</button>
           <button class="link" @click="openShare">📤 分享给好友</button>
         </div>
       </section>
@@ -68,6 +72,53 @@
         <div class="tip-card">🏰 进入据点招兵买马</div>
         <div class="tip-card">💰 考试答题赚金币</div>
         <div class="tip-card">⚔️ 排兵布阵击败强盗</div>
+      </div>
+
+      <!-- Version badge: tapping it opens the update notes in a dialog. -->
+      <section class="version">
+        <button class="version-badge" @click="showChangelog = true">
+          <span class="v-mark">版本</span>
+          <span class="v-label">{{ versionLabel(VERSION) }}</span>
+          <span class="v-toggle">更新内容 ▼</span>
+        </button>
+      </section>
+    </div>
+
+    <!-- The update notes, in a dialog of their own. -->
+    <div v-if="showChangelog" class="overlay" @click.self="showChangelog = false">
+      <div class="notes-wrap pop">
+        <div class="notes-head">
+          <div>
+            <div class="notes-version">{{ versionLabel(release.version) }}</div>
+            <div class="notes-title">{{ release.title }}</div>
+            <div class="notes-date muted">{{ release.date }}</div>
+          </div>
+          <button class="notes-close" @click="showChangelog = false">✕</button>
+        </div>
+
+        <div class="notes-body">
+          <ul class="notes-summary">
+            <li v-for="(line, i) in release.summary" :key="i">{{ line }}</li>
+          </ul>
+
+          <div v-for="b in release.batches" :key="b.batch" class="notes-batch">
+            <div class="notes-batch-head">
+              <b>批次 {{ b.batch }}</b>
+              <span class="notes-batch-title">{{ b.title }}</span>
+              <i class="muted">{{ b.date }}</i>
+            </div>
+            <ul class="notes-items">
+              <li v-for="(item, i) in b.items" :key="i">
+                <span class="zh">{{ item.zh }}</span>
+                <span v-if="item.en" class="en">{{ item.en }}</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="notes-actions">
+          <button class="btn" @click="showChangelog = false">关闭</button>
+        </div>
       </div>
     </div>
 
@@ -92,11 +143,15 @@ import { newGame, continueGame, hasSave } from '@/composables/gameState'
 import { openShare } from '@/composables/share'
 import { listUsers } from '@/game/save'
 import { DEFAULT_DIFFICULTY, difficultyList, difficultyOf } from '@/game/difficulty'
+import { VERSION, CHANGELOG, versionLabel } from '@/game/versions'
 
 const router = useRouter()
 const name = ref('')
 const showIntro = ref(false)
 const recent = ref(listUsers())
+// The version of the game and its update notes, shown in a dialog.
+const release = CHANGELOG[0]
+const showChangelog = ref(false)
 // The difficulty of a new campaign: it only changes the exam reward.
 const difficulty = ref(DEFAULT_DIFFICULTY)
 
@@ -335,6 +390,177 @@ h1 {
   border: 1px solid var(--line);
   font-size: 13.5px;
   text-align: center;
+}
+
+/* Version badge and the update notes it opens. */
+.version {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.version-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--ink-dim);
+}
+
+.v-mark {
+  color: var(--ink-dim);
+}
+
+.v-label {
+  font-weight: 800;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+.v-toggle {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* The update notes: a dialog of their own. */
+.notes-wrap {
+  width: min(680px, 100%);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: #141a13;
+  border: 1px solid var(--gold-deep);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+
+.notes-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(232, 197, 106, 0.08);
+}
+
+.notes-version {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--gold);
+  letter-spacing: 2px;
+}
+
+.notes-title {
+  font-size: 13.5px;
+  color: var(--ink);
+}
+
+.notes-date {
+  font-size: 12px;
+}
+
+.notes-close {
+  font-size: 18px;
+  line-height: 1;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+}
+
+.notes-close:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+}
+
+.notes-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.notes-summary {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--gold);
+}
+
+.notes-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.notes-batch-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.notes-batch-head b {
+  color: var(--gold);
+}
+
+.notes-batch-title {
+  color: var(--ink);
+}
+
+.notes-batch-head i {
+  font-style: normal;
+  font-size: 11.5px;
+}
+
+.notes-items {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notes-items li {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.notes-items .zh {
+  display: block;
+  color: var(--ink);
+}
+
+.notes-items .en {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-dim);
+}
+
+.notes-actions {
+  display: flex;
+  justify-content: center;
+  padding: 12px;
+  border-top: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 .intro-wrap {

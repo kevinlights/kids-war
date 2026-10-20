@@ -11,6 +11,7 @@ import {
   survivorsByType,
   fallenByType,
   formationSlots,
+  spawnTrainingDummies,
   ARENA
 } from '@/game/battle'
 import { warbandValue, woundedCount } from '@/game/units'
@@ -42,6 +43,11 @@ export const useBattleStore = defineStore('battle', {
   getters: {
     /** The speed record of the current setting. */
     speedInfo: (s) => speedOf(s.speed),
+    /**
+     * True while the lord is training instead of fighting: the field holds no
+     * enemies, nothing is lost and the session goes on until he leaves.
+     */
+    isTraining: (s) => !!(s.data && s.data.training),
     /** Player squads with their live count, order, formation and density. */
     groups: (s) => (s.data ? battleGroups(s.data, 'player') : []),
     selected: (s) => (s.data && s.selectedGroup ? s.data.groups[s.selectedGroup] || null : null),
@@ -135,6 +141,32 @@ export const useBattleStore = defineStore('battle', {
         settlementId: settlement.id,
         hungry: food < 3
       }
+      this.selectedGroup = null
+      this.result = null
+      this.settled = false
+      this.active = true
+    },
+
+    /**
+     * Start a training session: the lord's own soldiers on the field and
+     * nothing else but a row of wooden dummies.
+     *
+     * A training session costs nothing — no food, no gold, no soldiers — and
+     * it never ends on its own, so the lord practises as long as he likes.
+     */
+    startTraining(seed) {
+      const player = usePlayerStore()
+      this.data = createBattle({
+        playerTroops: player.troops,
+        enemyTroops: [],
+        enemyFaction: 'training',
+        seed,
+        playerAtkMul: 1,
+        playerDefMul: 1,
+        training: true
+      })
+      spawnTrainingDummies(this.data)
+      this.context = { partyId: null, faction: 'training', kind: 'training', hungry: false }
       this.selectedGroup = null
       this.result = null
       this.settled = false
@@ -320,6 +352,9 @@ export const useBattleStore = defineStore('battle', {
     },
 
     settle() {
+      // A training session never settles: it changes nothing about the
+      // campaign, so the lord's soldiers, purse and record stay untouched.
+      if (this.context && this.context.kind === 'training') return
       const world = useWorldStore()
       const player = usePlayerStore()
       const outcome = this.data.outcome

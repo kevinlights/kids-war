@@ -169,6 +169,31 @@ function drawGround() {
   ctx.drawImage(ground, 0, 0)
 }
 
+/**
+ * A training dummy: a wooden post with a straw head. It is drawn by hand
+ * instead of with a sprite, so the practice field needs no extra art.
+ */
+function drawDummy(u) {
+  const groundY = u.y + 10
+  // The disc under the post, in the colour of a target.
+  ctx.fillStyle = 'rgba(217,178,106,0.55)'
+  ctx.beginPath()
+  ctx.ellipse(u.x, groundY, 11, 4, 0, 0, Math.PI * 2)
+  ctx.fill()
+  // The post and its arms.
+  ctx.fillStyle = '#8a5a2b'
+  ctx.fillRect(u.x - 3, u.y - 12, 6, 24)
+  ctx.fillRect(u.x - 12, u.y - 6, 24, 4)
+  // The head.
+  ctx.fillStyle = '#d8a75c'
+  ctx.beginPath()
+  ctx.arc(u.x, u.y - 16, 6, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.strokeStyle = 'rgba(60,36,12,0.8)'
+  ctx.lineWidth = 1
+  ctx.stroke()
+}
+
 function drawUnit(u) {
   const size = u.isCommander ? 36 : 28
   const isPlayer = u.side === 'player'
@@ -184,12 +209,17 @@ function drawUnit(u) {
     ctx.stroke()
   }
 
-  // Base disc in the side's colour: both armies share the same unit art, so
-  // the ground colour is what separates friend from foe on the field.
-  ctx.fillStyle = isPlayer ? 'rgba(74,163,255,0.6)' : 'rgba(216,83,63,0.6)'
-  ctx.beginPath()
-  ctx.ellipse(u.x, groundY, 11, 4, 0, 0, Math.PI * 2)
-  ctx.fill()
+  // A training dummy is drawn by hand and has no side colour of its own.
+  if (u.isDummy) {
+    drawDummy(u)
+  } else {
+    // Base disc in the side's colour: both armies share the same unit art, so
+    // the ground colour is what separates friend from foe on the field.
+    ctx.fillStyle = isPlayer ? 'rgba(74,163,255,0.6)' : 'rgba(216,83,63,0.6)'
+    ctx.beginPath()
+    ctx.ellipse(u.x, groundY, 11, 4, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
 
   if (u.hitFlash > 0) {
     ctx.fillStyle = 'rgba(255,255,255,0.7)'
@@ -200,14 +230,16 @@ function drawUnit(u) {
 
   // The commander uses the lord sprite; soldiers use their own unit type and
   // flip to face the way they are moving.
-  drawSprite(ctx, u.isCommander ? 'lord' : unitSprite(u.type, u.tier), u.x, u.y, size, u.facing < 0)
+  if (!u.isDummy) {
+    drawSprite(ctx, u.isCommander ? 'lord' : unitSprite(u.type, u.tier), u.x, u.y, size, u.facing < 0)
+  }
 
   // Health bar above every unit.
   const w = size * 0.7
   const hpPct = Math.max(0, u.hp / u.maxHp)
   ctx.fillStyle = 'rgba(0,0,0,0.55)'
   ctx.fillRect(u.x - w / 2, u.y - size / 2 - 6, w, 4)
-  ctx.fillStyle = isPlayer ? '#5fd07a' : '#e06b5a'
+  ctx.fillStyle = isPlayer ? '#5fd07a' : u.isDummy ? '#d9b26a' : '#e06b5a'
   ctx.fillRect(u.x - w / 2, u.y - size / 2 - 6, w * hpPct, 4)
 
   // Rank pips for the tiered families: 初级 is one pip, 精英 is four.
