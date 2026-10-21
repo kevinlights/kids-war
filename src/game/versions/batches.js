@@ -186,7 +186,19 @@ export const BATCHES = [
     items: [
     { zh: "被打了就会还手：士兵会记住是谁打了它，转身还手 —— 哪怕它本来在防守或者在赶路。", en: "**Everybody answers an attack**: a soldier remembers who hit it and turns to answer that one, even when it was holding its position or marching somewhere else." },
     { zh: "攻击不再打乱队形：小队转向敌人，前排压上，每个士兵守住自己的位置；队列不会一拥而上。", en: "**An attack keeps the formation**: the squad turns towards the foe, the front rank goes for it and every soldier holds its own slot; the ranks do not mob the enemy." },
-    { zh: "远程小队嫌近了是**整队后撤**，不是各自乱跑，队形在后撤中依然保持。", en: "**A ranged squad that is too close steps back as one block**, so the shape survives the retreat." },
+    { zh: "远程小队嫌近了是**整队后撤**，不是各自乱跑，队形在后撤中依然保持。", en: "**A ranged squad that is too close steps back as one block**, so the shape survives the retreat." }
+    ]
+  },
+  {
+    batch: 19,
+    title: "队形会呼吸 The formation breathes",
+    date: "2026-10-21",
+    items: [
+    { zh: "队形不再僵硬：士兵在自己的位置上轻轻晃动，队列是一条活着的线，不是一张网格。", en: "**The formation is no longer stiff**: every soldier sways a little inside its slot, so the line is alive instead of a grid." },
+    { zh: "挨打会踉跄：被砍中或被射中的士兵会被推得偏一下，然后自己晃回原位。", en: "**A blow makes it stagger**: a soldier that is hit is shoved aside and then drifts back into its place." },
+    { zh: "太挤会互相让开：两个士兵贴得太近时会各让一点，队伍不会挤成一团。", en: "**Crowded soldiers give each other room**: two soldiers that stand too close slide apart, so the squad never piles up." },
+    { zh: "枪兵会压上去一点：近战小队列的前排会向敌人压进几步，后排照旧留在后面。", en: "**The spearmen press in**: the front rank of a melee squad leans on the foe while the rest stays behind." },
+    { zh: "随机队形也会打：散兵队形没有队列可守，于是**每个士兵自己扑向敌人**，照样砍得到人。", en: "**The scattered formation fights too**: a scatter squad has no block to keep, so **every soldier closes on the foe itself** and lands its blows." },
     { zh: "--", en: "" }
     ]
   }

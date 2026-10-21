@@ -40,7 +40,13 @@ export const FORMATIONS = [
   { key: 'line2', name: '两行', en: 'Two ranks', icon: '▤', note: '两排纵深，防御 +3%' },
   { key: 'line3', name: '三行', en: 'Three ranks', icon: '▥', note: '三排厚阵，防御 +8%，移动 −5%' },
   { key: 'wedge', name: '尖形', en: 'Wedge', icon: '▲', note: '楔形突击，攻击 +12%，防御 −5%' },
-  { key: 'random', name: '随机', en: 'Scatter', icon: '⁘', note: '散兵散布，没有加成，最难被围住' }
+  {
+    key: 'random',
+    name: '随机',
+    en: 'Scatter',
+    icon: '⁘',
+    note: '散兵散布：没有加成，每个士兵自己扑向敌人，最难被围住'
+  }
 ]
 
 /** Spacing of a squad: loose spreads out, tight packs the ranks. */
@@ -259,7 +265,19 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
     facing: dir > 0 ? 1 : -1,
     hitFlash: 0,
     // The soldier that hit it last: it answers that one first.
-    lastAttackerId: null
+    lastAttackerId: null,
+    // The personal space of the soldier inside the formation: it sways a
+    // little, dodges aside when it is hit and slides away from a neighbour
+    // that stands too close. The shape of the squad survives, the line is
+    // not a rigid grid.
+    wobble: {
+      x: 0,
+      y: 0,
+      dx: 0,
+      dy: 0,
+      phase: b.rng.float(0, Math.PI * 2),
+      speed: b.rng.float(1.6, 2.8)
+    }
   })
 }
 
@@ -578,12 +596,16 @@ function updateGroupTargets(b) {
       g.dir = dir
       g.slots = formationSlots(g.unitCount, g.formation, g.density, dir)
     }
-    g.tx = foe.x
-    g.ty = foe.y
+    // A squad of spears presses in a little: the front rank leans on the foe
+    // while the rest of the formation stays behind it.
+    const def = unitDef(g.type, g.tier)
+    const press = def.ranged ? 0 : 7
+    const toward = Math.hypot(cx - foe.x, cy - foe.y) || 1
+    g.tx = foe.x + ((cx - foe.x) / toward) * press
+    g.ty = foe.y + ((cy - foe.y) / toward) * press
 
     // A ranged squad keeps its distance: the whole formation steps back
     // together instead of every soldier running on its own.
-    const def = unitDef(g.type, g.tier)
     const d = Math.hypot(foe.x - cx, foe.y - cy)
     if (def.ranged && d < def.range * 0.5) {
       const len = d || 1
@@ -642,11 +664,19 @@ function strike(b, unit, target) {
   }
 }
 
-function applyDamage(b, target, dmg, attacker) {
+export function applyDamage(b, target, dmg, attacker) {
   // The victim remembers who hit it: a soldier that is attacked answers the
   // attacker instead of the nearest enemy.
   if (attacker && attacker.side !== target.side) {
     target.lastAttackerId = attacker.id
+    // The blow shoves it aside: the line shuffles instead of standing still.
+    if (target.wobble) {
+      const dx = target.x - attacker.x
+      const dy = target.y - attacker.y
+      const len = Math.hypot(dx, dy) || 1
+      target.wobble.dx += (dx / len) * 5
+      target.wobble.dy += (dy / len) * 5
+    }
   }
   if (target.isCommander) {
     target.hp = Math.max(0, target.hp - dmg)
@@ -685,6 +715,19 @@ export function stepBattle(b, dt) {
 
   updateGroupTargets(b)
 
+  // The living soldiers of every squad: a soldier slides away from a
+  // neighbour that stands too close, so the line never turns into a grid.
+  const byGroup = new Map()
+  for (const u of b.units) {
+    if (!u.alive) continue
+    let list = byGroup.get(u.group)
+    if (!list) {
+      list = []
+      byGroup.set(u.group, list)
+    }
+    list.push(u)
+  }
+
   for (const unit of b.units) {
     if (!unit.alive) continue
     const group = b.groups[unit.group]
@@ -706,10 +749,48 @@ export function stepBattle(b, dt) {
     const speed = def.speed * BASE_SPEED * mods.speedMul * ground.speedMul
     const prevX = unit.x
     const prevY = unit.y
+    // The formation breathes. Every soldier sways a little inside its slot,
+    // dodges aside when it is hit and slides away from a neighbour that
+    // stands too close — the shape of the squad stays, the line is alive.
+    const inReach = !!(foe && dist <= engage)
+    const wob = unit.wobble || { x: 0, y: 0, dx: 0, dy: 0, phase: 0, speed: 1 }
+    // A soldier that is trading blows only shuffles a little, or it would
+    // step out of reach.
+    const amp = inReach ? 3 : 7
+    wob.x = Math.sin(b.time * wob.speed + wob.phase) * amp
+    wob.y = Math.cos(b.time * wob.speed * 0.75 + wob.phase) * amp * 0.7
+    // The shove of a blow fades away again.
+    wob.dx *= 0.85
+    wob.dy *= 0.85
+    // A neighbour too close pushes it aside.
+    let pushX = 0
+    let pushY = 0
+    const mates = byGroup.get(unit.group) || []
+    for (const other of mates) {
+      if (other === unit) continue
+      const ddx = unit.x - other.x
+      const ddy = unit.y - other.y
+      const d = Math.hypot(ddx, ddy)
+      if (d > 14 || d < 0.01) continue
+      pushX += (ddx / d) * (14 - d)
+      pushY += (ddy / d) * (14 - d)
+    }
+    let offX = wob.x + wob.dx + pushX * 0.4
+    let offY = wob.y + wob.dy + pushY * 0.4
+    // The personal space stays small, so the formation keeps its shape.
+    const offLen = Math.hypot(offX, offY)
+    if (offLen > 10) {
+      offX = (offX / offLen) * 10
+      offY = (offY / offLen) * 10
+    }
     // The soldier keeps its slot: the attack does not mob the enemy, the
     // formation marches onto it as it is.
-    const tx = group.tx + slot.ox
-    const ty = group.ty + slot.oy
+    //
+    // A scattered squad is the exception: it has no block to keep, so every
+    // soldier closes on the foe itself and attacks it.
+    const scattered = group.formation === 'random' && group.order === 'attack' && !!foe
+    const tx = scattered ? foe.x + offX * 1.6 : group.tx + slot.ox + offX
+    const ty = scattered ? foe.y + offY * 1.6 : group.ty + slot.oy + offY
 
     let wantsToMove = false
     if (group.retreat) {
@@ -729,7 +810,10 @@ export function stepBattle(b, dt) {
       // The soldier holds its slot tightly (2 px): a soldier that drifts off
       // its slot would step out of reach of the foe and stop fighting.
       const dSlot = Math.hypot(tx - unit.x, ty - unit.y)
-      if (dSlot > 2 && (holding || !foe || dist > engage)) {
+      // A soldier that is trading blows still shuffles back into its place
+      // after a blow shoved it aside.
+      const shuffle = Math.hypot(wob.dx + pushX * 0.4, wob.dy + pushY * 0.4)
+      if (dSlot > 2 && (holding || !foe || dist > engage || shuffle > 2)) {
         wantsToMove = true
         moveToward(unit, tx, ty, speed, dt, (x, y) => blockedAt(b, x, y))
       }

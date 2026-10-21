@@ -381,7 +381,7 @@ Two rules make the fight read like a battle of armies rather than a crowd:
 | ▤ 两行 Two ranks | 两排纵深。Two deep. 防御 +3% |
 | ▥ 三行 Three ranks | 三排厚阵。Three deep. 防御 +8%，移动 −5% |
 | ▲ 尖形 Wedge | 楔形突击。Shock wedge. 攻击 +12%，防御 −5% |
-| ⁘ 随机 Scatter | 散兵散布，没有加成，但最难被围住。No bonuses, hardest to surround. |
+| ⁘ 随机 Scatter | 散兵散布，没有加成；**每个士兵自己扑向敌人**，最难被围住。Scattered, no bonuses; **every soldier closes on the foe on its own**, hardest to surround. |
 
 | 密度 Density | 效果 Effect |
 | --- | --- |

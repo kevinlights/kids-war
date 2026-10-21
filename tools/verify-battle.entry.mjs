@@ -11,7 +11,16 @@ import { createPinia, setActivePinia } from 'pinia'
 import { useWorldStore } from '@/stores/world'
 import { usePlayerStore } from '@/stores/player'
 import { useBattleStore } from '@/stores/battle'
-import { ARENA, createBattle, damageOf, SPEEDS, stepBattle, speedOf } from '@/game/battle'
+import {
+  ARENA,
+  applyDamage,
+  createBattle,
+  damageOf,
+  formationSlots,
+  SPEEDS,
+  stepBattle,
+  speedOf
+} from '@/game/battle'
 import { ARENA_TERRAIN, ARENA_TERRAIN_KEYS, arenaCellTerrain, arenaTerrainAt, arenaWalkable, generateArenaTerrain } from '@/game/arena'
 import { rewardFor } from '@/game/quiz'
 import { DEFAULT_DIFFICULTY, difficultyKey, difficultyOf } from '@/game/difficulty'
@@ -283,6 +292,65 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   check('the ranks keep their distance', spread > 20, `${spread.toFixed(1)} px`)
   // The fight still happens: both sides took losses.
   check('the attack is not harmless', b.kills > 0 && b.losses > 0, `${b.kills} kills / ${b.losses} losses`)
+}
+
+/**
+ * The formation breathes: the soldiers move inside their slots, so the line
+ * is alive instead of standing like a grid.
+ */
+{
+  const b = createBattle({
+    playerTroops: [{ type: 'spearman', tier: 2, count: 9, hp: [] }],
+    enemyTroops: [{ type: 'spearman', tier: 2, count: 9, hp: [] }],
+    enemyFaction: 'bandit',
+    seed: 91
+  })
+  // Let the two sides close and fight.
+  for (let i = 0; i < 60 * 12; i += 1) stepBattle(b, 1 / 60)
+  const group = b.groups[b.playerGroups[0]]
+  // Every soldier keeps a personal space inside its slot.
+  let offX = 0
+  let offY = 0
+  let counted = 0
+  for (const u of b.units) {
+    if (!u.alive || u.side !== 'player') continue
+    const slot = group.slots[u.slotIndex] || { ox: 0, oy: 0 }
+    offX += Math.abs(u.x - (group.tx + slot.ox))
+    offY += Math.abs(u.y - (group.ty + slot.oy))
+    counted += 1
+  }
+  check('the soldiers are not a rigid grid', offX / counted > 1, `${(offX / counted).toFixed(1)} px`)
+  check('the personal space stays small', offX / counted < 22, `${(offX / counted).toFixed(1)} px`)
+  // A blow shoves the soldier aside: it dodges instead of standing still.
+  const hit = b.units.find((u) => u.alive && u.side === 'player')
+  const before = hit.wobble ? Math.hypot(hit.wobble.dx, hit.wobble.dy) : 0
+  applyDamage(b, hit, 5, b.units.find((u) => u.side === 'enemy' && u.alive))
+  const after = hit.wobble ? Math.hypot(hit.wobble.dx, hit.wobble.dy) : 0
+  check('a blow shoves the soldier aside', after > before, `${before.toFixed(1)} -> ${after.toFixed(1)}`)
+}
+
+/**
+ * The scattered formation attacks too: it has no block to keep, so every
+ * soldier closes on the foe itself.
+ */
+{
+  const b = createBattle({
+    playerTroops: [{ type: 'spearman', tier: 2, count: 8, hp: [] }],
+    enemyTroops: [{ type: 'spearman', tier: 2, count: 8, hp: [] }],
+    enemyFaction: 'bandit',
+    seed: 5
+  })
+  const group = b.groups[b.playerGroups[0]]
+  group.formation = 'random'
+  group.slots = formationSlots(8, 'random', 'tight', group.dir)
+  let t = 0
+  while (!b.outcome && t < 120) {
+    stepBattle(b, 0.1)
+    t += 0.1
+  }
+  check('the scattered squad attacks the enemy', b.kills > 0, `${b.kills} kills`)
+  check('the scattered fight ends', !!b.outcome, String(b.outcome))
+  check('the scattered fight does not stall', t < 60, `${t.toFixed(1)}s`)
 }
 
 /* --------------------------------- 5. siege --------------------------------- */
