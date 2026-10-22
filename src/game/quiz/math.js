@@ -1,5 +1,5 @@
 // Math question generators for grade 3 and grade 4.
-import { choice, numberWrongs } from './shared'
+import { choice, inputQuestion, numberWrongs } from './shared'
 
 function intQuestion(prompt, answer, rng, meta) {
   return {
@@ -185,9 +185,50 @@ function fractionSame(rng, grade) {
   }
 }
 
+/**
+ * 算式填空：把答案写出来，没有选项可以蒙。
+ *
+ * A filled-in answer: the child computes the result and types it, so the
+ * answer cannot be guessed from the options.
+ */
+function mulInput(rng, grade) {
+  const a = rng.int(12, 99)
+  const b = rng.int(2, 9)
+  return {
+    type: 'math',
+    kind: 'mul-input',
+    grade,
+    ...inputQuestion(`${a} × ${b} = ？`, a * b, rng, {
+      input: 'number',
+      explain: `${a} × ${b} = ${a * b}。`
+    })
+  }
+}
+
+/**
+ * 分数填空：把答案写出来。
+ *
+ * A filled-in answer with a fraction: the child types the numerator and the
+ * denominator, so the answer has to be a fraction and not a whole number.
+ */
+function fractionInput(rng, grade) {
+  const den = rng.pick([4, 5, 8, 10])
+  const a = rng.int(1, den - 2)
+  const b = rng.int(1, den - a - 1)
+  return {
+    type: 'math',
+    kind: 'fraction-input',
+    grade,
+    ...inputQuestion(`${a}/${den} + ${b}/${den} = ？`, `${a + b}/${den}`, rng, {
+      input: 'text',
+      explain: `同分母相加，分母不变、分子相加：${a + b}/${den}。`
+    })
+  }
+}
+
 export const MATH_TYPES = {
-  3: [mul1, addSub, divExact, unitConvert, perimeter, money, timeDiff],
-  4: [mul2, divBig, area, angle, decimalAdd, mixedOrder, average, speed, fractionSame]
+  3: [mul1, addSub, divExact, unitConvert, perimeter, money, timeDiff, mulInput],
+  4: [mul2, divBig, area, angle, decimalAdd, mixedOrder, average, speed, fractionSame, mulInput, fractionInput]
 }
 
 export function generateMath(rng, grade) {

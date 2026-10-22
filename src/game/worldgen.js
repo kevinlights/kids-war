@@ -131,7 +131,7 @@ function findSpot(rng, grid, mask, anchors, minDist, tries = 300) {
   return null
 }
 
-function makeParty(rng, id, faction, x, y) {
+function makeParty(rng, id, faction, x, y, enemyScale = 1) {
   const units = []
   if (faction === 'bandit') {
     // Bandits are a rabble: mostly militia with a few basic regulars.
@@ -146,6 +146,10 @@ function makeParty(rng, id, faction, x, y) {
     if (rng.chance(0.7)) units.push({ type: 'archer', tier: rng.chance(0.35) ? 2 : 1, count: rng.int(1, 4) })
     if (rng.chance(0.45)) units.push({ type: 'cavalry', tier: 1, count: rng.int(1, 3) })
     if (rng.chance(0.22)) units.push({ type: 'cavalry', tier: 2, count: rng.int(1, 2) })
+  }
+  // The difficulty sizes the first warbands too: easy fields fewer, hard more.
+  if (enemyScale !== 1) {
+    for (const group of units) group.count = Math.max(1, Math.round(group.count * enemyScale))
   }
   return {
     id: `p${id}`,
@@ -162,7 +166,7 @@ function makeParty(rng, id, faction, x, y) {
   }
 }
 
-function buildParties(rng, grid, mask, settlements) {
+function buildParties(rng, grid, mask, settlements, enemyScale = 1) {
   const parties = []
   let pid = 0
 
@@ -182,14 +186,14 @@ function buildParties(rng, grid, mask, settlements) {
       const cx = Math.min(WORLD_W - 3, Math.max(2, anchor.x + rng.int(-6, 6)))
       const cy = Math.min(WORLD_H - 3, Math.max(2, anchor.y + rng.int(-6, 6)))
       const pos = mask[cy * WORLD_W + cx] ? { x: cx, y: cy } : anchor
-      parties.push(makeParty(rng, pid++, faction, pos.x, pos.y))
+      parties.push(makeParty(rng, pid++, faction, pos.x, pos.y, enemyScale))
     }
   }
   return parties
 }
 
 // Build one candidate world (terrain + everything placed on the mainland).
-function buildWorld(seed) {
+function buildWorld(seed, enemyScale = 1) {
   const rng = createRng(seed)
   const grid = buildTerrainGrid(rng)
   const mask = buildMainComponent(grid)
@@ -256,7 +260,7 @@ function buildWorld(seed) {
     spawn = spot || { x: Math.floor(WORLD_W / 2), y: Math.floor(WORLD_H / 2) }
   }
 
-  const parties = buildParties(rng, grid, mask, settlements)
+  const parties = buildParties(rng, grid, mask, settlements, enemyScale)
 
   // Every settlement gets its economy and the soldiers that defend it.
   for (const st of settlements) {
@@ -279,10 +283,10 @@ function buildWorld(seed) {
 
 // Generate a world, retrying with a nudged seed until the mainland is big
 // enough and a few settlements actually fit on it.
-export function generateWorld(seed) {
+export function generateWorld(seed, { enemyScale = 1 } = {}) {
   let candidate = null
   for (let attempt = 0; attempt < 8; attempt++) {
-    const built = buildWorld(seed + attempt * 101)
+    const built = buildWorld(seed + attempt * 101, enemyScale)
     if (!candidate || built.mainTiles > candidate.mainTiles) candidate = built
     if (built.mainTiles >= MIN_MAIN_TILES && built.settlements.length >= 6) {
       candidate = built

@@ -28,6 +28,8 @@ The game is drawn on `<canvas>` and in CSS, with 32x32 pixel-art sprites generat
 13. [游戏维护 · Maintenance](#13-游戏维护--maintenance)
 14. [项目结构 · Project Structure](#14-项目结构--project-structure)
 15. [常见问题 · Troubleshooting](#15-常见问题--troubleshooting)
+16. [战团玩法对照 · Comparison with Mount & Blade](#16-战团玩法对照--comparison-with-mount-and-blade)
+17. [学习主线的改进 · Improving the exam spine](#17-学习主线的改进--improving-the-exam-spine)
 
 ---
 
@@ -131,10 +133,10 @@ break it.
 扎营（⛺）是唯一能原地让时间流逝的方式：主角原地休息，但时钟与所有游荡部队照常运转，可以用它等敌方复活，或者把敌军引到别处。点「⛺ 扎营」就地扎营（会中断当前行军），点「🔥 拔营」或点地图任意位置即可拔营。
 
 The **day clock** in the status bar shows the campaign clock: the day counter, the hour inside that day and a bar
-that fills up as the day passes. A day lasts 24 game seconds and one game second is one in-game hour, so the clock
-runs from 00:00 to 23:59 and then the day counter turns over. The bar is green while the clock is running (on the
-march or camping) and gold while it is frozen. The last fifth of the bar is the night.
-状态栏的**时钟**显示战役时钟：天数、当天的时间点，以及一条随一天推进而填满的进度条。一天是 24 秒游戏时间，而 1 秒游戏时间正好是游戏里的 1 小时，因此时钟从 00:00 走到 23:59 后天数加一。时钟在走动（行军或扎营）时进度条是绿色，冻结时是金色；进度条的最后五分之一是夜晚。
+that fills up as the day passes. On the world map a day lasts 24 game seconds and one game second is one in-game
+hour, so the clock runs from 00:00 to 23:59 and then the day counter turns over. The bar is green while the clock is
+running (on the march or camping) and gold while it is frozen. The last fifth of the bar is the night.
+状态栏的**时钟**显示战役时钟：天数、当天的时间点，以及一条随一天推进而填满的进度条。地图上的一天是 24 秒游戏时间，而 1 秒游戏时间正好是游戏里的 1 小时，因此时钟从 00:00 走到 23:59 后天数加一。时钟在走动（行军或扎营）时进度条是绿色，冻结时是金色；进度条的最后五分之一是夜晚。
 
 #### 昼夜 · Day and night
 
@@ -153,6 +155,12 @@ the day chip also carries the clock state — ⏸ 停滞 (frozen), ⏳ 流逝 (o
 camped lord is drawn beside a tent and campfire, so the state is readable on the map itself. Time is not part of
 the save: loading always resumes with the lord standing still and the clock frozen.
 同一个时钟也出现在据点界面（主角休整时时间在走）与角色信息面板里；天数芯片同时显示时钟状态——⏸ 停滞、⏳ 流逝 或 🔥 扎营——扎营的主角身边会画出帐篷与篝火，状态在地图上直接可见。时间状态不写进存档：读档后总是站在原地、时钟冻结。
+
+**Town time is slower on purpose.** Inside a settlement one real second is one in-game minute, so a day of town
+business takes **24 real minutes** instead of 24 seconds. Reading a panel, recruiting or upgrading no longer burns
+campaign days. The trade-off is that resting uses the same slow clock, so a long rest is a long wait; marching and
+camping keep the fast 24-second day.
+**城镇里的时间刻意放慢。** 进入据点后，现实 1 秒等于游戏里的 1 分钟，因此城镇里的一天是 **24 分钟**而不是 24 秒。看面板、招兵、升级不会再顺手烧掉战役里的天数。代价是休整也用同一口慢钟，想靠休息养伤就得真的等；行军与扎营仍然是 24 秒一天。
 
 ### 4.2 小地图与全图 · Minimap and detailed atlas
 
@@ -226,23 +234,62 @@ you go, so a failed paper still pays for what you got right.
 
 #### 难度 · Difficulty
 
-The difficulty decides how much gold a correct answer pays. It is picked on the home screen before a new campaign
-and can be changed at any time from the 🎚 chip on the world map; the setting belongs to the lord and is saved
-with the campaign.
-难度决定「答对一道题能拿多少金币」。开新局前在首页选择，游戏过程中也能随时用世界地图上的 🎚 芯片修改；难度属于领主本人，会随存档保存。
+The difficulty never changes the questions: all three levels ask exactly the same paper. It changes three things —
+what a correct answer pays, what the army costs and how strong the factions are. It is picked on the home screen
+before a new campaign and can be changed at any time from the 🎚 chip on the world map; the setting belongs to the
+lord and is saved with the campaign, while the chip also shows the current threat.
+难度不改题目：三档考的是同一张卷子，只改三件事——答对值多少钱、养兵花多少钱、敌人有多强。开新局前在首页选择，
+游戏过程中也能随时用世界地图的 🎚 芯片修改；难度属于领主本人，会随存档保存，芯片上还会显示当前威胁。
 
-| 难度 Difficulty | 每题金币 Gold per correct answer | 说明 Note |
-| --- | --- | --- |
-| 🟢 简单 Easy | 三年级 20 / 四年级 26（原始数值） | 原来的数值。The original numbers. |
-| 🟡 普通 Normal | 三年级 19 / 四年级 25 | 每题少 1 个金币。One gold less per question. |
-| 🔴 困难 Hard | 三年级 18 / 四年级 24 | 每题少 2 个金币。Two gold less per question. |
+| 难度 Difficulty | 每题金币 Gold per answer | 开局 Start | 军粮 / 战 Food a battle | 招募价 Recruit price | 敌军 Enemies |
+| --- | --- | --- | --- | --- | --- |
+| 🟢 简单 Easy | **5**（整卷封顶 ×2） | 150 金 / 8 粮 | 2 | ×0.90 | ×0.90 |
+| 🟡 普通 Normal | 三年级 19 / 四年级 25 | 120 金 / 5 粮 | 3 | ×1.00 | ×1.00 |
+| 🔴 困难 Hard | 三年级 14 / 四年级 19 | 90 金 / 3 粮 | 4 | ×1.15 | ×1.10 |
 
-The subject bonus (逻辑推理 +6、百科知识 +4) still applies on top, and a reward never drops below one gold.
-科目加成（逻辑推理 +6、百科知识 +4）依然照常叠加，而且奖励最低为 1 个金币。
+The **easy** level is the practice level: every correct answer pays a flat **5 gold**, whatever the subject and
+the grade are, and one paper can never pay more than **twice the price of its questions**, so it cannot be farmed
+into a big army. Its start is the most generous and its factions are the weakest.
+**简单**是练习档：每答对一题固定 **5 个金币**，不分科目也不分年级，而且一张卷子的收入不会超过**题目基础价的 2 倍**，
+因此没法靠简单档刷钱养大军；它的开局最宽裕，敌人也最弱。
 
-An old save without a difficulty is an easy game, so nothing changes for a campaign that started before the setting
-existed.
-旧存档没有难度字段时按「简单」处理，因此在难度设置出现之前开的局不会突然变难。
+The **normal** level keeps the numbers the game shipped with: grade 3 pays 19 and grade 4 pays 25 per correct
+answer, the town markup stays 15% and a battle eats three rations.
+**普通**保留游戏原本的数值：三年级每题 19 金、四年级 25 金，城镇加价仍是 15%，每场战斗吃 3 份军粮。
+
+The **hard** level takes the normal price, subtracts two gold and then cuts it by a fifth (grade 3 pays 14, grade 4
+pays 19). The lord starts with 90 gold and three rations, every recruit costs 15% more, a battle eats four rations
+and the factions field one tenth more soldiers and grow faster.
+**困难**先按普通公式减去 2 金，再打八折（三年级 14 金、四年级 19 金）。领主只带 90 金与 3 份军粮开局，招募价贵 15%，
+每场战斗吃 4 份军粮，敌军人数多十分之一、成长也更快。
+
+The subject bonus (逻辑推理 +6、百科知识 +4) applies to normal and hard, and a reward never drops below one gold.
+科目加成（逻辑推理 +6、百科知识 +4）在普通与困难两档照常叠加，而且奖励最低为 1 个金币。
+
+##### 威胁递增 · The campaign threat
+
+On top of the level, the world escalates inside one campaign. The threat starts at **1.00** and rises with the
+battles won and the towns the lord holds, capped per level (easy 1.2, normal 1.8, hard 2.0), so a child who is
+stuck is never punished:
+除了档位之外，同一局战役里世界还会逐渐变强。威胁从 **1.00** 开始，随胜场与占领的城镇上升，每档有上限
+（简单 1.2、普通 1.8、困难 2.0），因此卡住不前的孩子不会被系统惩罚：
+
+```
+威胁 T = 1 + 胜场 × A + 占领城镇 × B
+简单 A=0.01 B=0.02 · 普通 A=0.02 B=0.04 · 困难 A=0.025 B=0.05
+
+新刷部队人数 = 原人数 × 档位规模 × (1 + (T − 1) / 2)
+敌军总上限   = (20 + 自有城镇繁荣度 × 0.6) × 档位上限 × T
+普通在 T ≥ 1.25 起出现 2 级兵；困难在 T ≥ 1.5 起出现少量 3 级兵
+```
+
+The world map chip reads 「🎚 难度 · 威胁 1.36×」 and the difficulty sheet spells out the current enemy size, the
+ceiling, the food cost and the recruit markup.
+世界地图芯片写着「🎚 难度 · 威胁 1.36×」，难度面板会列出当前的敌军规模、上限、军粮与招募加价。
+
+An old save without a difficulty is an easy game, and old parties keep the size they already have; only the
+warbands raised after the change follow the new rules.
+旧存档没有难度字段时按「简单」处理；地图上已有的部队保持原人数，只有之后新刷或增援的部队才按新规则成长。
 
 Subjects · 科目：英文 English · 语文 Chinese · 数学 Math · 逻辑推理 Logic · 百科知识 Encyclopedia.
 
@@ -251,7 +298,6 @@ in the exam setup as soon as it is registered. See 「题库扩展 · Question m
 科目列表不是写死的：考试设置里显示的就是题库注册表当前持有的全部科目，因此新题库包一旦注册就会立刻出现在界面上。见第 13 节「题库扩展」。
 
 #### 语文题型 · Chinese question types
-
 The Chinese subject carries **reading comprehension** and a wide **ancient-poem** bank on top of the usual word
 work. Each type is its own template, so the memory curve tracks them separately.
 语文科目除了字词基础，还包含**阅读理解**与丰富的**古诗**题库；每种题型都是独立的模板，因此记忆曲线会分别记录。
@@ -265,9 +311,32 @@ work. Each type is its own template, so the memory curve tracks them separately.
 | 🧑‍🏫 作者 poemAuthor | 这首诗是谁写的。Who wrote this poem? |
 | 🪶 上一句 poemPrev | 上一句是什么。Which line comes before this one? |
 | 💭 诗意 poemMeaning | 这首诗表达了什么。What does the poem express? |
+| 🔗 诗句配对 poemMatch | **配对题**：把四个诗句和它们的诗题连起来。A matching question: four lines and their poems. |
+| 📅 节气排序 solarTerms | **排序题**：把四个二十四节气按一年中的顺序排好。An ordering question: four solar terms in the order of the year. |
 
 Every poem question carries an explanation, so a wrong answer teaches the title, the poet and the dynasty.
 每道古诗题都带解析，答错时会告诉孩子诗题、作者与朝代。
+
+#### 答题形式 · The shapes of a question
+
+A question is not always four buttons. The contract carries the shape of the question, and the exam renders
+whatever shape it finds — so a new kind of question needs no new screen.
+题目不总是四个按钮。题目数据里带着它的「形状」，考试界面按形状渲染，因此新增一种题型不需要新界面。
+
+| 形状 Shape | 数据 Data | 玩法 How it is answered |
+| --- | --- | --- |
+| 四选一 Multiple choice | `options` + `answer`（下标） | 点一个选项就作答。Tap an option to answer. |
+| 填空 Filled in | `input: 'number' \| 'text'` + `answer` | 把答案写出来再确认；数字按数值比对，文字忽略大小写与空格。Type the answer; a number is compared by value, a word without its case or spaces. |
+| 配对 Matching | `pairs`（左右两栏） | 先点左边一项，再点右边配对的那一项；可以重来。Pick a left item, then its partner on the right. |
+| 排序 Ordering | `items`（正确顺序） | 按顺序点出每一项，可以撤销，最后确认。Tap the items in the right order, undo if you like. |
+
+The new kinds in the built-in banks: 数学 `mul-input` 与 `fraction-input`（算式填空）、英文 `spelling-input`（拼写填空）、
+语文 `poemMatch` 与 `solarTerms`、逻辑 `trueFalse`（判断对错）。
+内置题库新增的题型：数学的算式填空、英语的拼写填空、语文的诗句配对与节气排序、逻辑的判断对错。
+
+A filled-in answer cannot be guessed from the options, a matching question trains the recall of a whole set and an
+ordering question trains the order of a sequence — three different ways to remember the same thing.
+填空题没有选项可以蒙，配对题练的是整组回忆，排序题练的是顺序关系 —— 同一份知识有三种记法。
 
 #### 记忆曲线 · Memory curve
 
@@ -292,6 +361,76 @@ A paper is not a flat random draw. Every question carries a memory level from **
   声明式题目逐题记录（`<mod>:<itemId>`），程序生成的题按模板记录（`<mod>#<kind>`），因此数学题不会靠记住数字就算「掌握」。
 - The exam setup shows how many questions have been recorded and how many are mastered.
   考试设置页会显示已记录多少题、其中多少题已掌握。
+
+#### 考试结算 · The settlement of a paper
+
+`rewardFor()` prices a single correct answer; the **settlement** of the whole paper decides what it is really
+worth. A wrong answer never costs anything: it simply pays nothing and breaks the streak.
+`rewardFor()` 给一道答对的题定价；整张卷子的**结算**决定它到底值多少。答错从不扣钱：只是这一题没有金币，连击会断。
+
+| 加成 Bonus | 数值 Value | 说明 Note |
+| --- | --- | --- |
+| 🔥 连击 Streak | ×1.0 → ×1.5 | 连续答对越多倍率越高（每连对 +10%，最多 5 步）。The longer the run, the more it pays. |
+| 🌟 全对 Perfect | ×1.5 | 整张卷子一题不差。Not a single mistake. |
+| 📜 长卷 Long paper | ×1.1 | 一次做 12 题。A paper of twelve questions. |
+| 🎯 及格 Pass | +20% | 答对题数达到一半。Half of the paper is right. |
+| 🙋 答错 Wrong | 0 | 不扣钱，只是这一题没有金币、连击归零。Nothing is deducted. |
+
+#### 做题得到的道具 · The gear a paper drops
+
+Answering questions now yields gear, not only money.
+做题现在不只换钱，也换道具。
+
+| 来源 Source | 掉落 Drop |
+| --- | --- |
+| 每答对一题 Correct answer | 30% 掉 🌾 军粮 ×1 |
+| 连对 5 题 Five in a row | 必掉 🌾 军粮 ×2 |
+| 某一科全对 A subject perfected | 数学 → 🌾 ×2；语文 / 百科 → 🎟️ 集市券 ×1；逻辑 → 📜 征兵令 ×1（免费招 2 名民兵） |
+| 整卷全对 A perfect paper | 🐎 战马 ×1 |
+
+The **market voucher** pays for one purchase without gold, and the **recruit order** hires two militia for free.
+**集市券**可以免费换一次物资，**征兵令**可以免费招 2 名民兵。
+
+#### 里程碑道具 · Milestone gear
+
+The lifetime count of correct answers unlocks permanent gear.
+累计答对的题数会解锁永久道具。
+
+| 答对题数 Correct answers | 道具 Gear | 效果 Effect |
+| --- | --- | --- |
+| 300 | 🚩 军旗 War banner | 全军攻击 +5% |
+| 500 | 🏅 徽章 Badge | 每场战斗后 +10 金币 |
+| 800 | 💊 药箱 Medicine chest | 伤兵恢复 +50% |
+| 1200 | 🐎 驿马 Post horse | 主角移动速度 +10% |
+
+#### 掌握度地图与复习卷 · The mastery map and the revision papers
+
+The exam setup carries a **mastery map**: one bar per subject with the number of mastered questions and how many
+are due for a revision. Two revision papers build on it.
+考试设置页有一张**掌握度地图**：每一科一条进度条，写着已掌握多少题、还有多少题该复习。基于它有两种复习卷。
+
+| 试卷 Paper | 内容 Content |
+| --- | --- |
+| 📖 标准考试 Standard | 按年级、科目与题量出的一张普通卷子。An ordinary paper. |
+| 🔁 只考错题 Mistakes | 只出答错过的题，答对一次就把它从错题本里划掉。Only the questions that were answered wrongly. |
+| ⏰ 复习队列 Review | 只出很久没复习、还没掌握的题。The questions that are due. |
+
+#### 考试就是经验 · An exam is experience
+
+A paper that reaches the pass line teaches: every correct answer is **one experience point**, and **50 points**
+buy one attribute point, which the child spends himself.
+及格的卷子会教东西：每答对一题 **1 点经验**，**50 点**换 1 点属性点，由孩子自己分配。
+
+| 属性 Attribute | 每点效果 Per point | 说明 Note |
+| --- | --- | --- |
+| 👑 统御 Leadership | 队伍上限 +2、全军攻击 +1% | 带得动更大的队伍。 |
+| 🩺 医术 Surgery | 伤兵恢复 +10% | 伤兵回来得更快。 |
+| ⚙️ 工程 Engineering | 围城准备 −0.5 天、设施造价 −5% | 围城更快，城镇更便宜。 |
+| 🧠 谋略 Tactics | 全军攻击 +5%、战前显示敌方构成 | 开打前就看清对面是什么兵。 |
+
+The points are spent in the **👤 角色详情** panel, which also shows the experience bar, the mastery map and the
+milestone progress.
+属性点在**👤 角色详情**面板里分配，面板里还有经验条、掌握度地图与里程碑进度。
 
 ### 4.6 战斗 · Battle
 
@@ -337,6 +476,19 @@ The speed is **slow by default**, so a child can read the field and give orders 
 | 🐢 慢速 Slow | ×0.6 | 默认。战斗慢半拍，方便看清每一个动作。The default: the fight crawls, so every move can be read. |
 | 🚶 正常 Normal | ×1 | 游戏原本的速度。The speed the game always had. |
 | 🐇 快速 Fast | ×1.8 | 战局推进很快，适合熟练之后。For a player who knows the ropes. |
+
+#### 战场动画 · Battle animations
+
+Every soldier is drawn with small movements, so the fight reads at a glance: a walking soldier hops and kicks up
+dust, a standing one breathes, a hit flashes white with a red ring and a shake, a strike leans into the blow and a
+badly wounded soldier keeps a slow red pulse at its feet. A fallen soldier tips over, drops and fades out over
+nine tenths of a second instead of blinking away; a training dummy does the same and then stands back up.
+每名士兵都带着细小的动作绘制，战斗因此一眼就能看懂：行军的士兵会一颠一颠地跳、脚下扬起尘土，站定的士兵会呼吸，挨打时白光一闪、红圈扩散并左右晃动，出手时身体向目标倾一下，重伤的士兵脚边一直有缓慢的红色脉冲。倒下的士兵会向侧面倒下、下沉并在 0.9 秒里淡出，而不是瞬间消失；练兵木桩也一样倒下，然后再站起来。
+
+These are **render-only** effects: `src/game/battleAnim.js` turns speed, `hitFlash`, `swing` and elapsed time into
+the hop, shake, lunge and fall, and `BattleMap.vue` draws them. The fight's numbers and outcome are untouched, and
+smooth fractional placement keeps a walking soldier gliding instead of stepping a whole pixel at a time.
+这些**只影响绘制**：`src/game/battleAnim.js` 把速度、`hitFlash`、`swing` 与经过的时间换算成跳动、晃动、前倾与倒下，再由 `BattleMap.vue` 画出来。战斗的数值与胜负完全不变；小数坐标让行军的士兵平滑滑动，而不是一次跳一整个像素。
 
 #### 镜头 · Camera
 
@@ -581,13 +733,14 @@ release (`v0.0.1.js`, …) holds the batches that release shipped, and `batches.
 版本号集中在 `src/game/versions/`：`index.js` 导出 `VERSION` 与 `CHANGELOG`，每个发布版本一个文件（`v0.0.1.js` …）写着这次发布包含的批次，而 `batches.js` 是从 `progress.md` 生成的。
 
 - **The number is `major.minor.patch`, and only the patch moves.** The game is still in its early stage, so every
-  release bumps the last digit only: `v0.0.1` → `v0.0.2` → `v0.0.3`; the major and minor numbers stay at zero.
+  release bumps the last digit only: `v0.0.1` → `v0.0.2` → `v0.0.3` → `v0.0.4`; the major and minor numbers stay at zero.
   **版本号是 `主版本.次版本.修订号`，目前只更新修订号。** 游戏还处于早期阶段，每次发布只加最后一位：
-  `v0.0.1` → `v0.0.2` → `v0.0.3`，主版本与次版本一直是 0。
-- **The home screen shows it.** The title carries a `版本 v0.0.1` badge, and the badge at the bottom of the page opens
-  a dialog with the update notes of the current release: a short summary and every batch it shipped.
-  **首页会显示它。** 标题下面有「版本 v0.0.1」徽章，页面底部的徽章点开是一个对话框，写着本次发布的更新内容：
-  一段摘要加上这次发布包含的每个批次。
+  `v0.0.1` → `v0.0.2` → `v0.0.3` → `v0.0.4`，主版本与次版本一直是 0。
+- **The home screen shows it in one place.** The title carries a single `版本 v0.0.4` badge, and that badge opens the
+  dialog with the update notes of the current release: a short summary and every batch it shipped. There is no second
+  version button at the bottom of the page any more.
+  **首页只显示一处。** 标题下面有一个「版本 v0.0.4」徽章，点它就弹出本次发布的更新内容：一段摘要加上这次发布包含的
+  每个批次。页面底部不再有第二个版本按钮。
 - **The notes come from `progress.md`.** `node tools/build-versions.mjs` parses the 「已完成功能」 section of the
   progress file and writes it into `src/game/versions/batches.js`, so the progress file stays the one source of truth.
   **更新内容来自 `progress.md`。** `node tools/build-versions.mjs` 解析进度文件的「已完成功能」一节，写进
@@ -661,6 +814,24 @@ times over and counts the results.
   **也可以先看胜率。** 「📊 先看看胜率」 用同样的两支队伍跑 20 场，给出胜率、胜 / 负 / 平、双方平均剩余与阵亡与
   平均时长。它复用 `src/game/battle.js` 的 `createBattle()` 与 `stepBattle()`，只是把步长开到最大（没人观看）。
 
+### 4.17 题库检索 · The question bank
+
+The home screen carries a **🔎 题库检索** entry that opens the whole question bank: every question of the
+declarative packs (the encyclopedia and the external mods) and one sample of every generated template.
+首页有一个 **🔎 题库检索** 入口，打开整个题库：声明式题包（百科知识与外部 mod）的每一道题，以及每一个生成题型的一道样题。
+
+| 能做的事 What it does | 说明 Note |
+| --- | --- |
+| 🔍 搜索 Search | 按题干里的字搜索，也匹配科目名与题型名。Search the prompt, the subject and the kind. |
+| 🎚 过滤 Filter | 按年级（全部 / 三年级 / 四年级）与科目筛选。Filter by grade and by subject. |
+| 📖 查看 View | 点一行展开：完整题干、答案、解析与题目的 key。Open a row for the prompt, the answer, the explanation and the key. |
+| 🔁 换一题 Another sample | 生成题可以再抽一道同题型的样题。A generated question can draw another sample. |
+| 📊 掌握度 Mastery | 有存档时，每一行标着「生疏 / 眼熟 / 已掌握」。With a save, every row shows how well it is known. |
+
+It is a browsing and previewing tool: it never changes the campaign, and it is the fastest way for a parent or a
+teacher to see what the bank really holds.
+它是浏览与预览工具，不会改动战役，却是家长或老师看清题库里到底有什么的最快方式。
+
 ---
 
 ## 5. 势力与兵种 · Factions and Units
@@ -721,7 +892,8 @@ Your commander is a separate marker on the battlefield (120 HP, speed 150) used 
 
 | 界面 Screen | 路由 Route | 内容 Contents |
 | --- | --- | --- |
-| 首页 Home | `#/` | 输入领主名字、开始新游戏 / 继续进度、最近玩过的名字、进入介绍、快速战斗与分享入口，以及标题下的**版本号徽章**；点版本徽章会**弹出更新内容对话框**。Name entry, new/continue game, recent names, guide, quick battle and share links, plus the **version badge** under the title; tapping it **opens the update notes in a dialog**. |
+| 首页 Home | `#/` | 输入领主名字、开始新游戏 / 继续进度 / 快速战斗（三者同级，主按钮独占一行）、难度选择、最近玩过的名字、玩法小贴士、**题库检索**与分享入口；标题下只有**一个版本徽章**，点它**弹出更新内容对话框**。Name entry, new / continue / quick battle (the three on the same level, the main button on a row of its own), the difficulty picker, recent names, the tips, the **question bank** and the share link; below the title there is **one version badge** and tapping it **opens the update notes in a dialog**. |
+| 题库检索 Question bank | `#/bank` | 整个题库的列表：**搜索框**、年级与科目过滤、点开看答案与解析、生成题可「换一题」、每行的掌握度标记。The whole bank in one list: a **search box**, the grade and subject filters, the answer and the explanation of every row, another sample for a generated question and the mastery of each row. |
 | 快速战斗 Quick battle | `#/quick` | 战场地图（六种预设）、四档规模、敌我势力与**每个兵种的数量加减键**；「⚡ 进入战场」真的上战场打一场，「📊 先看看胜率」用同样的队伍跑 20 场给出胜率与平均阵亡。The battlefield (six presets), the four sizes, the two sides and **a stepper for the count of every kind of soldier**; 「⚡ 进入战场」 puts the lord on the field to fight it out, and 「📊 先看看胜率」 runs the same armies through 20 fights for the win rate and the average casualties. |
 | 游戏介绍 Guide | `#/guide` | 目标、地图、据点、考试、科目（含百科知识与已加载的 Mod 科目）、记忆曲线、兵种克制循环与**兵种升级图**（逐档属性与升级价）、战术 / 队形 / 密度说明，以及题库扩展方式。Goals, map, settlements, exams, the subject list (encyclopedia plus any loaded mod subjects), the memory curve, the RPS cycle and the generated **unit upgrade diagram**, plus the tactics / formation / density tables and how to extend the question bank. |
 | 世界地图 World map | `#/world` | 全屏 canvas 地图、右上角小地图与图例（图标 + 势力色块）、📖 详细地图浮层（拖动平移、回到主角）、顶部状态栏（含 👤 角色详情 芯片、📅 天数时钟芯片（天数 + 时刻 + 当天进度条）与 🎚 难度芯片）、点难度芯片弹出的难度设置面板、底部按钮（进入 / ⛺ 扎营 / ⚔️ 赶走强盗 / 🏰 准备围城 / ⏳ 围城倒计时 / 🚫 取消围城 / ⚔️ 攻打 / 🚩 占领 / ⚔️ 攻城）与四个功能按钮、提示条、扎营时的帐篷与篝火、据点上的归属光环与驻军角标、存档提示浮层。Full-screen canvas map, the corner minimap with its sprite legend, the 📖 detailed atlas overlay (drag to pan, recentre on the lord), status chips (including the 👤 lord info chip, the 📅 day clock chip with the day, the hour and a day-progress bar, and the 🎚 difficulty chip), the difficulty sheet behind that chip, the bottom buttons (enter / ⛺ camp / ⚔️ drive off bandits / 🏰 prepare a siege / ⏳ siege countdown / 🚫 cancel the siege / ⚔️ storm / 🚩 claim / ⚔️ assault) plus four action buttons, hint bar, a tent and campfire while camping, the ownership ring and garrison badge on every settlement, and toasts. |
@@ -735,7 +907,7 @@ A first-run intro modal shows the guide before the campaign starts, so new playe
 
 ## 7. 游戏操作 · Controls
 
-- **查看时间 See the time** — 世界地图顶部的 📅 芯片显示第几天、几点几分（一天 24 秒，1 秒 = 游戏里的 1 小时）和当天的进度条；据点界面与角色信息面板里也有同样的时钟。The 📅 chip in the world-map status bar shows the day, the hour of that day (a day is 24 seconds, one second is one in-game hour) and a bar for the day's progress; the settlement screen and the lord panel carry the same clock.
+- **查看时间 See the time** — 世界地图顶部的 📅 芯片显示第几天、几点几分（地图上一天 24 秒，1 秒 = 游戏里的 1 小时；据点里放慢到 1 秒 = 1 分钟）和当天的进度条；据点界面与角色信息面板里也有同样的时钟。The 📅 chip in the world-map status bar shows the day, the hour of that day (a day is 24 seconds on the map, one second is one in-game hour; inside a settlement it slows to one second per in-game minute) and a bar for the day's progress; the settlement screen and the lord panel carry the same clock.
 - **昼夜 Day and night** — 每天的最后五分之一（19:12 起）是夜晚：地图变暗、主角与所有部队都变慢 25%，主角身边有一圈灯光。The last fifth of every day (from 19:12) is night: the map darkens, the lord and every warband slow down by 25%, and the lord keeps a lantern light around him.
 - **移动 Move** — 点击世界地图任意位置；游戏时间只在移动时流逝。Tap anywhere on the world map; game time advances only while the lord walks.
 - **扎营 Camp** — 点底部「⛺ 扎营」原地扎营，时间与敌军照常流转；点「🔥 拔营」或点地图移动即结束。Tap 「⛺ 扎营」 to rest in place while time keeps running; 「🔥 拔营」 or a map tap breaks camp.
@@ -745,7 +917,7 @@ A first-run intro modal shows the guide before the campaign starts, so new playe
 - **赶走强盗 Drive off bandits** — 强盗村庄不能进入，底部按钮是「⚔️ 赶走强盗」，打一场就能进。Tap 「⚔️ 赶走强盗」 at a bandit village and win the fight to open it up.
 - **占领无主城镇 Claim an unclaimed town** — 无主的城镇如果没人防守，底部按钮「🚩 占领」直接拿下；如果还有守军，按钮变成「⚔️ 攻城」，必须打赢守军才能占领。An unclaimed town nobody defends is taken with 「🚩 占领」; one that still holds soldiers offers 「⚔️ 攻城」 and has to be stormed.
 - **准备围城 / 攻打 / 取消围城 Prepare a siege / storm / cancel** — 想把别人的城镇据为己有：先「🏰 准备围城」等 2 天（时间会流逝），再「⚔️ 攻打」；只是进去办事就不用打。围城期间随时可以点「🚫 取消围城」中断，准备的进度全部作废；攻打失败后也要重新准备围城。To take someone else's town: 「🏰 准备围城」 (two days, the clock runs) and then 「⚔️ 攻打」; walking in to trade needs no fight. Tap 「🚫 取消围城」 at any time to call the siege off, and a failed assault means the siege has to be prepared all over again.
-- **难度 Difficulty** — 首页开局时选择难度，世界地图上点 🎚 芯片可随时更改；难度决定考试每答对一题给多少金币。Pick the difficulty on the home screen and change it any time with the 🎚 chip on the world map; it decides how much gold a correct exam answer pays.
+- **难度 Difficulty** — 首页开局时选择难度，世界地图上点 🎚 芯片可随时更改；难度决定考试收入、招募价与军粮消耗，也决定敌军有多强，芯片还会显示随胜场上升的威胁。Pick the difficulty on the home screen and change it any time with the 🎚 chip on the world map; it decides the exam pay, the recruit price and the food cost, and how strong the factions are — the chip also shows the threat that rises with every win.
 - **城镇管理 Town management** — 据点里的「🏛️ 城镇」页签：繁荣度、发展、资金、设施与驻军；「注入资金」把自己钱袋里的钱放进城镇金库。The 「🏛️ 城镇」 tab inside a settlement: prosperity, development, funds, facilities and the garrison; 「注入资金」 moves the lord's own gold into the town treasury.
 - **开战 Start a fight** — 靠近敌对部队即自动开战。Getting close to a hostile party starts the battle automatically.
 - **战术 Orders** — 战斗中先点小队按钮选部队（或「全军」），再切 ⚔️ 攻击 / 🛡️ 防守 / 🏇 跟随 / 🎯 移动。Pick a squad chip (or 全军) first, then switch ⚔️ attack / 🛡️ defend / 🏇 follow / 🎯 move.
@@ -778,18 +950,23 @@ Friends must be on the same network (WiFi) to open the shared link.
 
 | 项目 Item | 数值 Value |
 | --- | --- |
-| 答对奖励（三年级）Reward, grade 3 | 20 金币（简单）／19（普通）／18（困难） 20 gold (easy) / 19 (normal) / 18 (hard) |
-| 答对奖励（四年级）Reward, grade 4 | 26 金币（简单）／25（普通）／24（困难） 26 gold (easy) / 25 (normal) / 24 (hard) |
-| 逻辑推理加成 Logic bonus | +6 金币 |
-| 百科知识加成 Encyclopedia bonus | +4 金币 |
-| 初始资金 Starting gold | 120 金币 |
-| 初始兵力 Starting troops | 8 名民兵 |
+| 答对奖励（三年级）Reward, grade 3 | 5 金币（简单，整卷封顶 ×2）／19（普通）／14（困难） 5 gold on easy (paper capped at ×2) / 19 normal / 14 hard |
+| 答对奖励（四年级）Reward, grade 4 | 5 金币（简单）／25（普通）／19（困难） 5 gold easy / 25 normal / 19 hard |
+| 逻辑推理加成 Logic bonus | +6 金币（普通与困难） +6 gold on normal and hard |
+| 百科知识加成 Encyclopedia bonus | +4 金币（普通与困难） +4 gold on normal and hard |
+| 结算加成 Settlement bonuses | 连击 ×1.0–×1.5、全对 ×1.5、长卷 ×1.1、及格 +20%；简单档整卷最多拿到基础价 ×2（见 4.5） |
+| 答对掉道具 Gear from answers | 军粮 / 战马 / 集市券 / 征兵令（见 4.5） |
+| 经验与属性 Experience and attributes | 及格卷每答对一题 +1 经验，50 经验换 1 点属性（见 4.5） |
+| 初始资金 Starting gold | 150（简单）／120（普通）／90（困难） 150 easy / 120 normal / 90 hard |
+| 初始军粮 Starting food | 8（简单）／5（普通）／3（困难） 8 easy / 5 normal / 3 hard |
+| 初始兵力 Starting troops | 8 名民兵 8 militia |
 | 胜利战利品 Victory loot | 按敌方部队价值的 35% 结算 35% of the defeated warband's value |
 | 收编俘虏 Prisoners | 60% 概率，最多 +4 民兵 60% chance, up to +4 militia |
 | 战败结果 On defeat | 队伍只保留幸存者，并被推离敌人 3 格 Your warband keeps only its survivors and is pushed 3 tiles clear |
 
-The difficulty only changes the exam reward, nothing else: the enemies, the garrisons and the prices stay the same.
-难度只影响考试的奖励，其他一切不变：敌人、驻军与价格都一样。
+The difficulty changes three things: the exam pay, what the army costs (recruit price and food) and how strong the
+factions are. It never changes the questions, and a wrong answer never costs gold.
+难度改三件事：考试收入、养兵成本（招募价与军粮）和敌军强度；它不改题目，答错也从不扣钱。
 
 A defeated enemy party is removed from the map and stops hunting you for 45 s, and after you lose a battle the
 same party cannot engage again for 60 s.
@@ -810,10 +987,16 @@ All state lives in `localStorage`; there is no server.
 | `kids-war-game:users` | 玩过的领主名字列表。The list of player names used on this browser. |
 | `kids-war-game:save:<name>` | 单个存档：世界种子、地形（压缩为地形 id 数组）、据点、部队、玩家坐标、天数、金币、兵员、物资、统计。One save slot: world seed, terrain (stored as a compact terrain-id array), settlements, parties, player position, day, gold, troops, supplies and stats. |
 
-Saved fields · 存档字段：`seed` `gridIds` `settlements` `parties` `playerPos` `day` `gold` `troops` `supplies` `stats` `questionStats` `difficulty`.
+Saved fields · 存档字段：`seed` `gridIds` `settlements` `parties` `playerPos` `day` `gold` `troops` `supplies` `stats` `questionStats` `difficulty` `experience` `attributes`.
 
-`difficulty` carries the difficulty of the campaign; a save without it is an easy game.
-`difficulty` 保存本局的难度；没有这个字段的旧存档按「简单」处理。
+`experience` and `attributes` are what the child learned: the experience the papers gave and the attribute points it
+was spent on. A save without them starts at zero.
+`experience` 与 `attributes` 记的是孩子学到的东西：考试给的经验与花在属性上的点数；旧存档没有这两个字段时按零处理。
+
+`difficulty` carries the difficulty of the campaign; a save without it is an easy game. The threat is not saved: it
+is derived from `stats.wins` and the towns the lord holds, so a reload keeps the same pressure.
+`difficulty` 保存本局的难度；没有这个字段的旧存档按「简单」处理。威胁不单独存档：它由 `stats.wins` 与领主占领的
+城镇数量推导，因此读档后压力与原来一致。
 
 `day` carries the campaign clock across a reload; the in-flight clock accumulator and the camp flag are not
 saved, so a resumed game always starts standing still with the clock frozen.
@@ -1019,13 +1202,20 @@ can never stall.
 
 ### 新增难度 · Add a difficulty
 
-The difficulty table is `DIFFICULTIES` in `src/game/difficulty.js`. A record carries the key, the names, the icon
-and `rewardDelta`: how much gold a correct exam answer loses on that difficulty. The reward formula reads it
-through `rewardFor(question, difficulty)`, so a new difficulty needs no other change — but it should also be
-added to the two pickers (the home screen and the world map sheet) if it is meant to be visible.
-难度表是 `src/game/difficulty.js` 里的 `DIFFICULTIES`。一条记录包含 key、名称、图标以及 `rewardDelta`：
-该难度下每答对一题少拿多少金币。奖励公式通过 `rewardFor(question, difficulty)` 读取它，因此新增难度不需要改
-其他地方——但若要让人看到它，还需要把它加进两个选择器（首页与世界地图的难度面板）。
+The difficulty table is `DIFFICULTIES` in `src/game/difficulty.js`. A record carries the key, the names, the icon,
+the pay (`rewardDelta`, `flatReward`, `payMul`, `paperCap`), the start (`startGold`, `startFood`), the running costs
+(`foodPerBattle`, `recruitMul`), the enemy numbers (`foeSize`, `foeGrowth`, `foeCap`, `foeTierStart`, `foeTierMax`,
+`banditDays`) and the threat curve (`threatWins`, `threatTowns`, `threatCap`). The reward formula reads the pay
+through `rewardFor(question, difficulty)`; the quiz settlement reads the cap; the battle store reads the food; the
+recruit list reads the markup; the world store reads the enemy numbers and the threat. A new difficulty therefore
+needs no other code change — but it should also be added to the two pickers (the home screen and the world map
+sheet) if it is meant to be visible.
+难度表是 `src/game/difficulty.js` 里的 `DIFFICULTIES`。一条记录包含 key、名称、图标、收入（`rewardDelta`、
+`flatReward`、`payMul`、`paperCap`）、开局（`startGold`、`startFood`）、运行成本（`foodPerBattle`、
+`recruitMul`）、敌军参数（`foeSize`、`foeGrowth`、`foeCap`、`foeTierStart`、`foeTierMax`、`banditDays`）以及
+威胁曲线（`threatWins`、`threatTowns`、`threatCap`）。奖励公式通过 `rewardFor(question, difficulty)` 读收入，
+试卷结算读封顶，战斗 store 读军粮，招募列表读加价，世界 store 读敌军与威胁。因此新增难度不需要改其他代码——
+但若要让人看到它，还需要把它加进两个选择器（首页与世界地图的难度面板）。
 
 ### 版本与更新内容 · Version and changelog
 
@@ -1082,9 +1272,18 @@ Each declarative item is:
 | `id` | 是 Yes | 包内唯一且**永不变更**：它就是记忆曲线的 key。Unique in the pack and **never renamed** — it is the memory-curve key. |
 | `grade` | 否 No | `3` 或 `4`，缺省取 `grades[0]`。`3` or `4`, defaults to `grades[0]`. |
 | `prompt` | 是 Yes | 题干。Question text. |
-| `options` | 是 Yes | 至少 2 个互不重复的非空选项；超过 4 个时只取正确答案加 3 个干扰项。At least 2 unique non-empty options; extras beyond four are dropped. |
-| `answer` | 是 Yes | 正确选项的下标（从 0 开始）。Zero-based index of the correct option. |
+| `options` | 四选一时是 Yes for a multiple choice | 至少 2 个互不重复的非空选项；超过 4 个时只取正确答案加 3 个干扰项。At least 2 unique non-empty options; extras beyond four are dropped. |
+| `answer` | 四选一时是 Yes for a multiple choice | 正确选项的下标（从 0 开始）。Zero-based index of the correct option. |
 | `explain` | 否 No | 答错时显示的解析。Shown under a wrong answer. |
+
+A question can also have another **shape**, in which case the fields above change:
+题目也可以是别的**形状**，这时上面的字段会换掉：
+
+| 形状 Shape | 字段 Fields | 说明 Meaning |
+| --- | --- | --- |
+| 填空 Filled in | `input`（`number` 或 `text`）+ `answer`（字符串或字符串数组） | 孩子把答案写出来；数字按数值比对，文字忽略大小写与空格。The child types the answer; a number is compared by value, a word without its case or spaces. |
+| 配对 Matching | `pairs`（`[[左, 右], …]`，至少两组） | 把左右两栏连起来；右栏每次出现都会打乱。Connect the two columns; the right column is shuffled every time. |
+| 排序 Ordering | `items`（按正确顺序给出，界面会打乱） | 把项目按顺序点出来。Tap the items in the right order. |
 
 ```json
 {
@@ -1126,10 +1325,16 @@ kidsWarGame.loadModsFromText('{"key":"my-pack","name":"我的题","grades":[3],"
 ```
 
 **Built-in generators · 内置生成器** — `english.js`、`math.js`、`logic.js`、`chinese.js` export a type table
-(`ENGLISH_TYPES` etc.); add a function there and it becomes a `kind` of that subject automatically. `fn.name` is
-the stable kind, so it is also the memory key — renaming a generator resets its curve. `encyclopedia.js` is
-declarative and demonstrates the item path.
-`english.js`、`math.js`、`logic.js`、`chinese.js` 各导出一张题型表（`ENGLISH_TYPES` 等），往里加一个函数就会自动成为该科目的一个 `kind`。`fn.name` 既是稳定的 kind，也是记忆 key——重命名生成器会让这条曲线归零。`encyclopedia.js` 是声明式写法，可作为题目路径的范例。
+(`ENGLISH_TYPES` etc.); add a function there and it becomes a `kind` of that subject automatically. The kind is the
+name the generator gives its questions — the `kind` field in the question it returns — so it stays the same in every
+build and it is the memory key: renaming a generator resets its curve. `encyclopedia.js` is declarative and
+demonstrates the item path.
+`english.js`、`math.js`、`logic.js`、`chinese.js` 各导出一张题型表（`ENGLISH_TYPES` 等），往里加一个函数就会自动成为该科目的一个 `kind`。kind 取的是生成器写在题目里的那个 `kind` 名字，因此任何构建里都稳定，它同时就是记忆 key——重命名生成器会让这条曲线归零。`encyclopedia.js` 是声明式写法，可作为题目路径的范例。
+
+> The kind used to be the name of the function, which a production build could shorten — that changed the memory
+> curve of every question. The generator table now reads the kind from the question itself, so the curve survives a
+> release. `src/game/quiz/mods.js` is the one place that decides this.
+> kind 过去取自函数名，而生产构建会压缩函数名 —— 那会改掉每道题的记忆曲线。现在生成器表改从题目自身读 kind，因此曲线能跨版本保留；决定这件事的地方只有 `src/game/quiz/mods.js` 一处。
 
 Every generator must return the `choice()` shape (`prompt`, `options`, `answer` index, `explain` optional),
 because the exam UI and the reward formula read only those fields; `choice()` keeps at most three distractors, so
@@ -1176,26 +1381,29 @@ read back in `loadGame()` (`src/game/save.js`), otherwise it will be lost on rel
 
 ### 自检脚本 · Self-check scripts
 
-The game has five dependency-free checks under `tools/`, all runnable with plain `node`
+The game has a set of dependency-free checks under `tools/`, all runnable with plain `node`
 (they bundle the Vue sources with the esbuild that already ships with Vite, so no test framework is needed).
-游戏有五支零依赖的自检脚本，放在 `tools/` 下，直接用 `node` 跑即可（它们用 Vite 自带的 esbuild 打包 Vue 源码，不需要测试框架）。
+游戏在 `tools/` 下有一组零依赖的自检脚本，直接用 `node` 跑即可（它们用 Vite 自带的 esbuild 打包 Vue 源码，不需要测试框架）。
 
 | 命令 Command | 作用 What it does |
 | --- | --- |
 | `node tools/verify-upgrade.mjs` | 99 项检查：每条升级边的 `type` / `tier` / 价格、民兵 → 三个家族、家族内升档、非法边被拒、钱不够不动兵，以及界面那条「把边的 `type`/`tier` 原样喂回 store」的路径。99 checks: every edge's `type` / `tier` / price, militia into the three families, rank climbs inside a family, illegal edges refused, a broke lord keeping his soldiers, and the exact panel path that feeds an edge's `type` / `tier` back into the store. |
 | `node tools/verify-chinese.mjs` | 32 项检查：语文题型齐全（阅读理解 + 6 种古诗题）、年级内题型名唯一（它们是记忆曲线的 key）、上千道采样题全部合法（2–4 个选项、答案在选项里、题干不重复）、短文带着全文且长度适合手机。32 checks: the Chinese types are complete (reading comprehension plus six poem types), the type names are unique per grade (they are the memory-curve keys), a thousand sampled questions are all well formed (2–4 options, the answer among them, no repeated prompt) and the passages carry their text at a phone-friendly length. |
-| `node tools/verify-settlements.mjs` | 69 项检查：据点归属（强盗不占城镇）、驻军、`{ type, tier, count, hp }` 形状与旧档迁移、恢复速率、战败存活判定、围城（天数 / 时钟 / 援军 / 占领）、强盗村庄、城镇经济（考试 → 资金 + 发展 → 繁荣度 → 等级）、设施与更高等级的兵源。69 checks: settlement ownership (no bandit town), garrisons, the `{ type, tier, count, hp }` shape and its migration, the recovery rates, the survival roll, sieges (days / clock / relief / capture), the bandit village, the town economy (exam → funds + development → prosperity → level), the facilities and the richer recruit list. |
+| `node tools/verify-settlements.mjs` | 126 项检查：据点归属（强盗不占城镇）、驻军、`{ type, tier, count, hp }` 形状与旧档迁移、恢复速率、战败存活判定、围城（天数 / 时钟 / 援军 / 占领）、强盗村庄、城镇经济（考试 → 资金 + 发展 → 繁荣度 → 等级）、设施与更高等级的兵源。126 checks: settlement ownership (no bandit town), garrisons, the `{ type, tier, count, hp }` shape and its migration, the recovery rates, the survival roll, sieges (days / clock / relief / capture), the bandit village, the town economy (exam → funds + development → prosperity → level), the facilities and the richer recruit list. |
 | `node tools/verify-upgrade-head.mjs` | 同一套升级检查跑在修复前的源码上（`291eddaa81d`），用来复现旧缺陷：升级后会写入一个没有 `type` 的兵员，界面回退显示成民兵，并且只扣 8 金币保底价。The same upgrade suite against the pre-fix sources (`291eddaa81d`), reproducing the old defect: a soldier with no `type` is written, the panel falls back to militia, and only the 8-gold floor is charged. |
 | `node tools/verify-upgrade-browser.mjs` | 真实 Chrome（headless + CDP）走一遍界面：预置一份站在村庄旁的存档，进村、打开「升级」页签、真的点「升级」按钮，再读回 DOM 与金币。Real Chrome (headless over CDP) walks the interface: a save with the lord next to a village, into the village, the 升级 tab, a real click on 升级, and the DOM and treasury read back. |
 | `node tools/verify-settlements-browser.mjs` | 真实 Chrome 走一遍据点玩法：地图上的归属光环、角色面板里的伤兵、赶走强盗、准备围城并攻打城镇，以及城镇面板（等级 / 繁荣度 / 资金 / 建医院 / 注入资金 / 投入发展）。Real Chrome walks the settlement features: the ownership ring on the map, the wounded in the lord panel, driving off bandits, preparing a siege and storming the town, and the town panel (level / prosperity / funds / building a hospital / injecting money / investing). |
-| `node tools/verify-battle.mjs` | 70 项检查：难度（三种难度的金币、科目加成、存档读写）、战斗速度（默认慢速、慢速推进更少）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、**反击与队形**（士兵记住攻击者、转身还手、挨打掉血；攻击时队形保持、各排仍有距离、两边都有伤亡）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）。70 checks: the difficulty (the gold of the three levels, the subject bonus, the save round trip), the battle speed (slow by default, the slow speed advances less), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), **the counterattack and the formation** (the soldier remembers the attacker, turns to answer it and took the blow; the formation holds while attacking, the ranks keep their distance and both sides take losses), twelve battles that always end, and the sieges (they can be called off, a failed assault needs a new preparation, a won assault takes the town). |
+| `node tools/verify-battle.mjs` | 90 项检查：难度（三种难度的金币、科目加成、开局资源、军粮、招募价、威胁与敌军成长、存档读写）、战斗速度（默认慢速、慢速推进更少）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、**反击与队形**（士兵记住攻击者、转身还手、挨打掉血；攻击时队形保持、各排仍有距离、两边都有伤亡）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）。90 checks: the difficulty (the gold of the three levels, the subject bonus, the opening resources, the food, the recruit markup, the threat and the enemy growth, the save round trip), the battle speed (slow by default, the slow speed advances less), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), **the counterattack and the formation**, twelve battles that always end, and the sieges. |
+| `node tools/verify-difficulty.mjs` | 58 项检查：普通档保留原来的 5 / 8 / 12 题收入（239 / 410 / 677），困难约为普通的 74%，简单档整卷封顶（50 / 80 / 120），三档的单价、开局资源、军粮与招募价单调递增；威胁随胜场与城镇上升、按档封顶且永不低于 1；同一种子的世界在困难档敌军更多、简单档更少；城镇招募价与旧档迁移；以及世界每天真的按难度与威胁补兵、封顶生效。58 checks: normal keeps the shipped 5 / 8 / 12 question payouts (239 / 410 / 677), hard pays about 74% of normal, the practice paper is capped (50 / 80 / 120), and the price, the starting resources, the food and the recruit markup rise monotonically; the threat rises with wins and towns, is capped per level and never falls below 1; the same world seed fields more enemies on hard and fewer on easy; the town prices and the old-save migration; and the world really reinforces by the difficulty and the threat, with the ceiling holding. |
 | `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、战斗界面的速度按钮与地形说明、镜头拖动与回中、控制台 0 报错。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, the speed buttons and the terrain legend on the battle screen, dragging and recentring the camera, and a clean console. |
 | `node tools/verify-training-browser.mjs` | 真实 Chrome 走一遍新功能：首页显示版本号、点徽章展开更新内容；世界地图上**没扎营时没有「练兵」按钮**、扎营后出现；点进去后战斗界面写着「🎯 练兵」、对面是训练木桩、store 认得出这是训练、没有敌人、**没有胜负**、金币 / 军粮 / 队伍都不变；木桩真的挨打而士兵毫发无伤；点「🏕 结束练兵」回到世界地图，营地还在，控制台 0 报错。Real Chrome walks the new features: the home screen shows the version and the badge opens the update notes; the world map has **no drill button before the camp** and one after it; inside, the battle screen reads 「🎯 练兵」, the other side is the wooden dummies, the store knows it is a drill, there is no enemy, **no outcome**, and the purse, the food and the warband do not move; the dummies really take the blows while the soldiers stay untouched; 「🏕 结束练兵」 returns to the world map with the camp still pitched, and the console stays clean. |
 | `node tools/verify-chinese-browser.mjs` | 真实 Chrome 考一张只选「语文」的卷子，走完全部题目并读回题干：卷子里要有**阅读理解短文**与**古诗题**，短文保持换行、同一份卷子里没有重复题目、控制台 0 报错。Real Chrome takes a Chinese-only paper, walks every question and reads the prompts back: the paper must carry a **reading passage** and an **ancient-poem question**, the passage keeps its line breaks, no question repeats inside one paper and the console stays clean. |
 | `node tools/verify-quick-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的「⚡ 快速战斗」与开始 / 继续按钮**同级**；点版本徽章弹出**更新对话框**（写着版本号、列出批次、**没有任何开发细节**）、关闭后消失；快速战斗页有六种战场、四档规模、四个己方整队与三个敌方势力，**八个兵种各有加减键**（能加也能清零）；选好后点「⚡ 进入战场」，**真的站上战场** —— 顶栏写着「⚡ 快速战斗」、双方兵力与所选一致、小队可选、命令照常下达；控制台 0 报错。Real Chrome walks the new features: the 「⚡ 快速战斗」 entry sits **on the same level** as the start / continue buttons; tapping the version badge opens the **update dialog** (the version, the batches and **no development details** at all) and it closes again; the quick battle screen offers six battlefields, four sizes, four friendly bands and three enemy factions, and **each of the eight kinds has a stepper**; after the picks, 「⚡ 进入战场」 **really puts the lord on the field** — the bar reads 「⚡ 快速战斗」, both armies match the choice and the orders work, with a clean console. |
 | `node tools/verify-quick-battle.mjs` | 57 项检查：六种战场预设各生成正确的地形、湖泽的深水不可通行；**每个兵种的数量可以任意设置**（清零、加满、缩放时配比不变）且每人满血；四个己方整队与三个敌方势力的配比都对；`battle.startQuick()` 用选好的队伍与战场开战，**战斗真的会分出胜负并结算**，而**战役数据纹丝不动**；五场模拟的胜 / 负 / 平相加等于场次、胜率与胜场一致；模拟足够快。57 checks: every battlefield preset lays out the right ground and the deep water of the lake map is impassable; **the count of every kind can be set freely** (cleared, filled, scaled with the mix kept) and every soldier starts healthy; the four friendly bands and the three enemy mixes are right; `battle.startQuick()` opens the fight with the chosen armies on the chosen field, **the fight really ends and settles** and **the campaign data does not move**; the wins, losses and draws of five rounds add up and the win rate follows the wins; and the simulation is quick. |
 | `node tools/build-versions.mjs` | 从 `progress.md` 的「## 2. 已完成功能」一节重新生成 `src/game/versions/batches.js`，并打印解析到的每个批次。Regenerates `src/game/versions/batches.js` from the 「## 2. 已完成功能」 section of `progress.md` and prints every batch it found. |
-| `node tools/verify-training.mjs` | 58 项检查：版本号格式与更新内容（版本从 v0.0.1 起、只更新修订号、最新条目就是当前版本、更新内容由 `progress.md` 生成）、练兵场（只有自己的士兵与训练木桩、没有敌人、训练不会结束、士兵不会受伤、木桩挨打后会自己立起来）、练兵对战役零影响（金币 / 军粮 / 队伍 / 战绩都不变），以及界面上确实有版本号、练兵按钮与「结束练兵」按钮。58 checks: the version format and the update notes (the version starts at v0.0.1, only the patch moves, the newest entry is the current version, the notes are generated from `progress.md`), the drill ground (only the lord's own soldiers and the wooden dummies, no enemy, the session never ends, nobody is hurt, the dummies stand back up), that a drill changes nothing in the campaign (purse / food / warband / record), and that the interface really carries the version, the drill button and the end-of-drill button. |
+| `node tools/verify-training.mjs` | 62 项检查：版本号格式与更新内容（首个版本是 v0.0.1、只更新修订号、最新条目就是当前版本、更新内容由 `progress.md` 生成）、练兵场（只有自己的士兵与训练木桩、没有敌人、训练不会结束、士兵不会受伤、木桩挨打后会自己立起来）、练兵对战役零影响（金币 / 军粮 / 队伍 / 战绩都不变），以及界面上确实有版本号、练兵按钮与「结束练兵」按钮。62 checks: the version format and the update notes (the first release is v0.0.1, only the patch moves, the newest entry is the current version, the notes are generated from `progress.md`), the drill ground (only the lord's own soldiers and the wooden dummies, no enemy, the session never ends, nobody is hurt, the dummies stand back up), that a drill changes nothing in the campaign (purse / food / warband / record), and that the interface really carries the version, the drill button and the end-of-drill button. |
+| `node tools/verify-quiz.mjs` | 135 项检查：试卷结算（基础价、连击倍率、全对 ×1.5、长卷 ×1.1、及格加成、**答错不扣钱**）、道具掉落（答对掉军粮、连对 5 题必掉、整科全对掉集市券或征兵令、全对掉战马）、掌握度地图（按科目按年级统计、错题本与复习队列）、复习卷只出指定的题、经验与属性点（及格才给经验、点数可分配、属性效果接进恢复 / 造价 / 围城 / 全军攻击）、里程碑（四个道具按答对数解锁）、以及存档与旧档兼容。135 checks: the paper settlement (the base price, the streak multiplier, ×1.5 for a perfect paper, ×1.1 for a long paper, the pass bonus, **a wrong answer never costs gold**), the gear a paper drops (food for a correct answer, two rations for five in a row, a voucher or a recruit order for a perfect subject, a horse for a perfect paper), the mastery map (per subject and per grade, the mistake book and the review queue), a revision paper that only asks for the wanted questions, the experience and the attribute points (only a passed paper teaches, the points can be spent, the effects reach the recovery, the prices, the siege and the attack of the army), the milestones (the four gears unlock by the number of correct answers) and the save round trip with an old save. |
+| `node tools/verify-quiz-browser.mjs` | 真实 Chrome（headless + CDP，1200 × 900）走一遍学习主线：考试设置页有**掌握度地图**与三种卷子（标准 / 只考错题 / 复习队列）；只考错题真的只出错过的题；把一整张卷子全部答对后，结算页出现**连击、全部答对、及格线、掉落道具与经验**，钱袋、经验与背包都真的变了；世界地图上出现**属性点芯片**；角色详情面板列出四个属性、掌握度地图与里程碑，并能真的加一点；市场用**集市券**免费换物资，招募页用**征兵令**免费招两名民兵；控制台 0 报错。Real Chrome (headless over CDP at 1200x900) walks the exam spine: the setup carries the **mastery map** and the three kinds of paper (standard, mistakes, review); a paper of mistakes really holds the mistakes; after a paper answered without a mistake the result page shows the **streak, the perfect bonus, the pass line, the dropped gear and the experience**, and the purse, the experience and the baggage really change; the world map grows an **attribute points chip**; the lord panel lists the four attributes, the mastery map and the milestones, and a point can really be spent; the market pays for one purchase with a **voucher** and the recruits hire two militia with a **recruit order**; the console stays clean. |
 
 The skill `.agents/skills/kids-war-game-testing/` runs all of them in one command:
 `node .agents/skills/kids-war-game-testing/scripts/run-checks.mjs --browser`.
@@ -1222,23 +1430,29 @@ kids-war-game/
 ├── tools/verify-chinese.entry.mjs # 语文题库检查的用例
 ├── tools/make-chinese-save.entry.mjs # 生成「主角站在自己城镇旁」的存档，供语文走查使用
 ├── tools/verify-upgrade.mjs    # 升级路径自检（无头，99 项检查）
-├── tools/verify-settlements.mjs # 据点 / 围城 / 城镇经济自检（无头，69 项检查）
+├── tools/verify-settlements.mjs # 据点 / 围城 / 城镇经济自检（无头，126 项检查）
 ├── tools/verify-upgrade-head.mjs # 同一套检查跑在修复前的源码上，复现旧缺陷
 ├── tools/verify-upgrade-browser.mjs # 真实 Chrome 走一遍「升级」界面
 ├── tools/verify-settlements-browser.mjs # 真实 Chrome 走一遍据点、围城与城镇面板
-├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 战场地形 / 反击与队形 / 围城中断自检（无头，70 项检查）
+├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 战场地形 / 反击与队形 / 围城中断自检（无头，90 项检查）
+├── tools/verify-difficulty.mjs # 难度数值、开局、军粮、招募价、威胁与敌军成长自检（无头，58 项检查）
 ├── tools/verify-battle-browser.mjs # 真实 Chrome 走一遍难度、速度、地形与围城中断
-├── tools/verify-training.mjs  # 版本号与练兵自检（无头，58 项检查）
+├── tools/verify-training.mjs  # 版本号与练兵自检（无头，62 项检查）
 ├── tools/verify-training-browser.mjs # 真实 Chrome 走一遍版本号与练兵
 ├── tools/verify-training.entry.mjs # 版本号与练兵检查的用例
-├── tools/verify-quick-battle.mjs # 快速战斗模拟器自检（无头，32 项检查）
+├── tools/verify-quick-battle.mjs # 快速战斗模拟器自检（无头，57 项检查）
 ├── tools/verify-quick-battle.entry.mjs # 快速战斗检查的用例
 ├── tools/verify-quick-battle-browser.mjs # 真实 Chrome 走一遍更新对话框与快速战斗
+├── tools/verify-quiz.mjs    # 学习主线自检：结算、道具、掌握度、经验与里程碑（无头，135 项检查）
+├── tools/verify-quiz.entry.mjs # 学习主线检查的用例
+├── tools/verify-quiz-browser.mjs # 真实 Chrome 走一遍考试结算、掌握度地图与属性点
+├── tools/make-quiz-save.entry.mjs # 生成带记忆曲线与道具的学习主线存档
 ├── tools/build-versions.mjs   # 从 progress.md 的「已完成功能」一节生成更新内容
 ├── tools/rewrite-progress-features.mjs # 把「已完成功能」一节改写成「▶ 功能 / 🔧 技术」两类条目
 ├── tools/verify-upgrade.entry.mjs # 升级检查的用例
 ├── tools/verify-settlements.entry.mjs # 据点检查的用例
 ├── tools/verify-battle.entry.mjs # 难度 / 战斗 / 围城检查的用例
+├── tools/verify-difficulty.entry.mjs # 难度数值、威胁与敌军成长检查的用例
 ├── tools/make-save.entry.mjs   # 生成「主角站在村庄旁」的存档，供界面自检使用
 ├── tools/make-settlement-save.entry.mjs # 生成强盗村庄 / 敌城 / 自有城镇三种存档
 ├── tools/reporter.mjs          # 自检脚本共用的输出器
@@ -1253,7 +1467,7 @@ kids-war-game/
     ├── game/
     │   ├── rng.js              # 种子随机 + 值噪声
     │   ├── terrain.js          # 地形定义与序列化映射
-    │   ├── difficulty.js       # 难度设置：三种难度与考试金币增减
+    │   ├── difficulty.js       # 难度设置：收入 / 军费 / 敌军三条轴与战役威胁
     │   ├── versions/             # 版本号（只更新修订号）与更新内容：一个发布一个文件，批次由 progress.md 生成
     │   │   ├── index.js          #   VERSION / VERSIONS / CHANGELOG 与辅助函数
     │   │   ├── v0.0.1.js         #   首个版本的更新内容
@@ -1271,10 +1485,14 @@ kids-war-game/
     │   ├── battle.js           # 战斗模拟（小队、命令、队形、密度、克制、远程风筝、地形、速度档、练兵木桩）
     │   ├── quickBattle.js      # 快速战斗模拟器：战场 / 敌我势力 / 兵力规模 / 场次与战报
     │   ├── save.js             # localStorage 存档槽
+    │   ├── skills.js           # 经验与属性：统御 / 医术 / 工程 / 谋略及其效果
+    │   ├── milestones.js       # 里程碑道具：军旗 / 徽章 / 药箱 / 驿马
     │   └── quiz/
     │       ├── index.js        # 出卷、奖励、科目与年级定义
     │       ├── registry.js     # Mod 契约：校验、注册与题目条目展开
     │       ├── scheduler.js    # 记忆曲线：等级、权重、遗忘与加权抽取
+    │       ├── reward.js       # 试卷结算：连击、满分、长卷、及格与道具掉落
+    │       ├── mastery.js      # 掌握度地图、错题本与复习队列
     │       ├── mods.js         # 内置题库包与 public/mods 外部加载
     │       ├── encyclopedia.js # 百科知识题（声明式，64 条）
     │       ├── shared.js       # 选项构造与干扰项工具
@@ -1296,6 +1514,7 @@ kids-war-game/
     │   ├── TownPanel.vue       # 城镇：繁荣度、发展、资金、设施与驻军
     │   ├── MarketPanel.vue     # 市场
     │   ├── ExamModal.vue       # 考试流程
+    │   ├── QuestionBody.vue    # 答题区：四选一 / 填空 / 配对 / 排序四种形状
     │   ├── CharacterPanel.vue  # 角色信息面板（兵力 / 资金 / 物资 / 战绩）
     │   ├── DayClock.vue        # 战役时钟：天数、当天时刻与进度条
     │   ├── ShareModal.vue      # 二维码分享
@@ -1306,6 +1525,7 @@ kids-war-game/
         ├── SettlementView.vue  # 据点屏
         ├── BattleView.vue      # 战斗屏（练兵时多一个「结束练兵」）
         ├── QuickBattleView.vue # 快速战斗：选战场 / 敌我 / 规模，跑出胜率
+        ├── BankView.vue        # 题库检索：搜索、过滤、看答案与掌握度
         └── GuideView.vue       # 介绍页
 ```
 
@@ -1318,11 +1538,15 @@ kids-war-game/
 | `src/game/settlement.js` | 据点归属、驻军、围城规则、城镇经济（繁荣度 / 发展 / 等级）与设施效果。Settlement ownership, garrisons, the siege rules, the town economy (prosperity / development / level) and the facility effects. |
 | `src/game/battle.js` | 战斗模拟：小队命令、队形 / 密度、克制伤害、远程风筝、地形效果、速度档与胜负判定。Battle simulation: squad orders, formations / densities, counter damage, ranged kiting, the terrain effects, the speed settings and win/lose logic. |
 | `src/game/arena.js` | 战场地形：五种地形的定义、生成与效果，以及不可通行规则。Battlefield terrain: the five kinds, how they are placed and what they do. |
-| `src/game/difficulty.js` | 难度设置：三种难度与它们对考试金币的增减。The difficulty setting: the three levels and what they take off the exam reward. |
+| `src/game/difficulty.js` | 难度设置：收入 / 军费 / 敌军三条轴、开局资源与随胜场上升的战役威胁。The difficulty setting: the pay, cost and enemy axes, the opening resources and the campaign threat that rises with every win. |
 | `src/game/daynight.js` | 昼夜规则：夜晚占一天的五分之一、黑度曲线与夜晚的减速系数。The day and night rules: the night share of the day, the darkness curve and the night slowdown. |
 | `src/stores/battle.js` | 战斗状态：模拟循环、速度档、镜头、战后结算（幸存者、战利品、敌方同步）。Battle state: the simulation loop, the speed setting, the camera and the post-battle settlement. |
 | `src/stores/world.js` | 每帧的世界推进：移动、游戏时钟门控与扎营、部队 AI、遭遇判定，以及战役时钟读数。Per-frame world tick: movement, the clock gate and camping, party AI, encounter detection, and the campaign clock readout. |
 | `src/game/quiz/index.js` | 出卷入口与奖励公式。Exam entry point and reward formula. |
+| `src/game/quiz/reward.js` | 试卷结算：连击、满分、长卷、及格加成与道具掉落。The paper settlement: the streak, the perfect paper, the long paper, the pass bonus and the gear a paper drops. |
+| `src/game/quiz/mastery.js` | 掌握度地图、错题本与复习队列，全部由记忆曲线派生。The mastery map, the mistake book and the review queue, all derived from the memory curve. |
+| `src/game/skills.js` | 经验与四个属性，以及它们对队伍上限、恢复、造价、围城与攻击的影响。The experience, the four attributes and what they change. |
+| `src/game/milestones.js` | 里程碑道具：按累计答对数解锁的军旗、徽章、药箱与驿马。The milestone gear: the banner, the badge, the medicine chest and the post horse. |
 | `src/game/quiz/registry.js` | Mod 契约、校验与题目条目展开，改题目结构只动这一处。The mod contract, validation and entry expansion. |
 | `src/game/quiz/scheduler.js` | 记忆曲线的全部常数、权重、遗忘与加权抽取。Every memory-curve constant, weight, forgetting step and weighted pick. |
 | `src/components/WorldMap.vue` | 地图绘制与输入。Map rendering and input. |
@@ -1413,3 +1637,91 @@ Make sure the other device is on the same WiFi LAN and that you shared a LAN IP,
 **进度丢了 / Progress is gone.**
 存档按领主名字隔离；用同一个名字在同一个浏览器上「继续上次进度」即可。
 Saves are keyed by player name; pick the same name in the same browser and use "continue".
+
+---
+
+## 16. 战团玩法对照 · Comparison with Mount & Blade
+
+《骑马与砍杀 II：战团》（Mount & Blade II: Bannerlord）是本类型的标杆，本作的世界地图 + 实时小队战斗就是它的 2D 简化版，但两条主线不同：战团要经营领主与政治，本作要**让学习直接变强**。
+Mount & Blade II: Bannerlord is the benchmark of the genre, and the world map plus the real-time squad battle of this game is its two-dimensional simplification — but the two have different spines: Bannerlord is about running a lord and playing politics, while here **studying has to make the lord stronger**.
+
+下面这张表是逐项对照后的结论：**已有 / 部分 / 没有** 三档，再给出建议的优先级。完整对照（每项的特性、缺口、儿童向改造建议与改动文件）在 `progress.md` 第 6 节。
+The table below is the outcome of the item-by-item comparison in three grades — **have it / partly / missing** — plus a suggested priority. The full comparison (every feature, its gap, the kid-friendly adaptation and the files it touches) is in section 6 of `progress.md`.
+
+| 战团特性 Bannerlord feature | 本作现状 Here | 建议 Suggestion |
+| --- | --- | --- |
+| 小队命令、队形与密度 Squad orders, formations, spacing | ✅ 已有 Have | — |
+| 兵种相克、战场地形 Troop counters, battlefield terrain | ✅ 已有 Have | — |
+| 围城、城镇发展与设施 Sieges, town growth and facilities | ✅ 已有 Have | — |
+| 竞技场与练兵 Arena and drill | ✅ 已有 Have（快速战斗 / 练兵） | — |
+| **士气与溃逃 Morale and routing** | ❌ 没有 Missing | P0：给士兵加士气，战斗变成胜 / 负 / 溃逃三种结果。Add morale and give a fight a third outcome: win, lose or rout. |
+| **声望 Renown** | ❌ 没有 Missing | P0：战斗 / 军令 / 比武产出声望，解锁城镇爵位与兵源。Renown earned in battle, orders and tournaments. |
+| **任务（军令）Orders** | ❌ 没有 Missing | P1：城镇发布限时任务，用战役时钟倒计时。Timed orders posted by the towns and counted down with the campaign clock. |
+| **比武大会 Tournament** | ❌ 没有 Missing | P1：复用现成战斗打三轮淘汰，名次给声望与金币。A three-round ladder on the existing battle system. |
+| **属性与技能（考试 = 经验）Attributes and skills** | ✅ 已有 Have（v0.0.2） | 答对题目累积统御 / 医术 / 工程 / 谋略。Every correct answer earns an attribute point. |
+| **侧翼包围 Flanking** | ❌ 没有 Missing | P2：侧后受击给伤害加成，让包围真的有价值。A flank and rear bonus, so encircling pays. |
+| **新兵种 New families** | ⚠️ 部分 Partly（民兵 + 三家族） | P2：弩手、弓骑兵、长戟兵。Crossbow, mounted archer, polearm. |
+| **俘虏与赎金 Prisoners and ransom** | ⚠️ 部分 Partly（打赢 +4 民兵） | P2：战后俘虏可赎金或招入。Captives can be ransomed or recruited. |
+| **势力关系 Faction relations** | ❌ 没有 Missing | P2：势力之间交战 / 结盟，世界不再只是刷兵。War, peace and alliance between the factions. |
+| **攻城三阶段 Siege phases** | ⚠️ 部分 Partly（准备 2 天 + 一战） | P3：围城 → 破墙 → 巷战。Surround, breach, streets. |
+| **商队与工坊 Caravan and workshops** | ⚠️ 部分 Partly（市场只卖军粮战马） | P3：商品与物价波动，工坊按城镇等级生产。Goods with drifting prices and town workshops. |
+| **迷雾 / 四季 / 战前部署 Fog, seasons, deployment** | ❌ 没有 Missing | P3：视野半径、四季对地形的影响、开战前拖部署线。A sight radius, four seasons, a deployment line. |
+| 3D 第一人称、联机、继承 3D first-person, multiplayer, inheritance | — | 🚫 不做 Not planned：与 8–12 岁的定位不符。Out of place for this age group. |
+
+The single most important difference from Bannerlord is kept on purpose: **the gold comes only from correct answers**, so every new system above is designed to pay out in a way that learning feeds — an exam is experience, a mission is a timed task, a tournament is a ladder you climb with your own soldiers.
+与战团最重要的差别是刻意保留的：**金币只能靠答对题目获得**，所以上面每个新系统都设计成「学习能喂饱它」——考试就是经验，任务有倒计时，比武靠自己的兵打上去。
+
+---
+
+## 17. 学习主线的改进 · Improving the exam spine
+
+> **已完成 · Done.** 这一节的四层改进已在 **v0.0.2** 落地：结算层、道具掉落、里程碑、掌握度地图、两种复习卷、经验与四个属性都已进游戏。下面保留「之前断在哪里」与「做了什么」的对照。
+> The four layers below shipped in **v0.0.2**: the settlement, the gear a paper drops, the milestones, the mastery map, the two revision papers and the experience with its four attributes are all in the game. The table of what used to break is kept for reference.
+
+本作的核心是**做题换道具和资金**，所以这条链的每一环都要经得起推敲：入口 → 出卷 → 记忆曲线 → 奖励 → 花钱 → 变强。
+The core of this game is **answering questions for gear and money**, so every link of that chain has to hold up: entry → paper → memory curve → reward → spending → getting stronger.
+
+### 17.1 这条链原本断在哪里 · Where the chain used to break
+
+| 环节 Link | 原本 Today | 断点 The break | 现在 Now |
+| --- | --- | --- | --- |
+| 入口 | 只有城镇能考试 | 村庄与野外都没有，孩子得先走到城镇 | 未变 Still the same |
+| 奖励 | 每答对一题同一个价（20 / 26 金币 + 科目加成） | 做得多、做得快没有区别 | ✅ 结算层：连击 ×1.0–×1.5、全对 ×1.5、长卷 ×1.1、及格 +20% |
+| 答错 | — | — | ✅ **不扣钱**：只是这一题没有金币、连击归零 |
+| 道具 | 军粮与战马只能**用金币买** | 「做题得道具」这一半是空的 | ✅ 答对掉军粮，整科全对掉集市券 / 征兵令，全对掉战马 |
+| 长期目标 | 只有金币一个数字 | 没有可见的进度 | ✅ 里程碑：军旗 / 徽章 / 药箱 / 驿马 |
+| 可见性 | 只有「已记录 N 题 / 掌握 M 题」 | 哪一科弱看不出来 | ✅ 掌握度地图（科目 × 年级）+ 角色详情里的进度条 |
+| 通过与否 | 只改标题「🏅 通过 / 📄 结束」 | 及格没有任何后果 | ✅ 及格给经验，经验换属性点 |
+| 错题 | 沉在记忆曲线里 | 错题不能重考 | ✅ 只考错题 / 复习队列两种复习卷 |
+| 学习 → 战斗 | 只有金币这条单线 | 学得越多，打仗并不更强 | ✅ 统御 / 医术 / 工程 / 谋略四个属性 |
+
+The reward is flat, the gear can only be bought, the progress is invisible, the pass line means nothing and nothing that the child learns makes the army stronger — all five are fixed now.
+奖励是平的、道具只能买、进度看不见、及格没有后果、学到的东西不会让军队更强 —— 这五件事现在都改掉了。
+
+### 17.2 四层改进 · The four layers
+
+| 层 Layer | 内容 Content | 关键改动 Key change |
+| --- | --- | --- |
+| **A 让一次考试更有戏** | 连击倍率 ×1.0 → ×1.5、全对 ×1.5、12 题长卷 ×1.1、及格 +20%；**答错不扣钱** | 新增 `src/game/quiz/reward.js`（结算层，`rewardFor()` 保持不变） |
+| **B 让题目变成道具** | 答对掉军粮；某一科全对掉集市券 / 征兵令；整卷满分掉战马；累计答对 300 / 500 / 800 / 1200 解锁军旗 / 徽章 / 药箱 / 驿马 | 新增 `src/game/milestones.js`，`supplies` 增加券与征兵令 |
+| **C 让学习看得见** | 掌握度地图（科目 × 年级）、连击、「今天该复习的 N 题」队列、错题本与「只考错题」 | 新增 `src/game/quiz/mastery.js`，由 `questionStats` 派生，**不改存档结构** |
+| **D 让学习改变战斗** | **考试 = 经验**：及格卷每答对一题 +1 经验，50 经验换 1 点属性；统御加队伍上限、医术加快恢复、工程缩短围城、谋略给情报与攻击 | 新增 `src/game/skills.js`，接进 `battle.js` 与 `settlement.js` |
+
+还有一条把两条主线缝起来的：**战后复盘卷** —— 打输了给一次针对这次敌人的补考，答对就恢复士气或补回几个兵。
+（还没做。）And one that stitches the two spines together: a **post-battle revision paper** — after a loss the game offers a paper drawn against the enemy you just faced. *(Not built yet.)*
+
+批次 21 又加了两件事：**题库检索**（首页入口，搜索 / 过滤 / 看答案）与**更多答题形式**（填空、配对、排序）。
+Batch 21 added two more things: the **question bank** (a home entry with the search, the filters and the answers) and **more shapes of a question** (filled in, matching, ordering).
+
+### 17.3 剩下什么 · What is left
+
+| 项目 Item | 状态 Status |
+| --- | --- |
+| 数字填空题型（算式、拼写已上线） | ✅ 部分 Done（批次 21） |
+| 题目难度与知识点标签（自适应出题的前提） | ⏳ 未做 Not yet |
+| 每日目标与连击统计（跨天） | ⏳ 未做 Not yet |
+| 老师工具：布置作业 + 学习报告导出 | ⏳ 未做 Not yet |
+| 战后复盘卷 | ⏳ 未做 Not yet |
+
+完整的缺口清单、数值表、数据形状与「不建议做的部分」写在 `progress.md` 第 7 节。
+The full gap list, the number tables, the data shapes and the "what not to do" list live in section 7 of `progress.md`.

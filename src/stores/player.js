@@ -18,7 +18,10 @@ import {
   warbandHealth
 } from '@/game/units'
 import { MEMORY, applyForgetting, levelFor, updateProgress, weightFor } from '@/game/quiz/scheduler'
-import { DEFAULT_DIFFICULTY, difficultyKey, difficultyOf } from '@/game/difficulty'
+import { masteryBySubject } from '@/game/quiz/mastery'
+import { ATTRIBUTES, emptyAttributes, pointsFor, skillEffects } from '@/game/skills'
+import { milestoneEffects, nextMilestone, unlockedMilestones } from '@/game/milestones'
+import { DEFAULT_DIFFICULTY, difficultyKey, difficultyOf, startOf } from '@/game/difficulty'
 
 /** The warband every new lord starts with. */
 function startingTroops() {
@@ -26,19 +29,27 @@ function startingTroops() {
   return [{ type: 'militia', tier: 1, count: 8, hp: new Array(8).fill(hp) }]
 }
 
+/** The supplies every new lord starts with: food and a bag of gear. */
+function startingSupplies(food = 5) {
+  return { food, horse: 0, ticket: 0, order: 0 }
+}
+
 export const usePlayerStore = defineStore('player', {
   state: () => ({
     username: '',
-    gold: 120,
+    gold: startOf(DEFAULT_DIFFICULTY).gold,
     troops: startingTroops(),
     // simple supply counters used by the market screens
-    supplies: { food: 5, horse: 0 },
+    supplies: startingSupplies(startOf(DEFAULT_DIFFICULTY).food),
     stats: { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 },
     // Memory curve bookkeeping: question key → { level, right, wrong, lastSeen }.
     questionStats: {},
     gradePref: 3,
-    // Difficulty of the campaign: it only changes how much gold a correct
-    // exam answer pays.
+    // Experience earned by answering questions, and the attributes it buys.
+    experience: 0,
+    attributes: emptyAttributes(),
+    // Difficulty of the campaign: it changes the exam pay, what the army costs
+    // and how strong the factions grow, but never the questions.
     difficulty: DEFAULT_DIFFICULTY
   }),
 
@@ -65,6 +76,33 @@ export const usePlayerStore = defineStore('player', {
       }
     },
     /**
+     * The mastery map: what the player knows, per subject. It is derived from
+     * the memory curve, so it costs nothing to store.
+     */
+    mastery: (s) => masteryBySubject(s.questionStats),
+    /**
+     * What the attributes bought: a bigger warband, faster healing, a shorter
+     * siege, cheaper facilities and a stronger army.
+     */
+    skillEffects: (s) => skillEffects(s.attributes),
+    /** The biggest warband the lord may field. */
+    partyCap: (s) => skillEffects(s.attributes).partyCap,
+    /** The attribute points the experience has bought but that are not spent. */
+    availableSkillPoints: (s) => {
+      const spent = ATTRIBUTES.reduce((n, a) => n + (Number(s.attributes[a.key]) || 0), 0)
+      return Math.max(0, pointsFor(s.experience) - spent)
+    },
+    /** The milestones the lifetime correct answers have unlocked. */
+    milestones: (s) => unlockedMilestones(s.stats.correct),
+    /** The next milestone and how far the count has come. */
+    nextMilestone: (s) => {
+      const milestone = nextMilestone(s.stats.correct)
+      if (!milestone) return null
+      return { ...milestone, count: s.stats.correct, percent: Math.round((s.stats.correct / milestone.at) * 100) }
+    },
+    /** Everything the unlocked milestones do. */
+    milestoneEffects: (s) => milestoneEffects(s.stats.correct),
+    /**
      * Roster rows for the panels: full rank-scaled stats per group, sorted by
      * family order then rank so the list does not jump around while upgrading.
      */
@@ -87,15 +125,18 @@ export const usePlayerStore = defineStore('player', {
   },
 
   actions: {
-    reset(username) {
+    reset(username, difficulty = DEFAULT_DIFFICULTY) {
       this.username = username
-      this.gold = 120
+      this.difficulty = difficultyKey(difficulty)
+      const start = startOf(this.difficulty)
+      this.gold = start.gold
       this.troops = startingTroops()
-      this.supplies = { food: 5, horse: 0 }
+      this.supplies = startingSupplies(start.food)
       this.stats = { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 }
       this.questionStats = {}
       this.gradePref = 3
-      this.difficulty = DEFAULT_DIFFICULTY
+      this.experience = 0
+      this.attributes = emptyAttributes()
     },
 
     // Hydrate from a stored save payload, migrating pre-standard rosters.
@@ -104,12 +145,22 @@ export const usePlayerStore = defineStore('player', {
       this.gold = data.gold ?? 120
       // An empty array is a real state (the warband was wiped) and is kept.
       this.troops = Array.isArray(data.troops) ? normalizeTroops(data.troops) : startingTroops()
-      this.supplies = data.supplies ?? { food: 5, horse: 0 }
+      const supplies = data.supplies || {}
+      this.supplies = {
+        ...startingSupplies(),
+        ...supplies,
+        // The two new kinds of gear did not exist in an old save.
+        ticket: Number(supplies.ticket) || 0,
+        order: Number(supplies.order) || 0
+      }
       this.stats = data.stats ?? { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 }
       // Older saves have no memory records yet, which is a valid empty state.
       this.questionStats = data.questionStats && typeof data.questionStats === 'object' ? data.questionStats : {}
       // A save without a difficulty is an easy game: the original numbers.
       this.difficulty = difficultyKey(data.difficulty || DEFAULT_DIFFICULTY)
+      // Experience and the attributes are new: an old save starts at zero.
+      this.experience = Number(data.experience) || 0
+      this.attributes = { ...emptyAttributes(), ...(data.attributes || {}) }
     },
 
     /** Change the difficulty of the campaign. */
@@ -206,9 +257,47 @@ export const usePlayerStore = defineStore('player', {
     },
 
     // Fold one answered question into the memory curve.
-    recordAnswer(itemKey, correct, now = Date.now()) {
+    recordAnswer(itemKey, correct, now = Date.now(), grade = 0) {
       if (!itemKey) return
-      this.questionStats[itemKey] = updateProgress(this.questionStats[itemKey], correct, now)
+      this.questionStats[itemKey] = updateProgress(this.questionStats[itemKey], correct, now, grade)
+    },
+
+    /**
+     * The experience of a finished paper.
+     *
+     * Every correct answer is one experience point, but only a paper that
+     * reached the pass line counts: a paper that was finished badly teaches
+     * less than one that was done properly.
+     */
+    awardPaper({ correct = 0, passed = false } = {}) {
+      if (!passed || correct <= 0) return { experience: 0, points: 0 }
+      this.experience += correct
+      return { experience: correct, points: pointsFor(this.experience) }
+    },
+
+    /**
+     * Spend one attribute point. Returns false when there is none left or the
+     * attribute is unknown.
+     */
+    allocateSkill(key) {
+      if (this.availableSkillPoints <= 0) return false
+      if (!ATTRIBUTES.some((a) => a.key === key)) return false
+      this.attributes[key] = (Number(this.attributes[key]) || 0) + 1
+      return true
+    },
+
+    /** Add a kind of supply, used by the paper settlement and the market. */
+    addSupply(key, count = 1) {
+      if (!key || !count) return
+      this.supplies[key] = Math.max(0, (Number(this.supplies[key]) || 0) + count)
+    },
+
+    /** Spend one unit of a supply. Returns false when there is none. */
+    useSupply(key, count = 1) {
+      const have = Number(this.supplies[key]) || 0
+      if (have < count) return false
+      this.supplies[key] = have - count
+      return true
     },
 
     // Run the forgetting pass before a paper is drawn, so questions left alone

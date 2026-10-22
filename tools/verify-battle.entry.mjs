@@ -22,8 +22,31 @@ import {
   speedOf
 } from '@/game/battle'
 import { ARENA_TERRAIN, ARENA_TERRAIN_KEYS, arenaCellTerrain, arenaTerrainAt, arenaWalkable, generateArenaTerrain } from '@/game/arena'
+import {
+  DEATH_TIME,
+  SWING_TIME,
+  breathOf,
+  deathPose,
+  dustOf,
+  hopOf,
+  hurtShake,
+  swingLunge,
+  walkTilt,
+  woundedTilt
+} from '@/game/battleAnim'
 import { rewardFor } from '@/game/quiz'
-import { DEFAULT_DIFFICULTY, difficultyKey, difficultyOf } from '@/game/difficulty'
+import {
+  DEFAULT_DIFFICULTY,
+  difficultyKey,
+  difficultyOf,
+  enemyCapMulOf,
+  enemySizeMulOf,
+  foodPerBattleOf,
+  paperCapOf,
+  recruitMulOf,
+  startOf,
+  threatOf
+} from '@/game/difficulty'
 import { KINGDOMS, PLAYER, SIEGE_PREPARE_DAYS } from '@/game/settlement'
 
 const check = (name, condition, detail = '') => globalThis.__reporter.check(name, condition, detail)
@@ -44,14 +67,33 @@ check('an unknown difficulty falls back to the easy one', difficultyKey('nonsens
 const g3 = { grade: 3, type: 'math' }
 const g4 = { grade: 4, type: 'math' }
 const logic = { grade: 3, type: 'logic' }
-check('grade 3 pays 20 gold on easy', rewardFor(g3, 'easy') === 20, String(rewardFor(g3, 'easy')))
+// The easy level is the practice level: every correct answer pays five gold.
+check('the easy level pays five gold', rewardFor(g3, 'easy') === 5, String(rewardFor(g3, 'easy')))
+check('the easy level pays five gold for grade 4 too', rewardFor(g4, 'easy') === 5)
+check('the easy level pays five gold for every subject', rewardFor(logic, 'easy') === 5)
 check('grade 3 pays 19 gold on normal', rewardFor(g3, 'normal') === 19, String(rewardFor(g3, 'normal')))
-check('grade 3 pays 18 gold on hard', rewardFor(g3, 'hard') === 18, String(rewardFor(g3, 'hard')))
-check('grade 4 pays 26 gold on easy', rewardFor(g4, 'easy') === 26)
+check('grade 3 pays 14 gold on hard', rewardFor(g3, 'hard') === 14, String(rewardFor(g3, 'hard')))
 check('grade 4 pays 25 gold on normal', rewardFor(g4, 'normal') === 25)
-check('grade 4 pays 24 gold on hard', rewardFor(g4, 'hard') === 24)
-check('the subject bonus is kept', rewardFor(logic, 'easy') === 26 && rewardFor(logic, 'hard') === 24)
+check('grade 4 pays 19 gold on hard', rewardFor(g4, 'hard') === 19)
+check('the subject bonus is kept', rewardFor(logic, 'normal') === 25 && rewardFor(logic, 'hard') === 19)
 check('a reward is never below one gold', rewardFor({ grade: 4, type: 'logic' }, 'hard') >= 1)
+
+// The difficulty also touches the start, the costs and the enemy.
+check('the practice level starts rich', startOf('easy').gold === 150 && startOf('easy').food === 8)
+check('the normal level keeps the old start', startOf('normal').gold === 120 && startOf('normal').food === 5)
+check('the hard level starts poor', startOf('hard').gold === 90 && startOf('hard').food === 3)
+check('the hard level eats more food', foodPerBattleOf('easy') === 2 && foodPerBattleOf('normal') === 3 && foodPerBattleOf('hard') === 4)
+check('the hard level charges more for recruits', recruitMulOf('easy') === 0.9 && recruitMulOf('normal') === 1 && recruitMulOf('hard') === 1.15)
+check('the practice paper is capped', paperCapOf('easy') === 2 && paperCapOf('normal') === 0 && paperCapOf('hard') === 0)
+
+// The campaign threat follows the wins and the towns, and never falls.
+check('a fresh campaign has no threat', threatOf({ wins: 0, towns: 0 }, 'normal') === 1)
+check('wins raise the threat', threatOf({ wins: 10, towns: 0 }, 'normal') > 1)
+check('towns raise the threat too', threatOf({ wins: 0, towns: 5 }, 'normal') > 1)
+check('the threat is capped', threatOf({ wins: 999, towns: 99 }, 'hard') === 2)
+check('the practice level escalates the least', threatOf({ wins: 999, towns: 99 }, 'easy') === 1.2)
+check('a bigger threat fields bigger parties', enemySizeMulOf(1.5, 'normal') > enemySizeMulOf(1, 'normal'))
+check('a hard threat raises the enemy ceiling', enemyCapMulOf(1.5, 'hard') > enemyCapMulOf(1, 'hard'))
 
 // The setting belongs to the lord and survives a reload.
 player.setDifficulty('hard')
@@ -351,6 +393,55 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   check('the scattered squad attacks the enemy', b.kills > 0, `${b.kills} kills`)
   check('the scattered fight ends', !!b.outcome, String(b.outcome))
   check('the scattered fight does not stall', t < 60, `${t.toFixed(1)}s`)
+}
+
+/* --------------------------- 4c. battle animation --------------------------- */
+
+// Animation is render-only, but its maths is still checked: a walking soldier
+// hops, a standing one breathes, a hit shakes, a swing leans and a body falls
+// and fades.
+check('a standing soldier does not hop', hopOf(0, Math.PI / 2) === 0)
+check('a walking soldier leaves the ground', hopOf(80, Math.PI / 2) > 0, String(hopOf(80, Math.PI / 2)))
+check('a standing soldier breathes', Math.abs(breathOf(0, 1)) > 0)
+check('a walking soldier does not breathe', breathOf(100, 1) === 0)
+check('a walking soldier leans a little', Math.abs(walkTilt(80, 1)) > 0)
+check('a soldier at full health stands straight', woundedTilt(1, 1, 0) === 0)
+check('a badly wounded soldier lists', Math.abs(woundedTilt(0.05, 1, 0)) > 0)
+check('a fresh hit shakes the soldier', hurtShake(0.18, 0.02, 0) > 0, String(hurtShake(0.18, 0.02, 0)))
+check('a faded hit does not shake', hurtShake(0, 1, 0) === 0)
+check('a swing starts and ends at rest', swingLunge(0) === 0 && swingLunge(SWING_TIME) === 0)
+check('the middle of a swing leans the hardest', swingLunge(SWING_TIME / 2) > 3, String(swingLunge(SWING_TIME / 2)))
+check('a standing soldier kicks no dust', dustOf(0, Math.PI / 4) === 0)
+check('a walking soldier kicks dust', dustOf(100, Math.PI / 4) > 0)
+{
+  const start = deathPose(0)
+  const middle = deathPose(DEATH_TIME / 2)
+  const end = deathPose(DEATH_TIME)
+  check('a fresh body stands upright', start.progress === 0 && start.rotation === 0 && start.alpha === 1)
+  check('a falling body tips over', middle.rotation > start.rotation && middle.drop > start.drop)
+  check('a falling body fades', end.alpha < start.alpha, `${start.alpha} -> ${end.alpha}`)
+  check('the body is gone at the end', end.progress === 1)
+}
+{
+  const b = createBattle({
+    playerTroops: [{ type: 'militia', tier: 1, count: 2, hp: [] }],
+    enemyTroops: [{ type: 'militia', tier: 1, count: 2, hp: [] }],
+    enemyFaction: 'bandit',
+    seed: 404
+  })
+  check('soldiers carry a swing timer', b.units.every((u) => u.swing === 0))
+  check('the commander carries the visual fields', b.commander.hitFlash === 0 && b.commander.swing === 0)
+
+  // The swing timer really fires when a blow lands.
+  let sawSwing = false
+  let sawFlash = false
+  for (let i = 0; i < 60 * 12 && !b.outcome; i += 1) {
+    stepBattle(b, 1 / 60)
+    if (b.units.some((u) => u.swing > 0)) sawSwing = true
+    if (b.units.some((u) => u.hitFlash > 0)) sawFlash = true
+  }
+  check('a strike sets the swing timer', sawSwing)
+  check('a wound sets the hit flash', sawFlash)
 }
 
 /* --------------------------------- 5. siege --------------------------------- */

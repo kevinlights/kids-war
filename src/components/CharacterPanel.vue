@@ -9,6 +9,9 @@ import { useWorldStore } from '@/stores/world'
 import { unitOf, unitSprite } from '@/game/units'
 import { terrainFromId } from '@/game/terrain'
 import { spriteUrl } from '@/game/pixelAssets'
+import { ATTRIBUTES, EXP_PER_POINT, pointsFor } from '@/game/skills'
+import { typeDef } from '@/game/quiz'
+import { persistGame } from '@/composables/gameState'
 
 defineEmits(['close'])
 
@@ -32,6 +35,39 @@ const winRate = computed(() =>
 const standingOn = computed(() =>
   terrainFromId(world.tile(Math.round(world.playerPos.x), Math.round(world.playerPos.y)))
 )
+
+/** The experience bar: how far the next attribute point is. */
+const expProgress = computed(() => {
+  const into = player.experience % EXP_PER_POINT
+  return {
+    into,
+    need: EXP_PER_POINT,
+    percent: Math.round((into / EXP_PER_POINT) * 100),
+    total: pointsFor(player.experience)
+  }
+})
+
+/** One row per subject with its mastery bar. */
+const masteryRows = computed(() =>
+  Object.values(player.mastery || {})
+    .map((row) => {
+      const def = typeDef(row.type)
+      return {
+        type: row.type,
+        name: def?.name || row.type,
+        icon: def?.icon || '❓',
+        percent: row.percent,
+        tracked: row.tracked,
+        mastered: row.mastered
+      }
+    })
+    .sort((a, b) => a.percent - b.percent)
+)
+
+/** Spend one point of an attribute. */
+function raise(key) {
+  if (player.allocateSkill(key)) persistGame()
+}
 </script>
 
 <template>
@@ -132,6 +168,59 @@ const standingOn = computed(() =>
             <div class="stat-v">{{ player.stats.correct }}</div>
             <div class="stat-k">累计答对</div>
           </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="sec-title">
+          📚 学习与成长
+          <span class="muted small">经验 {{ player.experience }}</span>
+        </div>
+
+        <div class="exp-row">
+          <div class="exp-bar"><div class="exp-fill" :style="{ width: expProgress.percent + '%' }"></div></div>
+          <span class="muted small">
+            距下一个属性点 {{ expProgress.need - expProgress.into }} 经验 · 已得 {{ expProgress.total }} 点
+          </span>
+        </div>
+
+        <div class="attrs">
+          <div v-for="a in ATTRIBUTES" :key="a.key" class="attr-row">
+            <span class="attr-name">{{ a.icon }} {{ a.name }}</span>
+            <span class="attr-value">Lv.{{ player.attributes[a.key] || 0 }}</span>
+            <span class="muted small attr-note">{{ a.per }}</span>
+            <button
+              class="btn small attr-plus"
+              :disabled="player.availableSkillPoints <= 0"
+              @click="raise(a.key)"
+            >
+              ＋
+            </button>
+          </div>
+        </div>
+        <p v-if="player.availableSkillPoints > 0" class="note muted">
+          有 {{ player.availableSkillPoints }} 个属性点可以分配：点 ＋ 加到对应属性上。
+        </p>
+
+        <div v-if="masteryRows.length" class="mastery">
+          <div v-for="row in masteryRows" :key="row.type" class="mastery-row">
+            <span class="m-name">{{ row.icon }} {{ row.name }}</span>
+            <div class="m-bar"><div class="m-fill" :style="{ width: row.percent + '%' }"></div></div>
+            <span class="muted small">{{ row.mastered }}/{{ row.tracked }} 掌握</span>
+          </div>
+        </div>
+
+        <div v-if="player.nextMilestone" class="milestone">
+          <div class="m-row">
+            <span>{{ player.nextMilestone.icon }} {{ player.nextMilestone.name }}</span>
+            <span class="muted small">
+              {{ player.nextMilestone.count }} / {{ player.nextMilestone.at }} 题 · {{ player.nextMilestone.effect }}
+            </span>
+          </div>
+          <div class="exp-bar"><div class="exp-fill" :style="{ width: player.nextMilestone.percent + '%' }"></div></div>
+        </div>
+        <div v-if="player.milestones.length" class="drops">
+          <span v-for="m in player.milestones" :key="m.key" class="drop">{{ m.icon }} {{ m.name }}</span>
         </div>
       </section>
 
@@ -368,6 +457,129 @@ const standingOn = computed(() =>
 
 .close-btn {
   width: 100%;
+}
+
+/* The learning section: experience, attributes, mastery and milestones. */
+.exp-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.exp-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.exp-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold));
+}
+
+.attrs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.attr-row {
+  display: grid;
+  grid-template-columns: 78px 44px 1fr 34px;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line);
+}
+
+.attr-name {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.attr-value {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 800;
+}
+
+.attr-note {
+  font-size: 11.5px;
+}
+
+.attr-plus {
+  padding: 4px 0;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.mastery {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mastery-row {
+  display: grid;
+  grid-template-columns: 78px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.m-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.m-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.m-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold));
+}
+
+.milestone {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: rgba(232, 197, 106, 0.12);
+  border: 1px solid var(--gold-deep);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.m-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.drops {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.drop {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(232, 197, 106, 0.16);
+  border: 1px solid var(--gold-deep);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* Phones: keep the three-up treasury row readable and stack the roster meta. */

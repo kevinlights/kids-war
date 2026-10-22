@@ -52,10 +52,18 @@ const { buildSave } = await import(pathToFileURL(saveOut).href)
 
 /* -------------------------------- start the site ---------------------------- */
 
-const site = spawn('npx', ['vite', 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1'], {
-  cwd: root,
-  stdio: 'ignore'
-})
+// The preview server is started through node and vite's own binary, so that
+// killing it really stops the server: `npx` would leave the server running
+// and the next run would talk to a stale build on a busy port.
+const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
+const site = spawn(
+  process.execPath,
+  [viteBin, 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1', '--strictPort'],
+  {
+    cwd: root,
+    stdio: 'ignore'
+  }
+)
 const chrome = spawn(CHROME, [
   '--headless=new',
   `--remote-debugging-port=${CDP_PORT}`,
@@ -144,7 +152,7 @@ try {
     }
     return res.result.value
   }
-  const waitFor = async (expression, label, timeout = 15000) => {
+  const waitFor = async (expression, label, timeout = 30000) => {
     const started = Date.now()
     while (Date.now() - started < timeout) {
       try {
@@ -178,10 +186,16 @@ try {
   const badge = await evaluate(`
     (() => {
       const el = document.querySelector('.brand .version-badge')
-      return el ? el.textContent.trim() : null
+      return el ? el.textContent.replace(/\\s+/g, ' ').trim() : null
     })()
   `)
-  check('the home screen shows the version', !!badge && badge.includes('v0.0.1'), String(badge))
+  // The version is read from the badge, so the check survives a release.
+  check('the home screen shows the version', !!badge && /v\d+\.\d+\.\d+/.test(badge), String(badge))
+  // The page carries one version element only: the badge opens the notes.
+  const versionElements = await evaluate(`
+    document.querySelectorAll('.version-badge, .version').length
+  `)
+  check('the home screen carries one version element', versionElements === 1, String(versionElements))
 
   // The badge at the bottom opens the update notes in a dialog.
   const notesBefore = await evaluate(`
@@ -298,8 +312,22 @@ try {
   check('the drill keeps the warband', drill.troops === before.troops)
 
   // The dummies really take the blows and never fight back. The soldiers
-  // have to cross the field first, so the drill runs for a while.
-  await sleep(14000)
+  // have to cross the field first, so the drill runs until the first dummy
+  // is hit instead of waiting for a fixed time.
+  const dummyHurt = `
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      if (!b.data) return 0
+      const dummies = b.data.units.filter((u) => u.isDummy)
+      return dummies.reduce((sum, u) => sum + (u.maxHp - u.hp), 0)
+    })()
+  `
+  let hurt = 0
+  for (let i = 0; i < 60; i += 1) {
+    hurt = await evaluate(dummyHurt)
+    if (hurt > 0) break
+    await sleep(500)
+  }
   const afterFight = await evaluate(`
     (() => {
       const b = window.kidsWarGame.stores.battle

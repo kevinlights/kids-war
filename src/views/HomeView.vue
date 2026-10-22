@@ -7,7 +7,16 @@
         <div class="crest">⚔️</div>
         <h1>少年战记</h1>
         <p class="sub">KIDS WAR CHRONICLE · 2D 俯视策略游戏</p>
-        <div class="version-badge" :title="`游戏版本 ${versionLabel(VERSION)}`">版本 {{ versionLabel(VERSION) }}</div>
+        <!-- The one version element of the page: it opens the update notes. -->
+        <button
+          class="version-badge"
+          :title="`游戏版本 ${versionLabel(VERSION)}，点击查看更新内容`"
+          @click="showChangelog = true"
+        >
+          <span class="v-mark">版本</span>
+          <span class="v-label">{{ versionLabel(VERSION) }}</span>
+          <span class="v-toggle">更新内容</span>
+        </button>
       </header>
 
       <section class="panel login pop">
@@ -22,7 +31,7 @@
         </label>
 
         <div class="actions">
-          <button class="btn" :disabled="!canStart" @click="startNew">🛡️ 开始新的征程</button>
+          <button class="btn primary" :disabled="!canStart" @click="startNew">🛡️ 开始新的征程</button>
           <button class="btn ghost" :disabled="!canStart || !existingSave" @click="continueExisting">
             📜 继续上次进度
           </button>
@@ -30,11 +39,11 @@
           <button class="btn ghost" @click="router.push('/quick')">⚡ 快速战斗</button>
         </div>
 
-        <!-- Difficulty: it decides how much gold a correct exam answer pays. -->
+        <!-- Difficulty: it decides the pay, the cost of the army and the enemy. -->
         <div class="difficulty">
           <div class="field-label">
             <span>难度</span>
-            <span class="muted diff-note">{{ difficultyNote }}</span>
+            <span class="muted">题目三档完全一样</span>
           </div>
           <div class="diff-row">
             <button
@@ -48,14 +57,15 @@
               <span class="diff-name">{{ d.name }}</span>
             </button>
           </div>
+          <p class="diff-note muted">{{ difficultyNote }}</p>
         </div>
 
         <p v-if="canStart && !existingSave" class="hint muted">这个名字是新的，将从零开始建立你的队伍。</p>
         <p v-else-if="canStart && existingSave" class="hint muted">检测到已有的存档，可以继续，也可以重新开始覆盖它。</p>
 
         <div class="footer-links">
+          <button class="link" @click="router.push('/bank')">🔎 题库检索</button>
           <button class="link" @click="router.push('/guide')">📖 查看游戏介绍与玩法</button>
-          <button class="link" @click="showChangelog = true">📋 更新内容</button>
           <button class="link" @click="openShare">📤 分享给好友</button>
         </div>
       </section>
@@ -73,15 +83,6 @@
         <div class="tip-card">💰 考试答题赚金币</div>
         <div class="tip-card">⚔️ 排兵布阵击败强盗</div>
       </div>
-
-      <!-- Version badge: tapping it opens the update notes in a dialog. -->
-      <section class="version">
-        <button class="version-badge" @click="showChangelog = true">
-          <span class="v-mark">版本</span>
-          <span class="v-label">{{ versionLabel(VERSION) }}</span>
-          <span class="v-toggle">更新内容 ▼</span>
-        </button>
-      </section>
     </div>
 
     <!-- The update notes, in a dialog of their own. -->
@@ -185,31 +186,34 @@ function continueExisting() {
 </script>
 
 <style scoped>
+/* The home page is the calmest screen of the game: one soft background, one
+   gold accent and a lot of air, so the buttons are easy to find on a phone
+   held in portrait. */
 .home {
   position: relative;
   height: 100%;
   background:
-    radial-gradient(1000px 500px at 50% -5%, rgba(232, 197, 106, 0.14), transparent 62%),
-    linear-gradient(180deg, #1a2418, #0c110c);
+    radial-gradient(720px 360px at 50% -8%, rgba(96, 142, 122, 0.16), transparent 66%),
+    linear-gradient(180deg, #131b17 0%, #0c120e 58%, #090d0a 100%);
 }
 
 .sky {
   position: absolute;
   inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 26px 26px;
-  opacity: 0.5;
+  background-image: radial-gradient(rgba(214, 232, 220, 0.07) 1px, transparent 1px);
+  background-size: 30px 30px;
+  opacity: 0.45;
   pointer-events: none;
 }
 
 .content {
   position: relative;
-  max-width: 560px;
+  max-width: 540px;
   margin: 0 auto;
-  padding: 48px 20px 60px;
+  padding: 44px 18px 56px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
 }
 
 .brand {
@@ -217,30 +221,68 @@ function continueExisting() {
 }
 
 .crest {
-  font-size: 56px;
-  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.6));
+  font-size: 46px;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
 }
 
 h1 {
-  margin: 6px 0 4px;
-  font-size: 42px;
-  letter-spacing: 10px;
+  margin: 4px 0 4px;
+  font-size: 38px;
+  letter-spacing: 8px;
   color: var(--gold);
-  text-shadow: 0 4px 0 #6d5119, 0 10px 24px rgba(0, 0, 0, 0.6);
+  text-shadow: 0 2px 0 #6d5119, 0 8px 20px rgba(0, 0, 0, 0.5);
 }
 
 .sub {
   margin: 0;
-  font-size: 12.5px;
-  letter-spacing: 3px;
+  font-size: 12px;
+  letter-spacing: 2.5px;
   color: var(--ink-dim);
+  opacity: 0.8;
+}
+
+/* The version badge: the only version element of the page, and the way into
+   the update notes. */
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(232, 197, 106, 0.22);
+  font-size: 12px;
+  color: var(--ink-dim);
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.version-badge:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+.v-mark {
+  opacity: 0.75;
+}
+
+.v-label {
+  font-weight: 800;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+.v-toggle {
+  opacity: 0.7;
 }
 
 .login {
-  padding: 22px;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 14px;
+  background: rgba(19, 27, 23, 0.9);
+  border-color: rgba(232, 197, 106, 0.18);
 }
 
 .field {
@@ -255,7 +297,7 @@ h1 {
   padding: 12px 14px;
   border-radius: 10px;
   border: 1px solid var(--line);
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.35);
   color: var(--ink);
   font-size: 16px;
   outline: none;
@@ -266,15 +308,23 @@ h1 {
   box-shadow: 0 0 0 3px rgba(232, 197, 106, 0.16);
 }
 
+/* The three game buttons: the main one spans the whole row, the other two
+   share it. On a wide screen all three sit side by side. */
 .actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
-  flex-wrap: wrap;
 }
 
 .actions .btn {
-  flex: 1;
-  min-width: 160px;
+  min-width: 0;
+  white-space: nowrap;
+  padding: 12px 10px;
+  font-size: 14.5px;
+}
+
+.actions .btn.primary {
+  grid-column: 1 / -1;
 }
 
 /* Difficulty picker: three big buttons, one per level. */
@@ -282,6 +332,8 @@ h1 {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-top: 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .field-label {
@@ -293,10 +345,16 @@ h1 {
   font-weight: 700;
 }
 
-.diff-note {
+/* The note of the chosen level sits under its buttons. */
+.field-label > span:last-child {
   font-size: 12px;
   font-weight: 400;
-  text-align: right;
+}
+
+.diff-note {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .diff-row {
@@ -313,13 +371,13 @@ h1 {
   min-height: 52px;
   padding: 8px 4px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid var(--line);
   transition: all 0.15s;
 }
 
 .diff-btn.on {
-  background: rgba(232, 197, 106, 0.2);
+  background: rgba(232, 197, 106, 0.18);
   border-color: var(--gold);
   color: var(--gold);
 }
@@ -379,53 +437,17 @@ h1 {
 .tips {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  margin-top: 6px;
+  gap: 8px;
 }
 
 .tip-card {
-  padding: 12px;
+  padding: 10px 8px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
-  font-size: 13.5px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 13px;
+  color: var(--ink-dim);
   text-align: center;
-}
-
-/* Version badge and the update notes it opens. */
-.version {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.version-badge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--line);
-  font-size: 12.5px;
-  color: var(--ink-dim);
-}
-
-.v-mark {
-  color: var(--ink-dim);
-}
-
-.v-label {
-  font-weight: 800;
-  color: var(--gold);
-  letter-spacing: 1px;
-}
-
-.v-toggle {
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
 /* The update notes: a dialog of their own. */
@@ -588,38 +610,60 @@ h1 {
   background: rgba(0, 0, 0, 0.3);
 }
 
-/* Phones: tighter padding and a smaller title so the login card stays above
-   the fold on a phone that is mainly played in portrait. */
+/* Phones: tighter padding, a smaller title and one button per row where it
+   matters, so the whole page reads from top to bottom with one thumb. */
 @media (max-width: 560px) {
   .content {
-    padding: 30px 16px 40px;
-    gap: 14px;
+    padding: 26px 14px 36px;
+    gap: 12px;
   }
 
   .crest {
-    font-size: 46px;
+    font-size: 40px;
   }
 
   h1 {
-    font-size: 34px;
-    letter-spacing: 6px;
+    font-size: 32px;
+    letter-spacing: 5px;
   }
 
   .sub {
-    font-size: 11px;
-    letter-spacing: 2px;
+    font-size: 10.5px;
+    letter-spacing: 1.5px;
   }
 
   .login {
-    padding: 18px 16px;
+    padding: 16px 14px;
+    gap: 12px;
   }
 
   .actions .btn {
-    min-width: 0;
+    padding: 12px 8px;
+    font-size: 14px;
+  }
+
+  .tips {
+    gap: 6px;
+  }
+
+  .tip-card {
+    padding: 9px 6px;
+    font-size: 12px;
   }
 
   .intro-actions .btn {
     flex: 1;
+  }
+}
+
+/* Wide screens: the three game buttons sit on one row. */
+@media (min-width: 561px) {
+  .actions {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .actions .btn.primary {
+    grid-column: auto;
   }
 }
 </style>

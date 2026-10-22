@@ -16,6 +16,8 @@
 
     <div v-if="hungry" class="warn">🌾 军粮不足，部队士气低落（攻击下降）</div>
 
+    <div v-if="intel" class="intel">🧠 敌方构成：{{ intel }}</div>
+
     <!-- Battle tools: speed, terrain legend and the camera. -->
     <div class="hud-tools">
       <button class="tool" :class="{ on: showTools }" @click="showTools = !showTools">
@@ -140,6 +142,7 @@
         </div>
         <div v-else-if="result.outcome === 'win'" class="loot">
           <div class="loot-item">🪙 战利品 <b>+{{ result.loot }}</b></div>
+          <div v-if="result.badgeGold" class="loot-item">🏅 徽章 <b>+{{ result.badgeGold }}</b></div>
           <div v-if="result.recruits" class="loot-item">🎖️ 收编俘虏 <b>+{{ result.recruits }} 民兵</b></div>
           <div v-if="result.captured" class="loot-item">🏛️ 占领城镇 <b>这座城镇归你了</b></div>
         </div>
@@ -175,16 +178,18 @@ import { useRouter } from 'vue-router'
 import BattleMap from '@/components/BattleMap.vue'
 import { useBattleStore } from '@/stores/battle'
 import { useWorldStore } from '@/stores/world'
+import { usePlayerStore } from '@/stores/player'
 import { ORDERS, FORMATIONS, DENSITIES, SPEEDS, orderOf, formationOf, densityOf } from '@/game/battle'
 import { ARENA_TERRAIN_LIST } from '@/game/arena'
 import { factionOf } from '@/game/factions'
-import { unitSprite } from '@/game/units'
+import { unitSprite, unitName } from '@/game/units'
 import { spriteUrl } from '@/game/pixelAssets'
 import { persistGame } from '@/composables/gameState'
 
 const router = useRouter()
 const battle = useBattleStore()
 const world = useWorldStore()
+const player = usePlayerStore()
 
 const result = ref(null)
 const showSheet = ref(false)
@@ -222,6 +227,22 @@ const enemyColor = computed(() => {
 
 const playerAlive = computed(() => (battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'player').length : 0))
 const enemyAlive = computed(() => (battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'enemy').length : 0))
+
+/**
+ * The tactics attribute scouts the enemy before the fight: the composition of
+ * the other side is written down, so the lord knows what is coming.
+ */
+const intel = computed(() => {
+  if (!player.skillEffects.intel || !battle.data) return ''
+  const counts = new Map()
+  for (const u of battle.data.units) {
+    if (u.side !== 'enemy' || u.isDummy) continue
+    const name = unitName(u.type, u.tier)
+    counts.set(name, (counts.get(name) || 0) + 1)
+  }
+  if (!counts.size) return ''
+  return [...counts.entries()].map(([name, n]) => `${name} ×${n}`).join(' · ')
+})
 
 /** Name of whatever the commands apply to right now. */
 const scopeName = computed(() => (battle.selectedGroup ? battle.selected?.name || '该部队' : '全军'))
@@ -349,6 +370,21 @@ watch(
   background: rgba(120, 60, 30, 0.85);
   border: 1px solid rgba(216, 83, 63, 0.7);
   font-size: 13px;
+  z-index: 5;
+}
+
+/* The scouting line of the tactics attribute. */
+.intel {
+  position: absolute;
+  top: calc(96px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(20, 30, 48, 0.85);
+  border: 1px solid rgba(111, 136, 192, 0.7);
+  color: #dfe7ff;
+  font-size: 12.5px;
   z-index: 5;
 }
 

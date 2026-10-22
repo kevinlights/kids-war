@@ -8,7 +8,7 @@
         <span v-if="settlement" class="chip level" title="城镇等级">Lv.{{ level.level }} {{ level.name }}</span>
       </div>
       <div class="head-right">
-        <DayClock note="⏳ 休整中" live />
+        <DayClock note="⏳ 镇内 1 秒 = 1 分钟" live />
         <span v-if="settlement" class="chip owner" :style="{ borderColor: owner.color, color: owner.color }">
           {{ owner.name }}
         </span>

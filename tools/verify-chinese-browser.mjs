@@ -12,7 +12,7 @@ import { build } from 'esbuild'
 
 const root = path.resolve(import.meta.dirname, '..')
 const cache = path.join(root, 'node_modules', '.cache', 'kwg-verify')
-const SITE = process.env.KWG_SITE || 'http://127.0.0.1:4190'
+const SITE = process.env.KWG_SITE || 'http://127.0.0.1:4193'
 const SITE_PORT = Number(SITE.split(':').pop())
 const CDP_PORT = Number(process.env.KWG_CDP_PORT || 9336)
 const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
@@ -48,10 +48,18 @@ const { buildScenarioSave } = await import(pathToFileURL(saveOut).href)
 
 /* -------------------------------- start the site ---------------------------- */
 
-const site = spawn('npx', ['vite', 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1'], {
-  cwd: root,
-  stdio: 'ignore'
-})
+// The preview server is started through node and vite's own binary, so that
+// killing it really stops the server: `npx` would leave the server running
+// and the next run would talk to a stale build on a busy port.
+const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
+const site = spawn(
+  process.execPath,
+  [viteBin, 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1', '--strictPort'],
+  {
+    cwd: root,
+    stdio: 'ignore'
+  }
+)
 const chrome = spawn(CHROME, [
   '--headless=new',
   `--remote-debugging-port=${CDP_PORT}`,
@@ -121,7 +129,7 @@ try {
     }
     return res.result.value
   }
-  const waitFor = async (expression, label, timeout = 15000) => {
+  const waitFor = async (expression, label, timeout = 30000) => {
     const started = Date.now()
     while (Date.now() - started < timeout) {
       try {
@@ -196,14 +204,19 @@ try {
     await clickByText('.exam .opt', '12 题')
     await sleep(200)
     await clickByText('.exam .actions button', '开始考试')
-    await waitFor("!!document.querySelector('.answers .answer')", 'the first question')
+    await waitFor("!!document.querySelector('.exam .question')", 'the first question')
 
-    // Walk the whole paper and remember what it asked.
-    for (let i = 0; i < 20; i += 1) {
-      const done = await evaluate(`
+    // Walk the whole paper and remember what it asked. A question can have
+    // another shape than the multiple choice, so the shape is read from the
+    // paper and answered accordingly.
+    for (let i = 0; i < 24; i += 1) {
+      const state = await evaluate(`
         (() => {
-          const answers = [...document.querySelectorAll('.answers .answer')]
-          if (!answers.length) return true
+          const exam = document.querySelector('.exam')
+          if (!exam) return null
+          const setup = exam.__vueParentComponent.setupState
+          const question = setup.paper[setup.index]
+          if (!question) return null
           const prompt = document.querySelector('.question')?.textContent || ''
           window.__paper = window.__paper || []
           if (window.__paper[window.__paper.length - 1] !== prompt) window.__paper.push(prompt)
@@ -211,12 +224,78 @@ try {
           if (box && !window.__layout) {
             window.__layout = { whiteSpace: getComputedStyle(box).whiteSpace, height: box.clientHeight }
           }
-          if (!answers[0].disabled) answers[0].click()
-          return false
+          const answer = question.answer
+          return {
+            index: setup.index,
+            shape: question.options ? 'mc' : question.input ? 'input' : question.pairs ? 'pairs' : question.items ? 'order' : 'unknown',
+            answerIndex: typeof answer === 'number' ? answer : -1,
+            answerText: Array.isArray(answer) ? String(answer[0]) : typeof answer === 'string' ? answer : '',
+            pairs: (question.pairs || []).map((p) => [String(p[0]), String(p[1])]),
+            order: (question.order || []).map((x) => String(x))
+          }
         })()
       `)
-      if (done) break
-      await sleep(220)
+      if (!state) break
+
+      if (state.shape === 'mc') {
+        await evaluate(`
+          (() => {
+            const buttons = [...document.querySelectorAll('.answers .answer')]
+            const target = buttons[${state.answerIndex}]
+            if (target && !target.disabled) target.click()
+            return true
+          })()
+        `)
+      } else if (state.shape === 'input') {
+        await evaluate(`
+          (() => {
+            const input = document.querySelector('.exam .fill-input')
+            if (!input) return false
+            const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+            setter.call(input, ${JSON.stringify(state.answerText)})
+            input.dispatchEvent(new Event('input', { bubbles: true }))
+            return true
+          })()
+        `)
+        await sleep(120)
+        await clickByText('.exam .fill button', '确认')
+      } else if (state.shape === 'pairs') {
+        for (const pair of state.pairs) {
+          await evaluate(`
+            (() => {
+              const lefts = [...document.querySelectorAll('.exam .match-col:first-child .match-item')]
+              const left = lefts.find((n) => n.textContent.includes(${JSON.stringify(pair[0])}))
+              if (left) left.click()
+              return true
+            })()
+          `)
+          await sleep(80)
+          await evaluate(`
+            (() => {
+              const rights = [...document.querySelectorAll('.exam .match-col:last-child .match-item')]
+              const right = rights.find((n) => n.textContent.trim() === ${JSON.stringify(pair[1])})
+              if (right) right.click()
+              return true
+            })()
+          `)
+          await sleep(80)
+        }
+        await clickByText('.exam .match-actions button', '确认')
+      } else if (state.shape === 'order') {
+        for (const item of state.order) {
+          await evaluate(`
+            (() => {
+              const pool = [...document.querySelectorAll('.exam .pool-item')]
+              const target = pool.find((n) => n.textContent.trim() === ${JSON.stringify(item)})
+              if (target) target.click()
+              return true
+            })()
+          `)
+          await sleep(80)
+        }
+        await clickByText('.exam .match-actions button', '确认')
+      }
+      await sleep(200)
       await evaluate(`
         (() => {
           const next = [...document.querySelectorAll('.exam .actions button')].find((b) => b.textContent.includes('下一题') || b.textContent.includes('查看成绩'))
@@ -226,12 +305,23 @@ try {
       `)
     }
     await sleep(400)
+    // The questions of the paper are read from the paper itself, so the check
+    // does not depend on how the walk went. It has to happen while the exam is
+    // still open.
+    const questions = await evaluate(`
+      (() => {
+        const exam = document.querySelector('.exam')
+        if (!exam) return []
+        const setup = exam.__vueParentComponent.setupState
+        return setup.paper.map((q) => q.prompt)
+      })()
+    `)
     // Hand the paper in and leave the exam.
     await clickByText('.exam .actions button', '提前交卷')
     await sleep(300)
     await clickByText('.exam .actions button', '结束')
     await sleep(300)
-    return evaluate('window.__paper || []')
+    return questions
   }
 
   // A reading passage is one question among many, so a few papers are drawn

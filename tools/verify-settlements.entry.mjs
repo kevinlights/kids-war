@@ -409,6 +409,24 @@ world3.timeAcc = 0
 for (let i = 0; i < 12; i += 1) world3.tick(1)
 check('half a day is noon', world3.clock.text === '12:00', world3.clock.text)
 
+// Town time is slow on purpose: one real second is one in-game minute, so a
+// day of town business takes 24 real minutes instead of 24 seconds.
+world3.day = 5
+world3.timeAcc = 0
+const restId = world3.settlements[0].id
+world3.restTick(1, restId)
+check('one second in town is one game minute', world3.clock.text === '00:01', world3.clock.text)
+world3.timeAcc = 0
+world3.restTick(60, restId)
+check('one minute in town is one game hour', world3.clock.text === '01:00', world3.clock.text)
+world3.timeAcc = 0
+world3.day = 5
+world3.restTick(1439, restId)
+check('a town day lasts 24 real minutes', world3.day === 5 && world3.clock.text === '23:59', `${world3.day} ${world3.clock.text}`)
+world3.restTick(1, restId)
+check('the town day turns over at 1440 seconds', world3.day === 6 && world3.clock.text === '00:00', `${world3.day} ${world3.clock.text}`)
+check('resting marks the settlement', world3.restingAt === restId)
+
 /* -------------------------------- 10. day and night -------------------------- */
 
 // The night is the last fifth of the day: the sky darkens and the world slows

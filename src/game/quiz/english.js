@@ -1,5 +1,5 @@
 // English question generators: meaning to word, word to meaning and spelling.
-import { choice } from './shared'
+import { choice, inputQuestion } from './shared'
 
 // Curated grade 3 / grade 4 vocabulary bank with Chinese glosses.
 const WORDS = [
@@ -167,11 +167,32 @@ function missingLetters(rng, grade) {
   }
 }
 
+/**
+ * 拼写填空：把整个单词写出来。
+ *
+ * A filled-in answer: the child types the whole word, so the spelling has to
+ * be right and not just picked.
+ */
+function spellingInput(rng, grade) {
+  const list = WORDS.filter((w) => (grade === 4 ? w.g >= 3 : w.g === 3))
+  const target = rng.pick(list.length ? list : WORDS)
+  return {
+    type: 'english',
+    kind: 'spelling-input',
+    grade,
+    ...inputQuestion(`写出「${target.cn}」的英文单词。`, target.w, rng, {
+      input: 'text',
+      explain: `「${target.cn}」的英文是 ${target.w}。`
+    })
+  }
+}
+
 // A small registry keeps index.js simple when picking a generator.
 export const ENGLISH_TYPES = {
   'meaning-word': meaningToWord,
   'word-meaning': wordToMeaning,
-  spelling: missingLetters
+  spelling: missingLetters,
+  'spelling-input': spellingInput
 }
 
 export function generateEnglish(rng, grade, kind) {

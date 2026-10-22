@@ -17,6 +17,7 @@ import {
 import { warbandValue, woundedCount } from '@/game/units'
 import { survivalChance } from '@/game/settlement'
 import { speedOf } from '@/game/battle'
+import { foodPerBattleOf } from '@/game/difficulty'
 import { usePlayerStore } from './player'
 import { useWorldStore } from './world'
 
@@ -82,7 +83,7 @@ export const useBattleStore = defineStore('battle', {
       const player = usePlayerStore()
       const world = useWorldStore()
       // Each battle eats into the food store; fielding troops hungry weakens them.
-      const FOOD_PER_BATTLE = 3
+      const FOOD_PER_BATTLE = foodPerBattleOf(player.difficulty)
       const food = player.supplies.food || 0
       let atkMul = 1
       if (food < FOOD_PER_BATTLE) atkMul *= 0.75
@@ -90,6 +91,10 @@ export const useBattleStore = defineStore('battle', {
       atkMul += Math.min(10, player.supplies.horse || 0) * 0.01
       // The barracks of the lord's towns train the whole army.
       atkMul += world.armyBonus
+      // What the lord learned makes the whole army stronger: the tactics
+      // attribute and the war banner of the milestones.
+      atkMul *= player.skillEffects.armyAtk
+      atkMul *= player.milestoneEffects.armyAtk
       player.supplies.food = Math.max(0, food - FOOD_PER_BATTLE)
 
       this.data = createBattle({
@@ -119,12 +124,16 @@ export const useBattleStore = defineStore('battle', {
     startSettlement(settlement, seed, kind) {
       const player = usePlayerStore()
       const world = useWorldStore()
+      const FOOD_PER_BATTLE = foodPerBattleOf(player.difficulty)
       const food = player.supplies.food || 0
       let atkMul = 1
-      if (food < 3) atkMul *= 0.75
+      if (food < FOOD_PER_BATTLE) atkMul *= 0.75
       atkMul += Math.min(10, player.supplies.horse || 0) * 0.01
       atkMul += world.armyBonus
-      player.supplies.food = Math.max(0, food - 3)
+      // The attributes and the milestones make the whole army stronger.
+      atkMul *= player.skillEffects.armyAtk
+      atkMul *= player.milestoneEffects.armyAtk
+      player.supplies.food = Math.max(0, food - FOOD_PER_BATTLE)
 
       this.data = createBattle({
         playerTroops: player.troops,
@@ -139,7 +148,7 @@ export const useBattleStore = defineStore('battle', {
         faction: settlement.owner,
         kind,
         settlementId: settlement.id,
-        hungry: food < 3
+        hungry: food < FOOD_PER_BATTLE
       }
       this.selectedGroup = null
       this.result = null
@@ -478,6 +487,10 @@ export const useBattleStore = defineStore('battle', {
       const rolled = this.rollSurvivors(survivors, fallen, chance)
       player.troops = rolled.troops
 
+      // The badge of the milestones pays a little gold after every fight.
+      const badgeGold = player.milestoneEffects.battleGold
+      if (badgeGold) player.addGold(badgeGold)
+
       this.result = {
         outcome,
         loot,
@@ -486,6 +499,7 @@ export const useBattleStore = defineStore('battle', {
         wounded: woundedCount(rolled.troops),
         saved: rolled.saved,
         fallen: summary.fallen,
+        badgeGold,
         captured: !!captured?.ok
       }
       this.settled = true

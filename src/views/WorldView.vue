@@ -2,17 +2,32 @@
   <div class="world-view">
     <WorldMap class="map" />
 
-    <!-- Top status bar -->
-    <div class="hud-top">
+    <!-- Top status bar and the message of the moment, stacked so the message
+         never covers the lord in the middle of the map. -->
+    <div class="hud-stack">
+      <div class="hud-top">
       <div class="chip">👑 {{ player.username || '领主' }}</div>
       <div class="chip gold">🪙 {{ player.gold }}</div>
       <div class="chip">🛡️ {{ player.totalTroops }} 兵</div>
       <DayClock :note="flowLabel" :live="world.timeFlowing" />
       <div class="chip">🏆 胜 {{ player.stats.wins }} / {{ player.stats.battles }}</div>
-      <button class="chip role-btn" title="查看角色信息" @click="showCharacter = true">👤 角色详情</button>
-      <button class="chip diff-chip" title="难度设置" @click="showSettings = !showSettings">
-        🎚 {{ difficulty.name }}
+      <button
+        v-if="player.availableSkillPoints > 0"
+        class="chip role-btn skill-chip"
+        title="分配属性点"
+        @click="showCharacter = true"
+      >
+        👑 属性点 {{ player.availableSkillPoints }}
       </button>
+      <button class="chip role-btn" title="查看角色信息" @click="showCharacter = true">👤 角色详情</button>
+      <button class="chip diff-chip" :title="`难度设置 · 当前威胁 ${world.threat.toFixed(2)}×`" @click="showSettings = !showSettings">
+        🎚 {{ difficulty.name }} · {{ world.threat.toFixed(2) }}×
+      </button>
+      </div>
+
+      <transition name="fade">
+        <div v-if="toast" class="toast">{{ toast }}</div>
+      </transition>
     </div>
 
     <!-- Settings sheet: the difficulty of the campaign. -->
@@ -31,6 +46,14 @@
         </button>
       </div>
       <p class="muted settings-note">{{ difficulty.note }}</p>
+      <p class="muted settings-note">
+        ⚔️ 威胁 {{ effects.threat.toFixed(2) }}×（随胜场与占领城镇上升）· 新兵规模
+        ×{{ effects.size.toFixed(2) }} · 敌军上限 ×{{ effects.cap.toFixed(2) }}
+      </p>
+      <p class="muted settings-note">
+        🌾 军粮 {{ effects.food }} / 战 · 🪙 招募价 ×{{ effects.recruit.toFixed(2) }} · 初始
+        {{ effects.gold }} 金 / {{ effects.foodStart }} 粮
+      </p>
     </div>
 
     <!-- Right column: the minimap sits in the corner, the legend under it -->
@@ -107,11 +130,6 @@
       </div>
     </div>
 
-    <!-- Toast -->
-    <transition name="fade">
-      <div v-if="toast" class="toast">{{ toast }}</div>
-    </transition>
-
     <!-- Lord info panel -->
     <CharacterPanel v-if="showCharacter" @close="showCharacter = false" />
 
@@ -135,7 +153,7 @@ import { persistGame } from '@/composables/gameState'
 import { openShare } from '@/composables/share'
 import { FACTIONS, NPC_FACTIONS } from '@/game/factions'
 import { canEnter as canEnterSettlement, canSiege as canSiegeSettlement, garrisonCount, needsAssault, SIEGE_PREPARE_DAYS } from '@/game/settlement'
-import { difficultyList, difficultyOf } from '@/game/difficulty'
+import { difficultyList, difficultyOf, enemyCapMulOf, enemySizeMulOf, foodPerBattleOf, recruitMulOf, startOf } from '@/game/difficulty'
 import { spriteUrl } from '@/game/pixelAssets'
 
 const router = useRouter()
@@ -168,6 +186,20 @@ const townGuardCount = computed(() => (nearby.value ? garrisonCount(nearby.value
 // Difficulty of the campaign and the list of levels.
 const difficulties = difficultyList()
 const difficulty = computed(() => difficultyOf(player.difficulty))
+// The numbers of the chosen level, read live so a switch shows its effect.
+const effects = computed(() => {
+  const key = player.difficulty
+  const start = startOf(key)
+  return {
+    threat: world.threat,
+    size: enemySizeMulOf(world.threat, key),
+    cap: enemyCapMulOf(world.threat, key),
+    food: foodPerBattleOf(key),
+    recruit: recruitMulOf(key),
+    gold: start.gold,
+    foodStart: start.food
+  }
+})
 
 // Legend rows mirror exactly what the world map draws: the lord, one commander
 // sprite per faction and the two settlement kinds. The colour comes straight
@@ -356,14 +388,27 @@ onBeforeUnmount(() => {
   inset: 0;
 }
 
-.hud-top {
+/* The stack of the status bar and the message of the moment: the message
+   follows the chips, so it never covers them. */
+.hud-stack {
   position: absolute;
   top: calc(12px + env(safe-area-inset-top));
   left: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.hud-top {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  z-index: 5;
+  max-width: calc(100% - 148px);
+  pointer-events: auto;
 }
 
 .chip {
@@ -385,6 +430,11 @@ onBeforeUnmount(() => {
 
 .role-btn:hover {
   background: rgba(232, 197, 106, 0.26);
+}
+
+/* The chip that points at the unspent attribute points. */
+.skill-chip {
+  color: var(--gold);
 }
 
 /* Difficulty chip and the settings sheet it opens. */
@@ -633,19 +683,23 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
+/* The message of the moment: it hangs under the status bar, so it never covers
+   the lord in the middle of the map. */
 .toast {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 14px 24px;
-  border-radius: 12px;
-  background: rgba(10, 14, 10, 0.9);
+  align-self: center;
+  max-width: min(92vw, 420px);
+  margin-top: 2px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(10, 14, 10, 0.92);
   border: 1px solid var(--gold-deep);
   color: var(--gold);
+  font-size: 13px;
   font-weight: 700;
-  z-index: 9;
+  text-align: center;
+  line-height: 1.4;
   box-shadow: var(--shadow);
+  pointer-events: auto;
 }
 
 .fade-enter-active,

@@ -163,6 +163,47 @@
     </section>
 
     <section class="card">
+      <h2>📝 答题形式 · The shapes of a question</h2>
+      <p>题目不总是四个按钮。考试界面会按题目的形状自动切换：</p>
+      <div class="table">
+        <div class="table-row">
+          <span class="table-icon">🔘</span>
+          <span class="table-name">四选一</span>
+          <span class="table-desc">点一个选项就作答。</span>
+        </div>
+        <div class="table-row">
+          <span class="table-icon">⌨️</span>
+          <span class="table-name">填空</span>
+          <span class="table-desc">把答案写出来：数字按数值比对，文字忽略大小写与空格。蒙不出来。</span>
+        </div>
+        <div class="table-row">
+          <span class="table-icon">🔗</span>
+          <span class="table-name">配对</span>
+          <span class="table-desc">先点左边一项，再点右边配对的那一项；连错了可以重来。</span>
+        </div>
+        <div class="table-row">
+          <span class="table-icon">🔢</span>
+          <span class="table-name">排序</span>
+          <span class="table-desc">按顺序点出每一项，点错了可以撤销。</span>
+        </div>
+      </div>
+      <p class="muted">
+        同一份知识有三种记法：算式填空练计算，诗句配对练整组回忆，节气排序练顺序关系。
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>🔎 题库检索</h2>
+      <p>
+        首页有一个「🔎 题库检索」入口，打开整个题库：可以搜索题干、按年级与科目过滤，
+        点开任意一行看答案与解析，生成题还能「换一题」再抽一道。
+      </p>
+      <p class="muted">
+        有存档的时候，每一行还标着「生疏 / 眼熟 / 已掌握」，一眼看出自己哪里薄弱。
+      </p>
+    </section>
+
+    <section class="card">
       <h2>🧠 记忆曲线</h2>
       <p>题库会记住你在每一道题上的表现，并按记忆曲线安排出现频率：</p>
       <div class="table">
@@ -183,6 +224,81 @@
         </div>
       </div>
       <p class="muted">掌握等级从 0 到 5，等级越高出现越少，已经完全掌握的题目出现频率约为新题的 1/20。</p>
+    </section>
+
+    <section class="card">
+      <h2>📊 考试结算</h2>
+      <p>一张卷子的收获不只看答对几题，还看你怎么答的：</p>
+      <div class="table">
+        <div class="table-row">
+          <span class="table-icon">🔥</span>
+          <span class="table-name">连击</span>
+          <span class="table-desc">连续答对越多，金币倍率越高（最高 ×1.5），答错一次连击就断。</span>
+        </div>
+        <div class="table-row">
+          <span class="table-icon">🌟</span>
+          <span class="table-name">全对</span>
+          <span class="table-desc">整张卷子一题不差，金币 ×1.5，还会掉一匹战马。</span>
+        </div>
+        <div class="table-row">
+          <span class="table-icon">📜</span>
+          <span class="table-name">长卷</span>
+          <span class="table-desc">一次做 12 题，卷子更难，金币 ×1.1。</span>
+        </div>
+        <div class="table-row">
+          <span class="table-icon">🎯</span>
+          <span class="table-name">及格</span>
+          <span class="table-desc">答对题数达到一半就算及格，额外 +20% 金币。</span>
+        </div>
+        <div class="table-row dens">
+          <span class="table-icon">🙋</span>
+          <span class="table-name">答错</span>
+          <span class="table-desc">答错不扣钱，只是这一题没有金币，连击也会断。</span>
+        </div>
+      </div>
+      <p class="muted">答对还会掉道具：每答对一题有 30% 掉一份军粮，连对 5 题必掉两份；某一科全部答对掉集市券（免费换一次物资）或征兵令（免费招 2 名民兵）。</p>
+    </section>
+
+    <section class="card">
+      <h2>🗺️ 掌握度地图与复习</h2>
+      <p>考试设置页有一张掌握度地图：每一科一条进度条，写着「已掌握 / 已记录」和「该复习多少题」。</p>
+      <div class="table">
+        <div class="table-row">
+          <span class="table-icon">🔁</span>
+          <span class="table-name">只考错题</span>
+          <span class="table-desc">只出你答错过的题，答对一次就把它从错题本里划掉。</span>
+        </div>
+        <div class="table-row">
+          <span class="table-icon">⏰</span>
+          <span class="table-name">复习队列</span>
+          <span class="table-desc">只出很久没复习、还没掌握的题，趁还记得赶紧练。</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>👑 考试就是经验</h2>
+      <p>及格的卷子会给你经验：答对一题 1 点经验，50 点经验换 1 点属性点。属性点自己分配，分配后立刻生效：</p>
+      <div class="table">
+        <div v-for="a in attributes" :key="a.key" class="table-row">
+          <span class="table-icon">{{ a.icon }}</span>
+          <span class="table-name">{{ a.name }}</span>
+          <span class="table-desc">{{ a.per }}</span>
+        </div>
+      </div>
+      <p class="muted">在「👤 角色详情」里可以分配属性点，也可以看到掌握度地图与下一个里程碑。</p>
+    </section>
+
+    <section class="card">
+      <h2>🏅 里程碑道具</h2>
+      <p>累计答对的题数越多，队伍越强：</p>
+      <div class="table">
+        <div v-for="m in milestones" :key="m.key" class="table-row">
+          <span class="table-icon">{{ m.icon }}</span>
+          <span class="table-name">{{ m.name }} · {{ m.at }} 题</span>
+          <span class="table-desc">{{ m.effect }}</span>
+        </div>
+      </div>
     </section>
 
     <section class="card">
@@ -231,8 +347,15 @@ import { BRANCHES, UNIT_TYPES, unitDef, unitOf, unitSprite, upgradeCost } from '
 import { ORDERS, FORMATIONS, DENSITIES } from '@/game/battle'
 import { spriteUrl } from '@/game/pixelAssets'
 import { ensureModsLoaded, listTypes } from '@/game/quiz'
+import { ATTRIBUTES } from '@/game/skills'
+import { MILESTONES } from '@/game/milestones'
 
 const militia = UNIT_TYPES.militia
+
+// The attributes and the milestones are read from their tables, so the guide
+// can never drift from the rules.
+const attributes = ATTRIBUTES
+const milestones = MILESTONES
 
 // Exam subjects are read from the mod registry so a new mod appears here too.
 const subjects = ref(listTypes())

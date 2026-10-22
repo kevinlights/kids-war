@@ -7,6 +7,7 @@ import { factionOf, NPC_FACTIONS } from '@/game/factions'
 import { darknessOf, isNight, speedFactorOf } from '@/game/daynight'
 import { normalizeTroops, healTroops, unitDef } from '@/game/units'
 import { createRng } from '@/game/rng'
+import { enemyCapMulOf, enemySizeMulOf, foeOf, threatOf } from '@/game/difficulty'
 import {
   BANDIT,
   NEUTRAL,
@@ -31,9 +32,28 @@ import { usePlayerStore } from './player'
 /** How many bandit warbands may roam the map at the same time. */
 const BANDIT_PARTY_CAP = 50
 
+/**
+ * Real seconds it takes the clock to move one in-game hour while the lord is
+ * resting inside a settlement. Town management is slow on purpose: 60 real
+ * seconds make one in-game hour, so a full day takes 24 real minutes.
+ */
+const REST_SECONDS_PER_HOUR = 60
+
 /** Soldiers a warband fields. */
 function partyStrength(p) {
   return (p.units || []).reduce((n, g) => n + g.count, 0)
+}
+
+/**
+ * The rank of one reinforcing soldier. Threats below the level's own start
+ * field basic troops; past it, a share of rank-2 soldiers joins, and a hard
+ * campaign past 1.5 lets the odd rank-3 soldier through.
+ */
+function rollFoeTier(rng, threat, info) {
+  if (threat < info.tierStart || info.tierMax <= 1) return 1
+  const roll = rng.next()
+  if (info.tierMax >= 3 && threat >= 1.5 && roll < 0.1) return 3
+  return roll < 0.3 ? Math.min(2, info.tierMax) : 1
 }
 
 /** Add soldiers to a warband, topped up to full health. */
@@ -119,13 +139,26 @@ export const useWorldStore = defineStore('world', {
         .reduce((best, st) => Math.max(best, facilityLevel(st, 'hospital')), 0),
     // A siege is being prepared somewhere, so the clock has to keep running.
     siegeActive: (s) => s.settlements.some((st) => st.siege && !st.siege.ready),
+    /** Towns the lord owns, which feed the campaign escalation. */
+    playerTownCount: (s) => s.settlements.filter((st) => st.owner === PLAYER).length,
+    /**
+     * How hard the factions have become: 1.0 at the start of a campaign and
+     * rising with the battles won and the towns taken, capped per difficulty.
+     */
+    threat: (s) => {
+      const player = usePlayerStore()
+      const towns = s.settlements.filter((st) => st.owner === PLAYER).length
+      return threatOf({ wins: player.stats.wins, towns }, player.difficulty)
+    },
     /**
      * The clock of the campaign.
      *
-     * A day lasts 24 game seconds, so one game second is one in-game hour:
-     * the accumulator is read as an hour of the day. The clock only moves
-     * while time flows, which makes it a readout of how the day counter
-     * actually advances.
+     * The accumulator is read as an hour of the day. On the world map a day
+     * lasts 24 game seconds, so one game second is one in-game hour. Resting
+     * in a settlement slows this down to one in-game minute per real second
+     * (`restTick`), which makes a town day last 24 real minutes. The clock
+     * only moves while time flows, which makes it a readout of how the day
+     * counter actually advances.
      */
     clock: (s) => {
       const acc = Math.max(0, s.timeAcc || 0)
@@ -166,8 +199,8 @@ export const useWorldStore = defineStore('world', {
 
   actions: {
     // Generate a fresh world and drop the player at the spawn tile.
-    generate(seed) {
-      const world = generateWorld(seed)
+    generate(seed, options = {}) {
+      const world = generateWorld(seed, options)
       this.seed = world.seed
       this.grid = world.grid
       this.settlements = world.settlements.map((st) => normalizeSettlement(st))
@@ -250,9 +283,12 @@ export const useWorldStore = defineStore('world', {
     /* --------------------------------- sieges -------------------------------- */
 
     /**
-     * Start preparing a siege against a hostile town. The preparation takes
-     * `SIEGE_PREPARE_DAYS` days, the clock keeps running while it does, and the
-     * owner sends soldiers to protect the town.
+     * Start preparing a siege against a hostile town. The preparation takes a
+     * couple of days, the clock keeps running while it does, and the owner
+     * sends soldiers to protect the town.
+     *
+     * The engineering attribute shortens the preparation, so a lord who
+     * studied engineering storms a town sooner.
      */
     startSiege(settlementId) {
       const st = this.settlementById(settlementId)
@@ -261,9 +297,13 @@ export const useWorldStore = defineStore('world', {
       if (st.owner === PLAYER) return { ok: false, reason: '这已经是你的城镇' }
       if (st.owner === NEUTRAL) return { ok: false, reason: '无主的城镇不用攻打' }
       if (st.siege) return { ok: false, reason: '围城准备已经开始' }
+      const player = usePlayerStore()
+      // The engineering attribute shortens the preparation, so a lord who
+      // studied engineering storms a town sooner.
+      const days = Math.ceil(player.skillEffects.siegeDays)
       st.siege = {
         startedDay: this.day,
-        readyDay: this.day + SIEGE_PREPARE_DAYS,
+        readyDay: this.day + days,
         ready: false,
         reliefSent: false
       }
@@ -360,9 +400,16 @@ export const useWorldStore = defineStore('world', {
             inSettlement: true,
             ownTown: resting.owner === PLAYER,
             level: resting.level,
-            hospital: facilityLevel(resting, 'hospital')
+            hospital: facilityLevel(resting, 'hospital'),
+            surgery: player.attributes.surgery,
+            medicine: player.milestoneEffects.healMul > 1
           })
-        : healRate({ inSettlement: false, hospital: this.hospitalHere })
+        : healRate({
+            inSettlement: false,
+            hospital: this.hospitalHere,
+            surgery: player.attributes.surgery,
+            medicine: player.milestoneEffects.healMul > 1
+          })
       healTroops(player.troops, rate)
 
       for (const st of this.settlements) {
@@ -377,40 +424,62 @@ export const useWorldStore = defineStore('world', {
     /**
      * The world gets harder as the campaign goes on: new bands of bandits
      * appear, and every faction reinforces its warbands — up to a cap that
-     * grows with the prosperity of the towns the lord holds.
+     * grows with the prosperity of the towns the lord holds and with the
+     * campaign threat (see `threatOf` in `game/difficulty`).
      */
     growFactions() {
       this.spawnBanditBand()
-      const cap = factionStrengthCap(this.settlements)
+      const player = usePlayerStore()
+      const info = foeOf(player.difficulty)
+      const threat = this.threat
+      const cap = Math.round(
+        factionStrengthCap(this.settlements) * enemyCapMulOf(threat, player.difficulty)
+      )
+      // The growth rate is fractional: easy skips some days, hard sometimes
+      // reinforces twice.
+      const rng = createRng(this.day * 31 + 7919)
+      const soldiers = Math.floor(info.growth) + (rng.next() < info.growth % 1 ? 1 : 0)
+      if (soldiers <= 0) return
       for (const faction of NPC_FACTIONS) {
-        const soldiers = factionSoldiers(this.parties, faction)
-        if (soldiers >= cap) continue
-        // One soldier a day for the strongest warband of the faction.
+        const fielded = factionSoldiers(this.parties, faction)
+        if (fielded >= cap) continue
+        // One soldier at a time for the strongest warband of the faction.
         const party = this.parties
           .filter((p) => p.faction === faction)
           .sort((a, b) => partyStrength(b) - partyStrength(a))[0]
         if (!party) continue
-        const rng = createRng(this.day * 31 + faction.length * 7919)
-        const type = rng.next() < 0.5 ? 'militia' : 'spearman'
-        const tier = rng.next() < 0.2 ? 2 : 1
-        addTroopToParty(party, type, tier, 1)
+        const room = Math.min(soldiers, cap - fielded)
+        for (let i = 0; i < room; i++) {
+          const tier = rollFoeTier(rng, threat, info)
+          const type =
+            tier > 1
+              ? ['spearman', 'archer', 'cavalry'][Math.floor(rng.next() * 3)]
+              : rng.next() < 0.5
+                ? 'militia'
+                : 'spearman'
+          addTroopToParty(party, type, tier, 1)
+        }
       }
     },
 
     /**
      * A new band of bandits wanders onto the map. The number of bandit warbands
-     * is capped, so the world never drowns in them.
+     * is capped, so the world never drowns in them, and both the interval and
+     * the size follow the difficulty and the campaign threat.
      */
     spawnBanditBand() {
       const bandits = this.parties.filter((p) => p.faction === 'bandit')
       if (bandits.length >= BANDIT_PARTY_CAP) return
-      if (this.day % 2 !== 0) return
+      const player = usePlayerStore()
+      const info = foeOf(player.difficulty)
+      if (this.day % info.banditDays !== 0) return
       const spot = this.randomLandSpot()
       if (!spot) return
       const rng = createRng(this.day * 131 + this.parties.length * 17)
+      const scale = enemySizeMulOf(this.threat, player.difficulty)
       const units = [
-        { type: 'militia', tier: 1, count: rng.int(3, 7) },
-        { type: 'archer', tier: 1, count: rng.int(1, 3) }
+        { type: 'militia', tier: 1, count: Math.max(1, Math.round(rng.int(3, 7) * scale)) },
+        { type: 'archer', tier: 1, count: Math.max(1, Math.round(rng.int(1, 3) * scale)) }
       ]
       this.parties.push({
         id: `bandit-${this.day}-${this.parties.length}`,
@@ -454,10 +523,15 @@ export const useWorldStore = defineStore('world', {
     /**
      * Resting inside a settlement: the clock runs, the wounded heal and the
      * town keeps developing, while the parties on the map hold their ground.
+     *
+     * Town time is deliberately slow: one real second is one in-game minute
+     * (`1 / 60` of an hour), so the day counter moves once every 24 real
+     * minutes instead of every 24 seconds. Managing the town should not cost
+     * days of campaign time while the player reads a panel.
      */
     restTick(dt, settlementId) {
       this.restingAt = settlementId || null
-      this.timeAcc += dt
+      this.timeAcc += dt / REST_SECONDS_PER_HOUR
       if (this.timeAcc < 24) return
       this.timeAcc -= 24
       this.day += 1
@@ -475,10 +549,12 @@ export const useWorldStore = defineStore('world', {
       // The night slows the whole world down: the lord walks a quarter slower
       // in the deepest night, and so does every roaming warband.
       const nightFactor = this.dayPhase.speedMul
+      // The post horse of the milestones makes the lord walk faster.
+      const horseFactor = player.milestoneEffects.speed
       // --- player movement -------------------------------------------------
       // `travelled` is the world distance covered this frame: it is what
       // decides whether game time advances at all.
-      let remaining = 3.9 * dt * nightFactor
+      let remaining = 3.9 * dt * nightFactor * horseFactor
       let travelled = 0
       let guard = 0
       while (remaining > 0 && this.path.length && guard++ < 200) {

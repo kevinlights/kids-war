@@ -5,6 +5,8 @@
     <div class="supply-bar">
       <div class="chip">🌾 军粮 {{ player.supplies.food }}</div>
       <div class="chip">🐎 战马 {{ player.supplies.horse }}</div>
+      <div class="chip">🎟️ 集市券 {{ player.supplies.ticket }}</div>
+      <div class="chip">📜 征兵令 {{ player.supplies.order }}</div>
     </div>
 
     <div class="list">
@@ -17,6 +19,13 @@
         <div class="good-buy">
           <span class="cost">🪙 {{ g.price }}</span>
           <button class="btn small" :disabled="player.gold < g.price" @click="buy(g)">购买</button>
+          <button
+            v-if="player.supplies.ticket > 0"
+            class="btn small ticket"
+            @click="buyWithTicket(g)"
+          >
+            🎟️ 用券
+          </button>
         </div>
       </div>
     </div>
@@ -49,6 +58,19 @@ function buy(g) {
   clearTimeout(timer)
   timer = setTimeout(() => (toast.value = ''), 1600)
 }
+
+/**
+ * Buy without gold: a market voucher is a gift for a paper that was answered
+ * without a single mistake, and it pays for one purchase.
+ */
+function buyWithTicket(g) {
+  if (!player.useSupply('ticket', 1)) return
+  g.apply()
+  persistGame()
+  toast.value = `用集市券换到了${g.name}`
+  clearTimeout(timer)
+  timer = setTimeout(() => (toast.value = ''), 1600)
+}
 </script>
 
 <style scoped>
@@ -68,6 +90,7 @@ function buy(g) {
 .supply-bar {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .list {
@@ -118,6 +141,11 @@ function buy(g) {
 .btn.small {
   padding: 8px 14px;
   font-size: 13.5px;
+}
+
+.btn.ticket {
+  border-color: var(--gold-deep);
+  color: var(--gold);
 }
 
 .inline-toast {
