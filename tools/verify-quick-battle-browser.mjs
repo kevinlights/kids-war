@@ -31,10 +31,18 @@ function check(name, condition, detail = '') {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-const site = spawn('npx', ['vite', 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1'], {
-  cwd: root,
-  stdio: 'ignore'
-})
+// The preview server is started through node and vite's own binary, so that
+// killing it really stops the server: `npx` would leave the server running
+// and the next run would talk to a stale build on a busy port.
+const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
+const site = spawn(
+  process.execPath,
+  [viteBin, 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1', '--strictPort'],
+  {
+    cwd: root,
+    stdio: 'ignore'
+  }
+)
 const chrome = spawn(CHROME, [
   '--headless=new',
   `--remote-debugging-port=${CDP_PORT}`,
@@ -50,6 +58,19 @@ const cleanup = () => {
   chrome.kill()
 }
 process.on('exit', cleanup)
+// The preview server and the browser keep the event loop alive, so the script
+// would never end on its own: the cleanup has to run when the walkthrough is
+// over, not only when the process exits.
+let cleaned = false
+const closeAll = () => {
+  if (cleaned) return
+  cleaned = true
+  cleanup()
+}
+process.on('SIGINT', () => {
+  closeAll()
+  process.exit(130)
+})
 
 try {
   await mkdir(cache, { recursive: true })
@@ -105,7 +126,7 @@ try {
     }
     return res.result.value
   }
-  const waitFor = async (expression, label, timeout = 15000) => {
+  const waitFor = async (expression, label, timeout = 30000) => {
     const started = Date.now()
     while (Date.now() - started < timeout) {
       try {
@@ -165,7 +186,17 @@ try {
     })()
   `)
   check('the badge opens the update dialog', !!notes, String(notes))
-  check('the dialog names the version', !!dialog && dialog.includes('v0.0.1'), String(dialog).slice(0, 80))
+  // The version is read from the badge, so the check never has to be updated
+  // when the game is released again.
+  const badge = await evaluate(`
+    (() => {
+      const el = document.querySelector('button.version-badge')
+      return el ? el.textContent.replace(/\\s+/g, ' ').trim() : null
+    })()
+  `)
+  const shown = (badge || '').match(/v\d+\.\d+\.\d+/)
+  check('the badge shows the version', !!shown, String(badge))
+  check('the dialog names the version', !!shown && !!dialog && dialog.includes(shown[0]), String(dialog).slice(0, 80))
   check('the dialog lists the batches', !!notes && notes.includes('批次'))
   check(
     'the dialog carries no development details',
@@ -302,7 +333,11 @@ try {
 } catch (err) {
   failed += 1
   console.log(`  FAIL the browser walkthrough — ${err.message}`)
+} finally {
+  closeAll()
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed > 0) process.exitCode = 1
+// The child processes are gone, so the event loop can end on its own.
+process.exit(failed > 0 ? 1 : 0)

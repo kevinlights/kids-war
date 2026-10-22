@@ -201,6 +201,58 @@ export const BATCHES = [
     { zh: "随机队形也会打：散兵队形没有队列可守，于是**每个士兵自己扑向敌人**，照样砍得到人。", en: "**The scattered formation fights too**: a scatter squad has no block to keep, so **every soldier closes on the foe itself** and lands its blows." },
     { zh: "--", en: "" }
     ]
+  },
+  {
+    batch: 20,
+    title: "学习主线四层改进与界面清爽化 The exam spine and a cleaner home screen",
+    date: "2026-10-21",
+    items: [
+    { zh: "一次考试结算得更多：连续答对有连击倍率（最高 ×1.5），整卷全对 ×1.5，12 题长卷 ×1.1，答对一半及格再 +20%。", en: "**A paper is worth more now**: a streak of correct answers multiplies the gold (up to ×1.5), a paper without a mistake pays ×1.5, a paper of twelve questions pays ×1.1 and reaching the pass line adds another 20%." },
+    { zh: "答错不扣钱：答错只是这一题没有金币、连击会断，不会倒扣。", en: "**A wrong answer never costs gold**: it simply pays nothing and breaks the streak." },
+    { zh: "做题会掉道具：每答对一题有 30% 掉一份军粮，连对 5 题必掉两份；某一科全部答对掉集市券（免费换一次物资）或征兵令（免费招 2 名民兵），整卷全对再掉一匹战马。", en: "**Answers drop gear**: every correct answer has a 30% chance of a ration of food and five in a row always bring two, a subject answered without a mistake drops a market voucher or a recruit order, and a perfect paper brings a horse." },
+    { zh: "里程碑道具：累计答对 300 / 500 / 800 / 1200 题，解锁军旗（全军攻击 +5%）、徽章（每战后 +10 金币）、药箱（伤兵恢复 +50%）与驿马（主角移速 +10%）。", en: "**Milestones**: 300, 500, 800 and 1200 correct answers unlock the war banner (+5% attack), the badge (+10 gold after a battle), the medicine chest (+50% recovery) and the post horse (+10% speed)." },
+    { zh: "考试就是经验：及格的卷子每答对一题给 1 点经验，50 点换 1 点属性点，自己分配到统御 / 医术 / 工程 / 谋略。", en: "**An exam is experience**: a paper that passes gives one experience point per correct answer, fifty points buy an attribute point, and the child spends it on leadership, surgery, engineering or tactics." },
+    { zh: "属性真的有用：统御提高队伍上限与全军攻击，医术加快伤兵恢复，工程缩短围城准备并降低设施造价，谋略在开战前显示敌方构成。", en: "**The attributes really do something**: leadership opens the party cap and strengthens the army, surgery heals the wounded faster, engineering shortens a siege and cheapens the facilities, and tactics reveals the enemy before the fight." },
+    { zh: "掌握度地图：考试设置页按科目显示掌握度、已掌握题数与「该复习多少题」。", en: "**A mastery map**: the exam setup shows the mastery of every subject, how many questions are mastered and how many are due." },
+    { zh: "两种复习卷：只考错题（只出答错过的题）与复习队列（只出很久没复习、还没掌握的题）。", en: "**Two revision papers**: a paper of mistakes and a review queue of the questions that are due." },
+    { zh: "角色详情新增「学习与成长」：经验条、四个属性与加点、掌握度地图与里程碑进度。", en: "**The lord panel grew a learning section**: the experience bar, the four attributes, the mastery map and the milestone progress." },
+    { zh: "首页更清爽：只保留一个版本入口，配色更柔和、留白更舒服，手机竖屏一屏看得全。", en: "**A cleaner home screen**: one version entry, a softer palette, more air, and everything readable in a phone held in portrait." },
+    { zh: "世界地图上的提示改到屏幕顶部，不再挡住地图中间的主角。", en: "**The message of the world map moved to the top**, so it no longer covers the lord in the middle of the map." }
+    ]
+  },
+  {
+    batch: 21,
+    title: "题库检索、更多答题形式与更小的金币 The question bank, more shapes and smaller coins",
+    date: "2026-10-21",
+    items: [
+    { zh: "**题库检索**：首页多了一个入口，打开整个题库 —— 搜索框、年级与科目过滤、点开看答案与解析、生成题可以「换一题」，有存档时每行还标着掌握程度。", en: "**The question bank**: a new entry on the home screen opens the whole bank — a search box, the grade and subject filters, the answer and the explanation of every row, another sample for a generated question and the mastery of every row." },
+    { zh: "**四种答题形式**：除了四选一，现在还能**填空**（把答案写出来）、**配对**（左右两栏连起来）和**排序**（按顺序点出来），考试界面按题目的形状自动切换。", en: "**Four shapes of a question**: besides the multiple choice there is now a **filled-in answer**, a **matching** question and an **ordering** question; the exam renders whichever shape the question carries." },
+    { zh: "**新的题型**：数学的算式填空、英语的拼写填空、语文的诗句配对与二十四节气排序、逻辑的判断对错。", en: "**New kinds**: the maths fill-in, the English spelling fill-in, the Chinese poem matching and solar-term ordering, and the logic true-or-false." },
+    { zh: "**简单难度只奖励 5 个金币**：简单档改成练习模式（每题固定 5 金币，不分科目与年级），普通与困难两档沿用原来的数值。", en: "**The easy level pays five gold**: the easy level becomes the practice level (a flat five gold per question), while the normal and the hard level keep their numbers." },
+    { zh: "界面细节：题目的提示语会随形状变化（选择 / 写下答案 / 配对 / 排序），配对题的两栏有名字，答错时给出正确配对或正确顺序。", en: "Details: the hint follows the shape, the two columns of a matching question are named, and a wrong answer shows the right pairs or the right order." }
+    ]
+  },
+  {
+    batch: 22,
+    title: "难度重做：收入、军费与越打越强的世界 A difficulty rebuilt around pay, cost and a world that grows",
+    date: "2026-10-23",
+    items: [
+    { zh: "**三档难度重新分工**：简单是练习档（每题固定 5 金，整卷最多拿到题目基础价的 2 倍，开局 150 金 / 8 粮，敌军更弱）；普通保持原样（三年级 19 / 四年级 25，开局 120 金 / 5 粮）；困难是挑战档（三年级 14 / 四年级 19，开局 90 金 / 3 粮，每战 4 份军粮，招募贵 15%，敌军多一成）。", en: "**The three levels have their own jobs again**: easy is practice (a flat 5 gold an answer, a paper capped at twice its base, 150 gold and 8 food, weaker enemies), normal stays as shipped (19 / 25, 120 gold and 5 food) and hard is the challenge (14 / 19, 90 gold and 3 food, four rations a battle, recruits 15% dearer, a tenth more enemies)." },
+    { zh: "**越打越强的世界**：同一局里新增「威胁」，随胜场与占领的城镇上升（简单封顶 1.2、普通 1.8、困难 2.0），敌军新刷与增援的规模、总上限和精锐比例都跟着涨；卡住不前的孩子不会被惩罚。", en: "**A world that grows with the campaign**: a new threat rises with the battles won and the towns taken (capped at 1.2 easy, 1.8 normal, 2.0 hard) and scales the size, the ceiling and the rank mix of the enemies; a child who is stuck is never punished." },
+    { zh: "**看得见的难度**：世界地图的 🎚 芯片变成「难度 · 威胁 1.36×」，难度面板列出当前的敌军规模、敌军上限、军粮、招募价与开局资源；首页的难度说明跟着所选档位变化。", en: "**A difficulty you can read**: the 🎚 chip reads 「难度 · 威胁 1.36×」, the sheet spells out the current enemy size, ceiling, food, recruit price and opening resources, and the note on the home screen follows the picked level." },
+    { zh: "**练习档不再能刷钱**：简单档的整卷收入封顶，成绩页会用「练习档整卷上限（×2）」单独列出被削掉的金币；答得差时完全不受影响。", en: "**Practice can no longer be farmed**: the easy paper is capped and the result page lists the cut under 「练习档整卷上限（×2）」; a weak paper is never touched." }
+    ]
+  },
+  {
+    batch: 23,
+    title: "城镇慢钟与战场动画 A slow town clock and a battlefield that moves",
+    date: "2026-10-23",
+    items: [
+    { zh: "**城镇里的时间放慢 60 倍**：进入据点后，现实 1 秒只过去游戏里的 1 分钟，城镇里的一天是 **24 分钟**；看面板、招兵、升级、考试不再顺手烧掉战役天数，据点界面的时钟也会写着「镇内 1 秒 = 1 分钟」。", en: "**Town time is 60 times slower**: inside a settlement one real second is one in-game minute, so a day of town business takes **24 real minutes**; reading panels, recruiting, upgrading and taking exams no longer burn campaign days, and the settlement clock says 「镇内 1 秒 = 1 分钟」." },
+    { zh: "**士兵会走会跳**：行军的士兵平滑滑动、一颠一颠地跳并在脚下扬起尘土，站定的士兵轻轻呼吸，不再像一张贴纸挪来挪去。", en: "**Soldiers walk and hop**: a marching soldier glides, bobs with every step and kicks up dust, while a standing one breathes, so it no longer looks like a sticker sliding across the field." },
+    { zh: "**受伤与出手都有反应**：挨打时白光一闪、红圈扩散、身体左右晃动；重伤的士兵脚边持续红色脉冲；出手时身体向目标前倾一下。", en: "**Hits and strikes have a reaction**: a blow flashes white, expands a red ring and shakes the body; a badly wounded soldier keeps a red pulse at its feet; a strike leans the body into the target." },
+    { zh: "**阵亡不再瞬间消失**：倒下的士兵会向侧面倒下、下沉并淡出，练兵木桩也一样倒下，然后在两秒后重新站起。", en: "**The fallen no longer vanish**: a defeated soldier tips over, drops and fades out, and a training dummy does the same before it stands back up two seconds later." }
+    ]
   }
 ]
 

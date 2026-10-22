@@ -60,6 +60,20 @@ let withExplain = 0
 const perKind = new Map()
 const distinctPerKind = new Map()
 
+/**
+ * What makes a question different from another one of the same kind.
+ *
+ * A multiple choice question is told apart by its prompt, a matching
+ * question by its pairs, an ordering question by its items and a filled-in
+ * answer by its prompt and its answer.
+ */
+const signature = (q) => {
+  if (Array.isArray(q.pairs)) return q.pairs.map((p) => p.join('→')).join('|')
+  if (Array.isArray(q.items)) return [...q.items].sort().join('|')
+  if (q.input) return `${q.prompt}#${[].concat(q.answer).join('/')}`
+  return q.prompt
+}
+
 for (const grade of [3, 4]) {
   for (const fn of CHINESE_TYPES[grade]) {
     const distinct = new Set()
@@ -67,20 +81,35 @@ for (const grade of [3, 4]) {
       const q = generateChinese(rng, grade, fn.name)
       const key = `${grade}:${fn.name}`
       perKind.set(key, (perKind.get(key) || 0) + 1)
-      if (!q || !q.prompt || !Array.isArray(q.options) || q.options.length < 2) {
+      if (!q || !q.prompt) {
         bad += 1
         continue
       }
-      if (q.options.length > 4) bad += 1
-      if (new Set(q.options).size !== q.options.length) bad += 1
-      if (q.answer < 0 || q.answer >= q.options.length) bad += 1
-      if (!q.options[q.answer]) bad += 1
+      // Every shape has to carry what the interface needs to show it.
+      if (Array.isArray(q.pairs)) {
+        if (q.pairs.length < 2 || !Array.isArray(q.rights) || q.rights.length !== q.pairs.length) bad += 1
+        if (q.pairs.some((p) => !Array.isArray(p) || p.length !== 2)) bad += 1
+      } else if (Array.isArray(q.items)) {
+        if (q.items.length < 2 || !Array.isArray(q.order) || q.order.length !== q.items.length) bad += 1
+      } else if (q.input) {
+        if (!q.answer) bad += 1
+      } else {
+        if (!Array.isArray(q.options) || q.options.length < 2) {
+          bad += 1
+          continue
+        }
+        if (q.options.length > 4) bad += 1
+        if (new Set(q.options).size !== q.options.length) bad += 1
+        if (q.answer < 0 || q.answer >= q.options.length) bad += 1
+        if (!q.options[q.answer]) bad += 1
+      }
       if (q.kind !== fn.name) bad += 1
       if (q.grade !== grade) bad += 1
       if (q.explain) withExplain += 1
-      distinct.add(q.prompt)
-      if (seenPrompts.has(q.prompt)) duplicate += 1
-      else seenPrompts.add(q.prompt)
+      const mark = signature(q)
+      distinct.add(mark)
+      if (seenPrompts.has(mark)) duplicate += 1
+      else seenPrompts.add(mark)
     }
     distinctPerKind.set(fn.name, Math.max(distinctPerKind.get(fn.name) || 0, distinct.size))
   }
@@ -121,7 +150,23 @@ const entryKeys = new Set(entries.map((e) => e.item))
 check('every entry has its own memory key', entryKeys.size === entries.length, `${entryKeys.size} of ${entries.length}`)
 
 const made = entries.map((e) => e.make(createRng(7)))
-check('the collected entries make questions', made.every((q) => q.prompt && q.options.length >= 2))
+// Every shape has to carry what the interface needs: the options of a
+// multiple choice question, the pairs of a matching question, the items of an
+// ordering question or the answer of a filled-in question.
+check(
+  'the collected entries make questions',
+  made.every(
+    (q) =>
+      q.prompt &&
+      (Array.isArray(q.options)
+        ? q.options.length >= 2 && q.answer >= 0
+        : Array.isArray(q.pairs)
+          ? q.pairs.length >= 2
+          : Array.isArray(q.items)
+            ? q.items.length >= 2
+            : !!q.answer)
+  )
+)
 check('the collected entries keep their kind', made.every((q) => q.kind && q.item))
 
 console.log(`\n${perKind.size} generator/grade combinations sampled`)

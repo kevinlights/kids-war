@@ -18,6 +18,17 @@ import { arenaCellTerrain } from '@/game/arena'
 import { createRng } from '@/game/rng'
 import { drawSprite } from '@/game/pixelAssets'
 import { unitSprite } from '@/game/units'
+import {
+  HIT_FLASH_TIME,
+  breathOf,
+  deathPose,
+  dustOf,
+  hopOf,
+  hurtShake,
+  swingLunge,
+  walkTilt,
+  woundedTilt
+} from '@/game/battleAnim'
 
 const emit = defineEmits(['end'])
 const battle = useBattleStore()
@@ -41,6 +52,60 @@ let dragging = false
 let dragMoved = false
 let lastX = 0
 let lastY = 0
+
+// Render-only motion. The simulation gives every soldier a position; this
+// remembers the last one to know how fast it walks, runs the walk cycle and
+// keeps the fallen on screen long enough for the death fall to finish.
+let animTime = 0
+let lastBattleData = null
+const motion = new Map()
+const deaths = []
+
+function resetMotion() {
+  motion.clear()
+  deaths.length = 0
+  animTime = 0
+}
+
+/**
+ * Follow one unit from frame to frame. Returns its motion record, which holds
+ * the smoothed speed and the walk-cycle phase. A unit that was alive in the
+ * previous frame and is dead now leaves a body behind.
+ */
+function motionOf(u, dt) {
+  let m = motion.get(u.id)
+  if (!m) {
+    m = {
+      x: u.x,
+      y: u.y,
+      speed: 0,
+      phase: (u.wobble && u.wobble.phase) || 0,
+      alive: u.alive
+    }
+    motion.set(u.id, m)
+  }
+  const moved = Math.hypot(u.x - m.x, u.y - m.y)
+  const instant = dt > 0 ? moved / dt : 0
+  // A little smoothing keeps a step from flickering the walk cycle.
+  m.speed += (instant - m.speed) * Math.min(1, dt * 12)
+  m.phase += dt * (2.2 + m.speed * 0.28)
+  m.x = u.x
+  m.y = u.y
+  if (m.alive && !u.alive) {
+    deaths.push({
+      x: u.x,
+      y: u.y,
+      facing: u.facing || 1,
+      type: u.type,
+      tier: u.tier,
+      isDummy: !!u.isDummy,
+      isCommander: !!u.isCommander,
+      at: animTime
+    })
+  }
+  m.alive = u.alive
+  return m
+}
 
 function resize() {
   const el = canvasEl.value
@@ -173,31 +238,99 @@ function drawGround() {
  * A training dummy: a wooden post with a straw head. It is drawn by hand
  * instead of with a sprite, so the practice field needs no extra art.
  */
-function drawDummy(u) {
-  const groundY = u.y + 10
+function drawDummy(u, x = u.x, y = u.y) {
+  const groundY = y + 10
   // The disc under the post, in the colour of a target.
   ctx.fillStyle = 'rgba(217,178,106,0.55)'
   ctx.beginPath()
-  ctx.ellipse(u.x, groundY, 11, 4, 0, 0, Math.PI * 2)
+  ctx.ellipse(x, groundY, 11, 4, 0, 0, Math.PI * 2)
   ctx.fill()
   // The post and its arms.
   ctx.fillStyle = '#8a5a2b'
-  ctx.fillRect(u.x - 3, u.y - 12, 6, 24)
-  ctx.fillRect(u.x - 12, u.y - 6, 24, 4)
+  ctx.fillRect(x - 3, y - 12, 6, 24)
+  ctx.fillRect(x - 12, y - 6, 24, 4)
   // The head.
   ctx.fillStyle = '#d8a75c'
   ctx.beginPath()
-  ctx.arc(u.x, u.y - 16, 6, 0, Math.PI * 2)
+  ctx.arc(x, y - 16, 6, 0, Math.PI * 2)
   ctx.fill()
   ctx.strokeStyle = 'rgba(60,36,12,0.8)'
   ctx.lineWidth = 1
   ctx.stroke()
 }
 
+/**
+ * The fallen. A soldier that dies is drawn for a moment longer than it lives:
+ * it tips over, drops and fades, with a ring of dust at its feet.
+ */
+function drawDeaths() {
+  for (let i = deaths.length - 1; i >= 0; i--) {
+    const d = deaths[i]
+    const pose = deathPose(animTime - d.at)
+    if (pose.progress >= 1) {
+      deaths.splice(i, 1)
+      continue
+    }
+    const size = d.isCommander ? 36 : 28
+    const groundY = d.y + size / 2 - 4
+
+    ctx.strokeStyle = `rgba(190,160,110,${0.45 * (1 - pose.progress)})`
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.ellipse(d.x, groundY, 10 + pose.progress * 12, 4 + pose.progress * 3, 0, 0, Math.PI * 2)
+    ctx.stroke()
+
+    ctx.save()
+    ctx.globalAlpha = pose.alpha
+    ctx.translate(d.x, d.y + pose.drop)
+    ctx.rotate(d.facing * pose.rotation)
+    ctx.scale(pose.scale, pose.scale)
+    if (d.isDummy) {
+      drawDummy(d, 0, 0)
+    } else {
+      drawSprite(
+        ctx,
+        d.isCommander ? 'lord' : unitSprite(d.type, d.tier),
+        0,
+        0,
+        size,
+        d.facing < 0,
+        true
+      )
+    }
+    ctx.restore()
+  }
+}
+
 function drawUnit(u) {
   const size = u.isCommander ? 36 : 28
   const isPlayer = u.side === 'player'
   const groundY = u.y + size / 2 - 4
+  const hpPct = Math.max(0, u.hp / u.maxHp)
+  const m = motion.get(u.id) || { speed: 0, phase: 0 }
+
+  // The visual offsets: a hop while walking, a breath while standing, a
+  // shove when hit, a lean into a swing and a list when badly wounded.
+  const hop = hopOf(m.speed, m.phase)
+  const breathe = breathOf(m.speed, m.phase)
+  const shake = hurtShake(u.hitFlash, animTime, m.phase)
+  const lunge = u.swing > 0 ? swingLunge(u.swing) * (u.facing || 1) : 0
+  const tilt = walkTilt(m.speed, m.phase) + woundedTilt(hpPct, animTime, m.phase)
+  const drawX = u.x + shake + lunge
+  const drawY = u.y - hop + breathe
+  const facingLeft = (u.facing || 1) < 0
+
+  // Dust kicked up behind a walking soldier.
+  const dust = dustOf(m.speed, m.phase)
+  if (dust > 0) {
+    ctx.fillStyle = `rgba(214,198,160,${dust})`
+    ctx.beginPath()
+    ctx.ellipse(u.x - (u.facing || 1) * 8, groundY + 1, 4.5, 1.6, 0, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.beginPath()
+    ctx.ellipse(u.x - (u.facing || 1) * 13, groundY - 3, 3, 1.2, 0, 0, Math.PI * 2)
+    ctx.fill()
+  }
 
   // The squad the player has selected wears a gold ring, so the command bar
   // and the field always agree about what the order will apply to.
@@ -209,48 +342,84 @@ function drawUnit(u) {
     ctx.stroke()
   }
 
-  // A training dummy is drawn by hand and has no side colour of its own.
-  if (u.isDummy) {
-    drawDummy(u)
-  } else {
-    // Base disc in the side's colour: both armies share the same unit art, so
-    // the ground colour is what separates friend from foe on the field.
+  // Base disc in the side's colour: both armies share the same unit art, so
+  // the ground colour is what separates friend from foe on the field. It
+  // shrinks while the soldier is in the air, so the hop reads as a step.
+  if (!u.isDummy) {
+    const squash = Math.max(0.55, 1 - hop / 14)
     ctx.fillStyle = isPlayer ? 'rgba(74,163,255,0.6)' : 'rgba(216,83,63,0.6)'
     ctx.beginPath()
-    ctx.ellipse(u.x, groundY, 11, 4, 0, 0, Math.PI * 2)
+    ctx.ellipse(u.x, groundY, 11 * squash, 4 * squash, 0, 0, Math.PI * 2)
     ctx.fill()
   }
 
+  // The white flash of a fresh hit, behind the sprite.
   if (u.hitFlash > 0) {
-    ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    const k = Math.max(0, Math.min(1, u.hitFlash / HIT_FLASH_TIME))
+    ctx.fillStyle = `rgba(255,255,255,${0.55 * k})`
     ctx.beginPath()
-    ctx.arc(u.x, u.y, size * 0.55, 0, Math.PI * 2)
+    ctx.arc(drawX, drawY, size * 0.55, 0, Math.PI * 2)
     ctx.fill()
   }
 
   // The commander uses the lord sprite; soldiers use their own unit type and
-  // flip to face the way they are moving.
-  if (!u.isDummy) {
-    drawSprite(ctx, u.isCommander ? 'lord' : unitSprite(u.type, u.tier), u.x, u.y, size, u.facing < 0)
+  // flip to face the way they are moving. Smooth placement keeps the walk
+  // from stepping a whole pixel at a time; the tilt is the lean of the step.
+  ctx.save()
+  ctx.translate(drawX, drawY)
+  ctx.rotate(tilt)
+  if (u.isDummy) {
+    drawDummy(u, 0, 0)
+  } else {
+    drawSprite(
+      ctx,
+      u.isCommander ? 'lord' : unitSprite(u.type, u.tier),
+      0,
+      0,
+      size,
+      facingLeft,
+      true
+    )
+  }
+  ctx.restore()
+
+  // The red ring of a blow that just landed, expanding as the flash fades.
+  if (u.hitFlash > 0) {
+    const k = Math.max(0, Math.min(1, u.hitFlash / HIT_FLASH_TIME))
+    ctx.strokeStyle = `rgba(255,96,72,${0.75 * k})`
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.arc(drawX, drawY, size * 0.55 + (1 - k) * 9, 0, Math.PI * 2)
+    ctx.stroke()
+  }
+
+  // A badly wounded soldier keeps a slow red pulse at its feet.
+  if (hpPct > 0 && hpPct < 0.34) {
+    const pulse = 0.35 + 0.25 * Math.sin(animTime * 6 + m.phase)
+    ctx.strokeStyle = `rgba(224,90,70,${pulse})`
+    ctx.lineWidth = 1.5
+    ctx.beginPath()
+    ctx.ellipse(u.x, groundY, 13, 5, 0, 0, Math.PI * 2)
+    ctx.stroke()
   }
 
   // Health bar above every unit.
   const w = size * 0.7
-  const hpPct = Math.max(0, u.hp / u.maxHp)
+  const barY = drawY - size / 2 - 6
   ctx.fillStyle = 'rgba(0,0,0,0.55)'
-  ctx.fillRect(u.x - w / 2, u.y - size / 2 - 6, w, 4)
+  ctx.fillRect(drawX - w / 2, barY, w, 4)
   ctx.fillStyle = isPlayer ? '#5fd07a' : u.isDummy ? '#d9b26a' : '#e06b5a'
-  ctx.fillRect(u.x - w / 2, u.y - size / 2 - 6, w * hpPct, 4)
+  ctx.fillRect(drawX - w / 2, barY, w * hpPct, 4)
 
   // Rank pips for the tiered families: 初级 is one pip, 精英 is four.
   if (u.def && u.def.tiered) {
     const pipW = 3
     const gap = 1
     const total = u.tier * pipW + (u.tier - 1) * gap
-    const rowY = u.y - size / 2 - 12
+    const rowY = drawY - size / 2 - 12
     for (let i = 0; i < u.tier; i++) {
       ctx.fillStyle = i === u.tier - 1 ? '#ffe9a8' : 'rgba(232,197,106,0.6)'
-      ctx.fillRect(u.x - total / 2 + i * (pipW + gap), rowY, pipW, 3)
+      ctx.fillRect(drawX - total / 2 + i * (pipW + gap), rowY, pipW, 3)
     }
   }
 }
@@ -298,8 +467,18 @@ function drawEffects() {
   }
 }
 
-function render() {
+function render(dt = 0) {
   if (!ctx || !battle.data) return
+  // A fresh battle has fresh units: drop the old walk cycles and bodies.
+  if (battle.data !== lastBattleData) {
+    lastBattleData = battle.data
+    resetMotion()
+  }
+  animTime += dt
+  for (const u of battle.data.units) motionOf(u, dt)
+  const cmd = battle.data.commander
+  motionOf(cmd, dt)
+
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   // The ground around the field, so the area outside it does not look like a
   // hole in the screen.
@@ -320,7 +499,6 @@ function render() {
   ctx.strokeRect(3, 3, ARENA.w - 6, ARENA.h - 6)
 
   // Commander movement target marker.
-  const cmd = battle.data.commander
   ctx.strokeStyle = 'rgba(74,163,255,0.6)'
   ctx.setLineDash([5, 6])
   ctx.lineWidth = 2
@@ -329,6 +507,9 @@ function render() {
   ctx.stroke()
   ctx.setLineDash([])
 
+  // The bodies go under the living, so a soldier stepping over a fallen one
+  // stays in front.
+  drawDeaths()
   for (const u of battle.data.units) if (u.alive) drawUnit(u)
   if (cmd.alive) drawUnit(cmd)
   drawRallies()
@@ -349,7 +530,7 @@ function loop(ts) {
     }
   }
   battle.updateCamera(W, H)
-  render()
+  render(dt)
   raf = requestAnimationFrame(loop)
 }
 

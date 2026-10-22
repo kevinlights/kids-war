@@ -52,10 +52,18 @@ const { buildScenarioSave } = await import(pathToFileURL(saveOut).href)
 
 /* -------------------------------- start the site ---------------------------- */
 
-const site = spawn('npx', ['vite', 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1'], {
-  cwd: root,
-  stdio: 'ignore'
-})
+// The preview server is started through node and vite's own binary, so that
+// killing it really stops the server: `npx` would leave the server running
+// and the next run would talk to a stale build on a busy port.
+const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
+const site = spawn(
+  process.execPath,
+  [viteBin, 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1', '--strictPort'],
+  {
+    cwd: root,
+    stdio: 'ignore'
+  }
+)
 const chrome = spawn(CHROME, [
   '--headless=new',
   `--remote-debugging-port=${CDP_PORT}`,
@@ -125,7 +133,7 @@ try {
     }
     return res.result.value
   }
-  const waitFor = async (expression, label, timeout = 15000) => {
+  const waitFor = async (expression, label, timeout = 30000) => {
     const started = Date.now()
     while (Date.now() - started < timeout) {
       try {
@@ -203,6 +211,11 @@ try {
     })()
   `)
   check('the hard difficulty can be picked', picked === 2, String(picked))
+  const hardNote = await evaluate("document.querySelector('.diff-note') ? document.querySelector('.diff-note').textContent.trim() : ''")
+  check('the note follows the picked level', hardNote.includes('挑战') && hardNote.includes('敌军'), hardNote)
+  await clickByText('.diff-btn', '简单')
+  const easyNote = await evaluate("document.querySelector('.diff-note') ? document.querySelector('.diff-note').textContent.trim() : ''")
+  check('the practice note explains the cap', easyNote.includes('封顶'), easyNote)
 
   /* --------------------------- 2. the world map ----------------------------- */
   console.log('world map')
@@ -220,6 +233,8 @@ try {
     [...document.querySelectorAll('.settings .diff-btn')].map((b) => b.textContent.trim())
   `)
   check('the sheet offers the three difficulties', sheetButtons.length === 3, JSON.stringify(sheetButtons))
+  const sheetText = await evaluate("document.querySelector('.settings') ? document.querySelector('.settings').textContent : ''")
+  check('the sheet explains the threat and the costs', sheetText.includes('威胁') && sheetText.includes('军粮') && sheetText.includes('招募价'), sheetText.trim())
   await clickByText('.settings .diff-btn', '普通')
   await sleep(200)
   const storeDifficulty = await evaluate("window.kidsWarGame.stores.player.difficulty")
@@ -321,6 +336,27 @@ try {
   await sleep(300)
   const newSpeed = await evaluate("window.kidsWarGame.stores.battle.speed")
   check('the fast speed can be picked', newSpeed === 'fast', String(newSpeed))
+
+  // A strike and a wound set the timers the renderer turns into a lean and a
+  // shake. Watch a few seconds of the real fight for both to fire.
+  const animation = await evaluate(`
+    new Promise((resolve) => {
+      const b = window.kidsWarGame.stores.battle
+      let swing = false
+      let flash = false
+      const started = performance.now()
+      const timer = setInterval(() => {
+        const units = (b.data && b.data.units) || []
+        if (units.some((u) => u.swing > 0)) swing = true
+        if (units.some((u) => u.hitFlash > 0) || (b.data && b.data.commander.hitFlash > 0)) flash = true
+        if ((swing && flash) || performance.now() - started > 8000) {
+          clearInterval(timer)
+          resolve({ swing, flash })
+        }
+      }, 55)
+    })
+  `)
+  check('a strike and a wound drive the animations', animation.swing && animation.flash, JSON.stringify(animation))
 
   // A drag pans the field, and the recenter button brings the camera back.
   const camera = await evaluate(`

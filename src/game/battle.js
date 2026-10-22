@@ -264,6 +264,9 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
     alive: true,
     facing: dir > 0 ? 1 : -1,
     hitFlash: 0,
+    // A short visual lunge after a strike: the renderer leans the soldier into
+    // the blow. It carries no gameplay meaning.
+    swing: 0,
     // The soldier that hit it last: it answers that one first.
     lastAttackerId: null,
     // The personal space of the soldier inside the formation: it sways a
@@ -327,6 +330,10 @@ export function createBattle({
       speed: 150,
       alive: true,
       cd: 0,
+      // Visual-only fields shared with the soldiers, so the renderer does not
+      // need a special path for the lord.
+      hitFlash: 0,
+      swing: 0,
       isCommander: true
     },
     projectiles: [],
@@ -419,6 +426,7 @@ export function spawnTrainingDummies(b, count = TRAINING_DUMMY_COUNT) {
       alive: true,
       facing: -1,
       hitFlash: 0,
+      swing: 0,
       isDummy: true,
       // When a dummy went down, so it can stand back up a moment later.
       downAt: 0
@@ -438,6 +446,7 @@ export function reviveTrainingDummies(b) {
     u.hp = u.maxHp
     u.alive = true
     u.hitFlash = 0
+    u.swing = 0
     revived += 1
   }
   return revived
@@ -643,6 +652,8 @@ function strike(b, unit, target) {
   if (unit.cd > 0) return
   const dmg = damageOf(b, unit, target)
   unit.cd = cooldown
+  // The renderer turns this into a short lean toward the target.
+  unit.swing = 0.16
 
   if (def.ranged) {
     b.projectiles.push({
@@ -711,6 +722,8 @@ export function stepBattle(b, dt) {
   if (cmd.alive) {
     moveToward(cmd, cmd.tx, cmd.ty, cmd.speed, dt, (x, y) => blockedAt(b, x, y))
     if (cmd.cd > 0) cmd.cd -= dt
+    if (cmd.hitFlash > 0) cmd.hitFlash -= dt
+    if (cmd.swing > 0) cmd.swing -= dt
   }
 
   updateGroupTargets(b)
@@ -734,6 +747,7 @@ export function stepBattle(b, dt) {
     const def = unit.def
     if (unit.cd > 0) unit.cd -= dt
     if (unit.hitFlash > 0) unit.hitFlash -= dt
+    if (unit.swing > 0) unit.swing -= dt
     if (!group) continue
 
     const mods = groupMods(group)

@@ -44,3 +44,61 @@ export function numberWrongs(correct, rng, count = 3, spread = 6) {
   while (set.size < count) set.add(correct + set.size + 1)
   return [...set]
 }
+
+/**
+ * A question the child fills in: the answer is typed instead of picked.
+ *
+ * `input` is `number` for a number and `text` for a word. `answer` may be a
+ * list of accepted answers.
+ */
+export function inputQuestion(prompt, answer, rng, meta = {}) {
+  const accepted = Array.isArray(answer) ? answer : [answer]
+  return { ...meta, prompt, input: meta.input || 'text', answer: accepted }
+}
+
+/**
+ * A matching question: the child connects the two sides.
+ *
+ * `pairs` holds the pairs in the right order; the right-hand column is
+ * shuffled for the presentation. `leftLabel` and `rightLabel` name the two
+ * columns, so the child knows what is being matched.
+ */
+export function pairsQuestion(prompt, pairs, rng, meta = {}) {
+  const list = pairs.map((pair) => [String(pair[0]), String(pair[1])])
+  return {
+    ...meta,
+    prompt,
+    pairs: list,
+    rights: shuffle(list.map((pair) => pair[1]), rng)
+  }
+}
+
+/**
+ * An ordering question: the child puts the items in the right order.
+ *
+ * `items` are given in the right order and shuffled for the presentation.
+ */
+export function orderQuestion(prompt, items, rng, meta = {}) {
+  const list = items.map((item) => String(item))
+  return { ...meta, prompt, items: shuffle(list, rng), order: list }
+}
+
+/**
+ * Grade a filled-in answer.
+ *
+ * A number is compared by value, so `3` and `3.0` are the same answer; a
+ * word is compared without its spaces and its case. A question may accept
+ * more than one spelling.
+ */
+export function gradeInput(question, value) {
+  const typed = String(value ?? '').trim()
+  if (!typed) return false
+  const accepted = Array.isArray(question.answer) ? question.answer : [question.answer]
+  if (question.input === 'number') {
+    const given = Number(typed)
+    if (!Number.isFinite(given)) return false
+    return accepted.some((a) => Number(a) === given)
+  }
+  const clean = (text) => String(text).trim().replace(/\s+/g, ' ').toLowerCase()
+  return accepted.some((a) => clean(a) === clean(typed))
+}

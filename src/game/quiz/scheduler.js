@@ -29,7 +29,7 @@ export const MEMORY = {
 
 // A fresh, never-seen question: level 0, no answers recorded.
 export function blankProgress() {
-  return { level: 0, right: 0, wrong: 0, lastSeen: 0 }
+  return { level: 0, right: 0, wrong: 0, lastSeen: 0, grade: 0 }
 }
 
 export function normalizeProgress(prev) {
@@ -41,7 +41,9 @@ export function levelFor(progress) {
 }
 
 // Fold one answer into a progress record and return the new record.
-export function updateProgress(prev, correct, now = Date.now()) {
+// The grade of the paper is stored as well, so the mastery map can tell a
+// third-grade record from a fourth-grade one.
+export function updateProgress(prev, correct, now = Date.now(), grade = 0) {
   const p = normalizeProgress(prev)
   if (correct) {
     p.right += 1
@@ -50,6 +52,7 @@ export function updateProgress(prev, correct, now = Date.now()) {
     p.wrong += 1
     p.level = Math.max(0, p.level - MEMORY.LEVEL_DOWN)
   }
+  if (grade) p.grade = Number(grade) || 0
   p.lastSeen = now
   return p
 }

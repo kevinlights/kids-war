@@ -187,9 +187,39 @@ function handshake(rng, grade) {
   })
 }
 
+/**
+ * 判断题：只有「正确 / 错误」两个选项。
+ *
+ * A true-or-false question: the child judges a statement, which trains the
+ * habit of checking instead of picking.
+ */
+const STATEMENTS = [
+  ['一年有 366 天。', false, '平年 365 天，闰年才有 366 天。'],
+  ['所有的三角形都有三条边。', true, '三角形就是三条边的图形。'],
+  ['0 乘任何数都等于 0。', true, '0 乘任何数都得 0。'],
+  ['一天有 25 个小时。', false, '一天是 24 小时。'],
+  ['正方形的四条边一样长。', true, '正方形的四条边都相等。'],
+  ['2 加 3 等于 6。', false, '2 + 3 = 5。'],
+  ['一个星期有 7 天。', true, '一个星期是 7 天。'],
+  ['水的沸点是 100 摄氏度（标准大气压下）。', true, '标准大气压下水的沸点是 100℃。'],
+  ['长方形的对边不相等。', false, '长方形的长和宽分别相等，对边当然相等。'],
+  ['3 的 3 倍是 9。', true, '3 × 3 = 9。']
+]
+
+function trueFalse(rng, grade) {
+  const [text, truth, explain] = rng.pick(STATEMENTS)
+  const answer = truth ? '正确' : '错误'
+  return {
+    type: 'logic',
+    kind: 'trueFalse',
+    grade,
+    ...choice(`判断对错：${text}`, answer, [truth ? '错误' : '正确'], rng, { explain })
+  }
+}
+
 export const LOGIC_TYPES = {
-  3: [sequence, ordering, age, oddOneOut, deduction, balance, compare],
-  4: [sequence, ordering, age, oddOneOut, deduction, balance, compare, chickenRabbit, arrange, handshake]
+  3: [sequence, ordering, age, oddOneOut, deduction, balance, compare, trueFalse],
+  4: [sequence, ordering, age, oddOneOut, deduction, balance, compare, chickenRabbit, arrange, handshake, trueFalse]
 }
 
 export function generateLogic(rng, grade, kind) {

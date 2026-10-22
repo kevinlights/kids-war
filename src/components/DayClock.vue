@@ -19,10 +19,11 @@
  * The campaign clock: the day counter, the hour inside that day and a bar
  * showing how much of the day is gone.
  *
- * A day lasts 24 game seconds and one game second is one in-game hour, so the
- * hour of the day is the accumulator of the world store. The clock only moves
- * while time flows, which is what makes it a readout of how the day counter
- * really advances.
+ * On the world map a day lasts 24 game seconds and one game second is one
+ * in-game hour. Inside a settlement the clock is deliberately slower: one real
+ * second is one in-game minute, so a day of town business takes 24 real
+ * minutes. Either way the hour of the day is the accumulator of the world
+ * store, and the clock only moves while time flows.
  */
 import { computed } from 'vue'
 import { useWorldStore } from '@/stores/world'

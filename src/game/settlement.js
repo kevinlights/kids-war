@@ -190,11 +190,18 @@ export function canSiege(settlement) {
   return settlement.owner === 'wolf' || settlement.owner === 'eagle'
 }
 
-/** Cost of the next hospital or barracks level. */
-export function facilityCost(key, level = 0) {
+/**
+ * Cost of the next hospital or barracks level.
+ *
+ * `discount` is the share the price is cut by: the engineering attribute
+ * makes the town's workshops cheaper.
+ */
+export function facilityCost(key, level = 0, discount = 0) {
   const def = FACILITIES[key]
   if (!def) return Infinity
-  return def.baseCost + def.stepCost * level
+  const full = def.baseCost + def.stepCost * level
+  const cut = Math.min(0.5, Math.max(0, discount))
+  return Math.max(1, Math.round(full * (1 - cut)))
 }
 
 /** Level of a facility, 0 when it was never built. */
@@ -217,11 +224,23 @@ export function armyBonusOf(settlements) {
  *
  * Resting inside a settlement heals far faster than marching; the lord's own
  * towns heal faster still, and every hospital level multiplies the rate.
+ *
+ * The surgery attribute and the medicine chest of the milestones make the
+ * wounded come back even faster.
  */
-export function healRate({ inSettlement = false, ownTown = false, level = 1, hospital = 0 } = {}) {
+export function healRate({
+  inSettlement = false,
+  ownTown = false,
+  level = 1,
+  hospital = 0,
+  surgery = 0,
+  medicine = false
+} = {}) {
   let rate = inSettlement ? 24 : 6
   if (ownTown) rate += 6 + 6 * (level - 1)
   if (hospital > 0) rate *= 1 + FACILITIES.hospital.healPerLevel * hospital
+  if (surgery > 0) rate *= 1 + surgery * 0.1
+  if (medicine) rate *= 1.5
   return rate
 }
 
@@ -394,14 +413,19 @@ export function investDevelopment(settlement) {
   return { ok: true }
 }
 
-/** Build or upgrade a facility, paying with the town's funds. */
-export function buildFacility(settlement, key) {
+/**
+ * Build or upgrade a facility, paying with the town's funds.
+ *
+ * `discount` is the share the price is cut by, which the engineering
+ * attribute earns.
+ */
+export function buildFacility(settlement, key, discount = 0) {
   const def = FACILITIES[key]
   if (!def) return { ok: false, reason: '没有这种设施' }
   if (!isPlayerTown(settlement)) return { ok: false, reason: '这不是你的城镇' }
   const level = facilityLevel(settlement, key)
   if (level >= def.maxLevel) return { ok: false, reason: '已达最高级' }
-  const cost = facilityCost(key, level)
+  const cost = facilityCost(key, level, discount)
   if ((settlement.funds || 0) < cost) return { ok: false, reason: '资金不足' }
   settlement.funds -= cost
   settlement.facilities = settlement.facilities || {}

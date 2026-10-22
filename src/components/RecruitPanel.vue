@@ -4,6 +4,19 @@
       {{ settlement.kind === 'town' ? '城镇兵营随机提供长枪兵 / 弓箭手 / 骑兵，从初级到精英都有，价格更贵。' : '村庄只能招募朴实的民兵，价格便宜，可在升级页变成正式兵种。' }}
     </p>
 
+    <div class="supply-bar">
+      <div class="chip">👥 队伍 {{ player.totalTroops }} / {{ player.partyCap }}</div>
+      <div v-if="player.supplies.order > 0" class="chip order">📜 征兵令 {{ player.supplies.order }}</div>
+    </div>
+
+    <button
+      v-if="player.supplies.order > 0"
+      class="btn order-btn"
+      @click="useOrder"
+    >
+      📜 用征兵令免费招募 2 名民兵
+    </button>
+
     <div class="list">
       <div v-for="row in rows" :key="row.key" class="unit-row">
         <img class="unit-icon" :src="spriteUrl(unitSprite(row.type, row.tier))" :alt="row.def.name" />
@@ -46,6 +59,7 @@
 import { computed, reactive, ref } from 'vue'
 import { usePlayerStore } from '@/stores/player'
 import { recruitList } from '@/game/recruit'
+import { recruitMulOf } from '@/game/difficulty'
 import { troopKey, unitDef, unitOf, unitSprite } from '@/game/units'
 import { spriteUrl } from '@/game/pixelAssets'
 import { persistGame } from '@/composables/gameState'
@@ -58,7 +72,7 @@ let timer = 0
 
 // Stock rows with their rank-scaled stats resolved once for the template.
 const rows = computed(() =>
-  recruitList(props.settlement).map((item) => ({
+  recruitList(props.settlement, { recruitMul: recruitMulOf(player.difficulty) }).map((item) => ({
     ...item,
     key: troopKey(item.type, item.tier),
     def: unitDef(item.type, item.tier)
@@ -72,6 +86,13 @@ function counterName(type) {
 }
 
 function hire(row, n) {
+  // The warband has a ceiling: the leadership attribute buys more room.
+  if (player.totalTroops + n > player.partyCap) {
+    toast.value = `队伍已达上限（${player.partyCap} 名），升级「统御」可以带更多人`
+    clearTimeout(timer)
+    timer = setTimeout(() => (toast.value = ''), 2000)
+    return
+  }
   const cost = row.cost * n
   if (!player.spendGold(cost)) return
   player.addTroops(row.type, row.tier, n)
@@ -79,6 +100,27 @@ function hire(row, n) {
   toast.value = `招募了 ${n} 名${row.def.name}`
   clearTimeout(timer)
   timer = setTimeout(() => (toast.value = ''), 1600)
+}
+
+/**
+ * A recruit order is the gift of a subject that was answered without a single
+ * mistake: it pays for two militia, free of charge.
+ */
+function useOrder() {
+  const room = Math.max(0, player.partyCap - player.totalTroops)
+  if (room <= 0) {
+    toast.value = '队伍已经满了，征兵令派不上用场'
+    clearTimeout(timer)
+    timer = setTimeout(() => (toast.value = ''), 2000)
+    return
+  }
+  if (!player.useSupply('order', 1)) return
+  const count = Math.min(2, room)
+  player.addTroops('militia', 1, count)
+  persistGame()
+  toast.value = `征兵令招来了 ${count} 名民兵`
+  clearTimeout(timer)
+  timer = setTimeout(() => (toast.value = ''), 2000)
 }
 </script>
 
@@ -93,6 +135,22 @@ function hire(row, n) {
 .lead {
   margin: 0;
   font-size: 13.5px;
+}
+
+.supply-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip.order {
+  border-color: var(--gold-deep);
+  color: var(--gold);
+}
+
+.order-btn {
+  border-color: var(--gold-deep);
+  color: var(--gold);
 }
 
 .list {

@@ -50,7 +50,7 @@ function weightedPick(rng, pool, bias = 1) {
 }
 
 /** Town stock: four unique family-and-rank offers plus cheap militia. */
-export function townRecruitList(settlement) {
+export function townRecruitList(settlement, recruitMul = 1) {
   const rng = createRng(settlement.recruitSeed)
   const bias = levelOf(settlement).recruitBias
   const list = []
@@ -58,16 +58,20 @@ export function townRecruitList(settlement) {
   while (list.length < 4 && guard++ < 60) {
     const pick = weightedPick(rng, TOWN_POOL, bias)
     if (list.some((x) => x.type === pick.type && x.tier === pick.tier)) continue
-    list.push(offer(pick.type, pick.tier, TOWN_MARKUP))
+    list.push(offer(pick.type, pick.tier, TOWN_MARKUP * recruitMul))
   }
-  list.push(offer('militia', 1))
+  list.push(offer('militia', 1, recruitMul))
   return list
 }
 
-export function villageRecruitList() {
-  return [offer('militia', 1)]
+export function villageRecruitList(recruitMul = 1) {
+  return [offer('militia', 1, recruitMul)]
 }
 
-export function recruitList(settlement) {
-  return settlement.kind === 'town' ? townRecruitList(settlement) : villageRecruitList()
+/**
+ * The stock of one settlement. `recruitMul` is the difficulty markup: the
+ * normal level passes 1 and leaves every price exactly as it shipped.
+ */
+export function recruitList(settlement, { recruitMul = 1 } = {}) {
+  return settlement.kind === 'town' ? townRecruitList(settlement, recruitMul) : villageRecruitList(recruitMul)
 }

@@ -140,6 +140,9 @@ import { persistGame } from '@/composables/gameState'
 
 const props = defineProps({ settlement: { type: Object, required: true } })
 const player = usePlayerStore()
+
+// The engineering attribute makes every facility cheaper.
+const discount = computed(() => player.skillEffects.buildDiscount)
 const toast = ref('')
 let timer = 0
 
@@ -171,17 +174,17 @@ function flash(msg) {
 function canBuild(key) {
   const level = facilityLevel(props.settlement, key)
   if (level >= FACILITIES[key].maxLevel) return false
-  return (props.settlement.funds || 0) >= facilityCost(key, level)
+  return (props.settlement.funds || 0) >= facilityCost(key, level, discount.value)
 }
 
 function buildLabel(key) {
   const level = facilityLevel(props.settlement, key)
   if (level >= FACILITIES[key].maxLevel) return '已满级'
-  return `建造 / 升级 · 🪙 ${facilityCost(key, level)}`
+  return `建造 / 升级 · 🪙 ${facilityCost(key, level, discount.value)}`
 }
 
 function build(key) {
-  const res = buildFacility(props.settlement, key)
+  const res = buildFacility(props.settlement, key, discount.value)
   if (!res.ok) {
     flash(res.reason)
     return

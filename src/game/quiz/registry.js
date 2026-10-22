@@ -23,7 +23,7 @@
  *   declarative → `${mod.key}:${item.id}`   (scheduled one by one)
  *   procedural  → `${mod.key}#${kind}`      (scheduled per template)
  */
-import { choice } from './shared'
+import { choice, shuffle } from './shared'
 
 const KEY_RE = /^[a-z0-9-]+$/i
 const mods = new Map()
@@ -32,24 +32,68 @@ function toText(value, fallback = '') {
   return value === undefined || value === null ? fallback : String(value)
 }
 
-// Validate and normalise one declarative question. Returns null when broken.
+/**
+ * Validate and normalise one declarative question. Returns null when broken.
+ *
+ * A question comes in four shapes, and every shape is a plain object the
+ * exam UI can render:
+ *
+ *   options + answer   multiple choice (the default)
+ *   input + answer     a filled-in answer: `input` is `number` or `text`
+ *   pairs              a matching question: `[[left, right], …]`
+ *   items              an ordering question: the items in the right order
+ */
 function normalizeItem(raw, fallbackGrade) {
   if (!raw || typeof raw !== 'object') return null
   const id = toText(raw.id).trim()
   const prompt = toText(raw.prompt).trim()
+  const explain = toText(raw.explain)
+  const grade = Number(raw.grade) || fallbackGrade
+  if (!id || !prompt) return null
+
+  // A filled-in answer: the child types it.
+  if (raw.input === 'number' || raw.input === 'text') {
+    const answer = toText(raw.answer).trim()
+    if (!answer) return null
+    return { id, grade, prompt, input: raw.input, answer, explain }
+  }
+
+  // A matching question: the child connects the two sides.
+  if (Array.isArray(raw.pairs)) {
+    const pairs = []
+    for (const pair of raw.pairs) {
+      if (!Array.isArray(pair) || pair.length !== 2) return null
+      const left = toText(pair[0]).trim()
+      const right = toText(pair[1]).trim()
+      if (!left || !right) return null
+      pairs.push([left, right])
+    }
+    if (pairs.length < 2) return null
+    return { id, grade, prompt, pairs, explain }
+  }
+
+  // An ordering question: the items are stored in the right order and the
+  // interface shuffles them.
+  if (Array.isArray(raw.items)) {
+    const items = raw.items.map((o) => toText(o).trim())
+    if (items.length < 2 || items.some((o) => !o)) return null
+    return { id, grade, prompt, items, explain }
+  }
+
+  // Multiple choice.
   const options = Array.isArray(raw.options) ? raw.options.map((o) => toText(o)) : []
   const answer = Number(raw.answer)
-  if (!id || !prompt || options.length < 2) return null
+  if (options.length < 2) return null
   if (options.some((o) => o === '')) return null
   if (new Set(options).size !== options.length) return null
   if (!Number.isInteger(answer) || answer < 0 || answer >= options.length) return null
   return {
     id,
-    grade: Number(raw.grade) || fallbackGrade,
+    grade,
     prompt,
     options,
     answer,
-    explain: toText(raw.explain)
+    explain
   }
 }
 
@@ -142,19 +186,42 @@ export function clearMods() {
   mods.clear()
 }
 
-// Materialise one declarative question: options are reshuffled for every
-// presentation so the answer position cannot be memorised.
+/**
+ * Turn a stored question into a question the exam can show.
+ *
+ * The options of a multiple choice question are reshuffled for every
+ * presentation, so the answer position cannot be memorised. A matching
+ * question gets its right-hand column shuffled the same way, and an ordering
+ * question gets its items shuffled as well.
+ */
 export function materializeItem(mod, item, rng) {
-  const correct = item.options[item.answer]
-  const wrongs = item.options.filter((_, i) => i !== item.answer)
-  return {
+  const base = {
     type: mod.key,
     kind: item.id,
     grade: item.grade,
     item: `${mod.key}:${item.id}`,
-    explain: item.explain,
-    ...choice(item.prompt, correct, wrongs, rng)
+    explain: item.explain
   }
+
+  // A filled-in answer.
+  if (item.input) {
+    return { ...base, prompt: item.prompt, input: item.input, answer: item.answer }
+  }
+
+  // A matching question: the pairs keep their order, the right column moves.
+  if (item.pairs) {
+    const rights = shuffle(item.pairs.map((pair) => pair[1]), rng)
+    return { ...base, prompt: item.prompt, pairs: item.pairs, rights }
+  }
+
+  // An ordering question: the items are shuffled, the right order is kept.
+  if (item.items) {
+    return { ...base, prompt: item.prompt, items: shuffle(item.items, rng), order: item.items }
+  }
+
+  const correct = item.options[item.answer]
+  const wrongs = item.options.filter((_, i) => i !== item.answer)
+  return { ...base, ...choice(item.prompt, correct, wrongs, rng) }
 }
 
 /**

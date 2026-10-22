@@ -12,6 +12,7 @@
  * Each file is either one mod object or `{ "mods": [ … ] }`.
  */
 import { registerMod } from './registry'
+import { createRng } from '../rng'
 import { ENGLISH_TYPES } from './english'
 import { CHINESE_TYPES } from './chinese'
 import { MATH_TYPES } from './math'
@@ -23,11 +24,29 @@ function template(kind, fn) {
   return { kind, make: (rng, grade) => fn(rng, grade) }
 }
 
-// Turn a `{ 3: [fn, …], 4: [fn, …] }` generator table into the `kinds`
-// contract of the registry. `fn.name` is the stable kind used by the memory
-// scheduler, so never rename a generator without a migration in mind.
+/**
+ * Turn a `{ 3: [fn, …], 4: [fn, …] }` generator table into the `kinds`
+ * contract of the registry.
+ *
+ * The kind of a template is the name its questions carry, not the name of the
+ * function that makes them: a build that minifies the function names must not
+ * change the memory curve of a question, because the kind is the key the
+ * curve is stored under.
+ */
 function kindsFromTable(table) {
-  return (grade) => (table[grade] || table[3] || []).map((fn) => template(fn.name, fn))
+  return (grade) => {
+    const list = table[grade] || table[3] || []
+    return list.map((fn) => {
+      let kind = fn.name
+      try {
+        const probe = fn(createRng(1), grade)
+        if (probe && probe.kind) kind = probe.kind
+      } catch {
+        /* a generator that refuses the grade keeps the name of its function */
+      }
+      return template(kind, fn)
+    })
+  }
 }
 
 const BUILTIN_MODS = [

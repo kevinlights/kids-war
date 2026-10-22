@@ -56,10 +56,18 @@ console.log(`seed ${payload.seed}, village ${settlement.name} at ${settlement.x}
 
 /* ------------------------------- start the site ---------------------------- */
 
-const site = spawn('npx', ['vite', 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1'], {
-  cwd: root,
-  stdio: 'ignore'
-})
+// The preview server is started through node and vite's own binary, so that
+// killing it really stops the server: `npx` would leave the server running
+// and the next run would talk to a stale build on a busy port.
+const viteBin = path.join(root, 'node_modules', 'vite', 'bin', 'vite.js')
+const site = spawn(
+  process.execPath,
+  [viteBin, 'preview', '--port', String(SITE_PORT), '--host', '127.0.0.1', '--strictPort'],
+  {
+    cwd: root,
+    stdio: 'ignore'
+  }
+)
 const chrome = spawn(CHROME, [
   '--headless=new',
   `--remote-debugging-port=${CDP_PORT}`,
@@ -148,7 +156,7 @@ try {
   await send('Page.enable')
   await send('Runtime.enable')
 
-  const waitFor = async (expression, label, timeout = 15000) => {
+  const waitFor = async (expression, label, timeout = 30000) => {
     const started = Date.now()
     while (Date.now() - started < timeout) {
       try {

@@ -17,7 +17,7 @@ import {
 } from './registry'
 import { ensureModsLoaded, loadModsFromText, modApi, registerBuiltins } from './mods'
 import { MEMORY, applyForgetting, pickWeighted, updateProgress, weightFor } from './scheduler'
-import { rewardDelta } from '../difficulty'
+import { rewardDelta, flatReward, rewardMul } from '../difficulty'
 
 // Register the built-in packs as soon as the module is imported, so even a
 // headless import can generate questions without awaiting the network loader.
@@ -32,6 +32,7 @@ export const GRADES = [
 const REWARD_BONUS = { logic: 6, encyclopedia: 4 }
 
 export {
+  collectEntries,
   listTypes,
   typeDef,
   typeKeys,
@@ -77,28 +78,62 @@ export function makeQuestion(type, grade, seed) {
  * `weightOf(entry)` is supplied by the caller (normally the player store) and
  * returns the memory-curve weight of an entry, so mastered questions are
  * offered less and shaky ones more. Omitting it gives a uniform draw.
+ *
+ * `items` restricts the paper to a fixed list of question keys, which is how
+ * the two revision modes work: a paper of mistakes and a paper of questions
+ * that are due both name the keys they want.
  */
-export function generateExam({ grade = 3, types = null, count = 5, seed = Date.now(), weightOf = null } = {}) {
+export function generateExam({
+  grade = 3,
+  types = null,
+  count = 5,
+  seed = Date.now(),
+  weightOf = null,
+  items = null
+} = {}) {
   const rng = createRng(seed)
   let entries = collectEntries(grade, types)
   // A subject with no questions for this grade must not produce an empty paper.
   if (!entries.length) entries = collectEntries(grade, null)
+  // A revision paper only holds the questions that were asked for, and every
+  // one of them at most once: a mistake book holds one question per mistake.
+  // When none of the wanted questions exist the paper is an ordinary one.
+  let revision = false
+  if (Array.isArray(items) && items.length) {
+    const wanted = new Set(items)
+    const filtered = entries.filter((entry) => wanted.has(entry.item))
+    if (filtered.length) {
+      entries = filtered
+      revision = true
+    }
+  }
+  const maxPapers = revision ? Math.min(count, items.length) : count
 
   const weight = weightOf || (() => 1)
   const papers = []
   const seenPrompts = new Set()
+  const usedItems = new Set()
   let lastItem = null
   let guard = 0
   const maxGuard = Math.max(60, count * 120)
 
-  while (papers.length < count && guard < maxGuard && entries.length) {
+  while (papers.length < maxPapers && guard < maxGuard && entries.length) {
     guard++
-    const entry = pickEntry(entries, weight, rng, lastItem)
+    // A revision paper asks every wanted question once.
+    const pool = revision ? entries.filter((entry) => !usedItems.has(entry.item)) : entries
+    if (!pool.length) break
+    const entry = pickEntry(pool, weight, rng, lastItem)
     if (!entry) break
     const question = entry.make(rng, grade)
-    if (!question || !question.prompt || seenPrompts.has(question.prompt)) continue
-    seenPrompts.add(question.prompt)
+    if (!question || !question.prompt) continue
+    // A normal paper never asks the same question twice. A revision paper
+    // asks every wanted item once, even when two items happen to look alike.
+    if (!revision) {
+      if (seenPrompts.has(question.prompt)) continue
+      seenPrompts.add(question.prompt)
+    }
     lastItem = entry.item
+    usedItems.add(entry.item)
     papers.push(question)
   }
   return papers
@@ -107,14 +142,21 @@ export function generateExam({ grade = 3, types = null, count = 5, seed = Date.n
 /**
  * Money reward for a single correct answer, scaled by grade and subject.
  *
- * The difficulty setting takes a few gold off every correct answer: the easy
- * mode pays the original numbers, the normal mode one gold less and the hard
- * mode two gold less. The reward never drops below one gold.
+ * The difficulty setting decides how much gold a correct answer pays:
+ *
+ *   简单 Easy    a flat price of 5 gold for every question, so the campaign
+ *                cannot be farmed on the easy level
+ *   普通 Normal  the original numbers, one gold less
+ *   困难 Hard    the normal numbers minus two gold, then cut by a fifth
+ *
+ * The reward never drops below one gold.
  */
 export function rewardFor(question, difficulty = 'easy') {
+  const flat = flatReward(difficulty)
+  if (flat) return flat
   const base = question.grade === 4 ? 26 : 20
   const total = base + (REWARD_BONUS[question.type] || 0) + rewardDelta(difficulty)
-  return Math.max(1, total)
+  return Math.max(1, Math.round(total * rewardMul(difficulty)))
 }
 
 export function typeLabel(key) {

@@ -87,13 +87,20 @@ export function sprite(name) {
  * Draw one sprite centred on (x, y) at an integer scale, with smoothing off so
  * the browser never interpolates between art pixels.
  */
-export function drawSprite(ctx, name, x, y, size, flip = false) {
+/**
+ * Draw one sprite centred on a point.
+ *
+ * `smooth` keeps the fractional position instead of snapping to whole pixels.
+ * The map and the interface stay pixel-crisp by default; the battle field asks
+ * for smooth placement so a walking soldier glides instead of stepping.
+ */
+export function drawSprite(ctx, name, x, y, size, flip = false, smooth = false) {
   const img = sprite(name)
   if (!img) return false
   const half = size / 2
   ctx.save()
   ctx.imageSmoothingEnabled = false
-  ctx.translate(Math.round(x), Math.round(y))
+  ctx.translate(smooth ? x : Math.round(x), smooth ? y : Math.round(y))
   if (flip) ctx.scale(-1, 1)
   ctx.drawImage(img, -half, -half, size, size)
   ctx.restore()

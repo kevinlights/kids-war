@@ -1,5 +1,5 @@
 // Chinese language question generators for grade 3 and grade 4.
-import { choice, numberWrongs } from './shared'
+import { choice, numberWrongs, orderQuestion, pairsQuestion } from './shared'
 
 const ANTONYMS = [
   ['大', '小'], ['高', '矮'], ['冷', '热'], ['快', '慢'], ['明亮', '黑暗'],
@@ -397,10 +397,17 @@ function poemMeaning(rng, grade) {
 
 // Fill in the missing character.
 function poemFill(rng, grade) {
-  const poem = rng.pick(POEM_BANK)
-  const line = rng.pick(poem.lines)
+  // A line that is too short cannot hide a character, so only the long lines
+  // are offered: the question always stays a fill-in question, and the kind
+  // (which is the key of the memory curve) never changes.
+  const candidates = POEM_BANK.flatMap((poem) =>
+    poem.lines
+      .filter((line) => line.replace(/[，。？！、；：]/g, '').length >= 4)
+      .map((line) => ({ poem, line }))
+  )
+  const picked = rng.pick(candidates.length ? candidates : POEM_BANK.map((poem) => ({ poem, line: poem.lines[0] })))
+  const { poem, line } = picked
   const chars = line.replace(/[，。？！、；：]/g, '').split('')
-  if (chars.length < 4) return poemAuthor(rng, grade)
   const answer = rng.pick(chars)
   const masked = line.replace(answer, '（　）')
   return {
@@ -452,9 +459,61 @@ function radical(rng, grade) {
   }
 }
 
+// The twenty-four solar terms, in the order of the year.
+const SOLAR_TERMS = [
+  '立春', '雨水', '惊蛰', '春分', '清明', '谷雨',
+  '立夏', '小满', '芒种', '夏至', '小暑', '大暑',
+  '立秋', '处暑', '白露', '秋分', '寒露', '霜降',
+  '立冬', '小雪', '大雪', '冬至', '小寒', '大寒'
+]
+
+/**
+ * 古诗配对：把诗句和诗题连起来。
+ *
+ * A matching question: the child connects a line with the poem it comes from.
+ */
+function poemMatch(rng, grade) {
+  const picked = []
+  const pool = [...POEM_BANK]
+  while (picked.length < 4 && pool.length) {
+    const index = rng.int(0, pool.length - 1)
+    picked.push(pool.splice(index, 1)[0])
+  }
+  const pairs = picked.map((poem) => [poem.lines[0], poem.title])
+  return {
+    type: 'chinese',
+    kind: 'poemMatch',
+    grade,
+    ...pairsQuestion('把下面的诗句和诗题连起来。', pairs, rng, {
+      leftLabel: '诗句',
+      rightLabel: '诗题',
+      explain: picked.map((p) => `《${p.title}》——${p.author}`).join('；')
+    })
+  }
+}
+
+/**
+ * 二十四节气排序：按顺序点出四个节气。
+ *
+ * An ordering question: the child puts four solar terms in the order of the
+ * year.
+ */
+function solarTerms(rng, grade) {
+  const start = rng.int(0, SOLAR_TERMS.length - 4)
+  const items = SOLAR_TERMS.slice(start, start + 4)
+  return {
+    type: 'chinese',
+    kind: 'solarTerms',
+    grade,
+    ...orderQuestion('这四个节气按一年中的顺序，该怎么排？', items, rng, {
+      explain: `正确顺序：${items.join(' → ')}。`
+    })
+  }
+}
+
 export const CHINESE_TYPES = {
-  3: [antonym, synonym, measure, idiom, reading, stroke, radical, poem, poemAuthor, poemTitle, poemFill, comprehension],
-  4: [antonym, synonym, idiom, reading, rhetoric, poem, poemPrev, poemAuthor, poemTitle, poemMeaning, poemFill, stroke, radical, comprehension]
+  3: [antonym, synonym, measure, idiom, reading, stroke, radical, poem, poemAuthor, poemTitle, poemFill, comprehension, poemMatch, solarTerms],
+  4: [antonym, synonym, idiom, reading, rhetoric, poem, poemPrev, poemAuthor, poemTitle, poemMeaning, poemFill, stroke, radical, comprehension, poemMatch, solarTerms]
 }
 
 export function generateChinese(rng, grade, kind) {

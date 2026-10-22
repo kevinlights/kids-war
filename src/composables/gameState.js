@@ -2,14 +2,15 @@
 import { usePlayerStore } from '@/stores/player'
 import { useWorldStore } from '@/stores/world'
 import { saveGame, loadGame, hasSave } from '@/game/save'
+import { foeSizeOf } from '@/game/difficulty'
 
 // Start a brand new campaign: reset the player and roll a fresh world.
 export function newGame(username, difficulty) {
   const player = usePlayerStore()
   const world = useWorldStore()
-  player.reset(username)
-  if (difficulty) player.setDifficulty(difficulty)
-  world.generate(Math.floor(Math.random() * 1e9))
+  player.reset(username, difficulty)
+  // The hard level fields bigger warbands from the very first day.
+  world.generate(Math.floor(Math.random() * 1e9), { enemyScale: foeSizeOf(player.difficulty) })
   persistGame()
 }
 
@@ -40,7 +41,10 @@ export function persistGame() {
     supplies: player.supplies,
     stats: player.stats,
     questionStats: player.questionStats,
-    difficulty: player.difficulty
+    difficulty: player.difficulty,
+    // What the child learned: the experience and the attributes it bought.
+    experience: player.experience,
+    attributes: player.attributes
   })
 }
 

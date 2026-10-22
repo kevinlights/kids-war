@@ -13,12 +13,15 @@
  */
 import { BATCHES } from './batches'
 import release001 from './v0.0.1'
+import release002 from './v0.0.2'
+import release003 from './v0.0.3'
+import release004 from './v0.0.4'
 
 /** The version of this build. */
-export const VERSION = '0.0.1'
+export const VERSION = '0.0.4'
 
 /** Every release, newest first. */
-export const VERSIONS = [release001]
+export const VERSIONS = [release004, release003, release002, release001]
 
 /** The notes of the current build. */
 export const CHANGELOG = VERSIONS

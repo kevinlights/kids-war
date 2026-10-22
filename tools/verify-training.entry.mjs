@@ -26,15 +26,18 @@ const battle = useBattleStore()
 /* ------------------------------- 1. version -------------------------------- */
 
 check('the version has three numbers', /^\d+\.\d+\.\d+$/.test(VERSION), VERSION)
-check('the version starts at 0.0.1', VERSION === '0.0.1', VERSION)
+check('the first release is 0.0.1', CHANGELOG[CHANGELOG.length - 1].version === '0.0.1', CHANGELOG[CHANGELOG.length - 1].version)
 check('the interface shows the version with a v', versionLabel(VERSION) === `v${VERSION}`)
 check('the changelog has an entry', CHANGELOG.length > 0)
 check('the newest entry is the current version', CHANGELOG[0].version === VERSION, CHANGELOG[0].version)
 check('every entry has a date', CHANGELOG.every((entry) => !!entry.date))
 check('every entry lists at least one change', CHANGELOG.every((entry) => (entry.summary || []).length > 0))
-check('the changelog mentions the version display', CHANGELOG[0].summary.some((line) => line.includes('版本号')))
-check('the changelog mentions the training session', CHANGELOG[0].summary.some((line) => line.includes('练兵')))
-check('the changelog mentions the quick battle', CHANGELOG[0].summary.some((line) => line.includes('快速战斗')))
+// The notes of every release together mention the features of the game.
+const allNotes = CHANGELOG.flatMap((entry) => entry.summary || []).join('\n')
+check('the changelog mentions the version display', allNotes.includes('版本号'))
+check('the changelog mentions the training session', allNotes.includes('练兵'))
+check('the changelog mentions the quick battle', allNotes.includes('快速战斗'))
+check('the current release mentions the slow town clock', CHANGELOG[0].summary.some((line) => line.includes('城镇') && line.includes('1 分钟')))
 // The notes are the batches of the progress file.
 const progressText = readFileSync(path.join(globalThis.__kwgRoot || process.cwd(), 'progress.md'), 'utf8')
 // Only the batches that hold something a player can see are in the notes.
