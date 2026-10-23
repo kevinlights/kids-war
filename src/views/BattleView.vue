@@ -18,12 +18,26 @@
 
     <div v-if="intel" class="intel">🧠 敌方构成：{{ intel }}</div>
 
-    <!-- Battle tools: speed, terrain legend and the camera. -->
+    <!-- Battle tools: speed, terrain legend and the camera. A quick battle
+         also has its way out: the fight is only practice, so it can be left
+         at any moment instead of waiting for one side to break. -->
     <div class="hud-tools">
+      <button
+        v-if="quick"
+        class="tool quit"
+        title="退出这场快速战斗，回到设置"
+        @click="returnToWorld"
+      >
+        <span class="quit-icon">←</span><span class="quit-text">返回</span>
+      </button>
       <button class="tool" :class="{ on: showTools }" @click="showTools = !showTools">
-        ⚙ {{ speedInfo.name }}
+        <span class="tool-icon">⚙</span><span class="tool-speed">{{ speedInfo.name }}</span>
       </button>
       <button class="tool" title="回到战斗" @click="battle.recenter()">🎯</button>
+      <!-- The frame rate of the arena: the number a stutter shows up in. -->
+      <span class="fps" :class="fpsTone" :title="fpsTitle">
+        <b>{{ fps }}</b><span class="fps-label"> FPS</span>
+      </span>
     </div>
 
     <div v-if="showTools" class="tools-panel panel">
@@ -51,6 +65,10 @@
       </div>
       <p class="tools-hint">用手指拖动战场可以查看别的地方，点「🎯」让镜头回到战斗。</p>
     </div>
+
+    <!-- A phone's edge swipe is a browser back step. The fight is a
+         commitment, so the swipe is refused and this says why. -->
+    <div v-if="leaveHint" class="leave-hint">{{ leaveHint }}</div>
 
     <div class="command">
       <!-- Training: the session ends whenever the lord wants it to. -->
@@ -180,8 +198,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import BattleMap from '@/components/BattleMap.vue'
 import { useBattleStore } from '@/stores/battle'
 import { useWorldStore } from '@/stores/world'
@@ -202,6 +220,54 @@ const result = ref(null)
 const showSheet = ref(false)
 // Battle tools panel: the speed setting and the terrain legend.
 const showTools = ref(false)
+
+// Leaving is the one navigation this screen allows: a swipe from the edge of
+// the browser, a back button or the hardware back key would drop the lord out
+// of a running fight by accident, so those are refused and this hint is shown
+// instead. The button on screen sets the flag first.
+let allowLeave = false
+const leaveHint = ref('')
+let leaveHintTimer = 0
+
+// The frame rate of this screen. The arena is drawn on requestAnimationFrame,
+// so the gap between two frames is exactly what a stutter looks like: the
+// counter keeps the average over the last half second and the worst frame in
+// it, which is what makes a short hitch visible.
+const fps = ref(0)
+const worstFrame = ref(0)
+let fpsRaf = 0
+let fpsStart = 0
+let fpsLast = 0
+let fpsFrames = 0
+let fpsWorst = 0
+
+function sampleFrame(now) {
+  if (!fpsStart) {
+    fpsStart = now
+    fpsLast = now
+    fpsWorst = 0
+  }
+  const dt = now - fpsLast
+  fpsLast = now
+  fpsWorst = Math.max(fpsWorst, dt)
+  fpsFrames += 1
+  const span = now - fpsStart
+  if (span >= 500) {
+    fps.value = Math.round((fpsFrames * 1000) / span)
+    worstFrame.value = Math.round(fpsWorst)
+    fpsStart = now
+    fpsFrames = 0
+    fpsWorst = 0
+  }
+  fpsRaf = requestAnimationFrame(sampleFrame)
+}
+
+// Green while the fight is smooth, gold once it starts to dip, red when a
+// frame takes longer than a twentieth of a second.
+const fpsTone = computed(() => (fps.value >= 50 ? 'good' : fps.value >= 30 ? 'ok' : 'bad'))
+const fpsTitle = computed(
+  () => `帧率：最近半秒 ${fps.value} FPS，最慢一帧 ${worstFrame.value} ms`
+)
 
 const groups = computed(() => battle.groups)
 const order = computed(() => battle.order)
@@ -232,8 +298,16 @@ const enemyColor = computed(() => {
   return battle.context ? factionOf(battle.context.faction).color : '#d8533f'
 })
 
-const playerAlive = computed(() => (battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'player').length : 0))
-const enemyAlive = computed(() => (battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'enemy').length : 0))
+// The field is raw data (see the battle store), so these read the stamp that
+// the simulation bumps a few times a second.
+const playerAlive = computed(() => {
+  void battle.stamp
+  return battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'player').length : 0
+})
+const enemyAlive = computed(() => {
+  void battle.stamp
+  return battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'enemy').length : 0
+})
 
 /**
  * The tactics attribute scouts the enemy before the fight: the composition of
@@ -257,15 +331,28 @@ const scopeName = computed(() => (battle.selectedGroup ? battle.selected?.name |
 const formationLabel = computed(() => formationOf(formation.value).name)
 const densityLabel = computed(() => densityOf(density.value).name)
 
-/** The opening standoff of this fight, or null when there is nothing to show. */
-const opening = computed(() => (training.value ? null : battle.data?.opening || null))
+/** Whether every squad of the lord has been ordered to attack. */
+const charged = computed(() => {
+  void battle.stamp
+  const d = battle.data
+  return !!d && d.playerGroups.every((k) => d.groups[k] && d.groups[k].order === 'attack')
+})
 
 /**
  * The standoff banner: both armies hold at first, then the enemy dresses its
  * ranks and charges. The banner goes away once the enemy is on its way.
+ *
+ * It reads the stamp directly instead of going through a computed that returns
+ * the opening: the opening is part of the raw battle data and never changes
+ * identity, so such a computed would tell Vue the value was unchanged and the
+ * banner would stay on screen after 「全军出击」.
  */
 const standoff = computed(() => {
-  const o = opening.value
+  void battle.stamp
+  // The lord's own charge ends the wait on screen: the enemy still dresses its
+  // ranks for a moment, but the banner has done its job and gets out of the way.
+  if (charged.value) return ''
+  const o = training.value ? null : battle.data?.opening || null
   if (!o || o.phase === 'advance') return ''
   if (o.phase === 'dress') return '🚩 敌军正在变阵，马上就要冲锋！'
   const left = Math.max(0, Math.ceil(o.wait - o.t))
@@ -304,11 +391,30 @@ function onEnd() {
   }
 }
 
+// The browser's back step is refused while the fight is on: a swipe from the
+// edge of a phone would otherwise leave the battle by accident.
+onBeforeRouteLeave(() => {
+  if (allowLeave) return true
+  if (!battle.active || !battle.data || result.value) return true
+  leaveHint.value =
+    quick.value || training.value
+      ? '战斗进行中，退出请用界面上的返回按钮'
+      : '战斗进行中，请先结束这场战斗'
+  clearTimeout(leaveHintTimer)
+  leaveHintTimer = setTimeout(() => {
+    leaveHint.value = ''
+  }, 2200)
+  return false
+})
+
 function returnToWorld() {
+  allowLeave = true
+  // The context is gone after `close()`, so the kind of fight is read first.
+  const wasQuick = quick.value
   world.clearEncounter()
   battle.close()
   // A quick battle has no campaign to go back to: it returns to its setup.
-  if (quick.value) {
+  if (wasQuick) {
     router.push('/quick')
     return
   }
@@ -318,9 +424,17 @@ function returnToWorld() {
 
 onMounted(() => {
   if (!battle.active || !battle.data) {
+    allowLeave = true
     world.clearEncounter()
     router.replace('/world')
+    return
   }
+  fpsRaf = requestAnimationFrame(sampleFrame)
+})
+
+onUnmounted(() => {
+  cancelAnimationFrame(fpsRaf)
+  clearTimeout(leaveHintTimer)
 })
 
 watch(
@@ -337,6 +451,8 @@ watch(
   height: 100%;
   overflow: hidden;
   background: #0e140e;
+  /* Pulling the field must not reload the page or bounce the view. */
+  overscroll-behavior: none;
 }
 
 .map {
@@ -441,6 +557,88 @@ watch(
   color: var(--gold);
 }
 
+/* The way out of a quick battle: a plain, always visible back button. */
+.tool.quit {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-color: rgba(232, 197, 106, 0.42);
+  color: var(--gold);
+}
+
+.tool.quit .quit-icon {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* The frame-rate readout: a quiet chip that turns gold and then red when the
+   arena starts to stutter. Tabular figures keep it from changing width. */
+.fps {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  min-width: 54px;
+  min-height: 40px;
+  padding: 6px 9px;
+  border-radius: 12px;
+  background: rgba(8, 12, 8, 0.78);
+  border: 1px solid var(--line);
+  color: #94c983;
+  font-size: 12.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  z-index: 6;
+}
+
+.fps b {
+  font-size: 14px;
+}
+
+.fps.ok {
+  color: var(--gold);
+  border-color: rgba(232, 197, 106, 0.5);
+}
+
+.fps.bad {
+  color: #ff9a8a;
+  border-color: rgba(216, 83, 63, 0.65);
+  background: rgba(60, 18, 14, 0.82);
+}
+
+/* The note shown when a back step is refused: it sits over the field for a
+   moment, then goes away on its own. */
+.leave-hint {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: calc(100% - 40px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  background: rgba(38, 28, 10, 0.95);
+  border: 1px solid rgba(232, 197, 106, 0.6);
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  z-index: 8;
+  pointer-events: none;
+  animation: hint-in 0.18s ease-out;
+}
+
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -46%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
 .tools-panel {
   position: absolute;
   top: calc(60px + env(safe-area-inset-top));
@@ -541,7 +739,9 @@ watch(
   flex-direction: column;
   gap: 8px;
   padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, rgba(8, 12, 8, 0.35), rgba(8, 12, 8, 0.92) 34%);
+  /* The bar itself is clear: every chip and button carries its own panel, so
+     the field shows through the gaps instead of sitting under a dark sheet. */
+  background: none;
   z-index: 5;
 }
 
@@ -754,6 +954,8 @@ watch(
   font-size: 12.5px;
   color: var(--ink-dim);
   text-align: center;
+  /* It sits straight on the field now, so it needs its own shadow. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 0, 0, 0.75);
 }
 
 /* The button that ends a training session: it sits above the command bar so
@@ -890,12 +1092,25 @@ watch(
     padding: 6px 12px;
     font-size: 13px;
     /* The battle tools sit in the top-right corner, so the strength bar keeps
-       to the left of them on a narrow screen. */
+       to the left of them on a narrow screen. A quick battle adds its own
+       back button there, which makes that corner a little wider. */
     left: 12px;
     right: auto;
     transform: none;
-    max-width: calc(100% - 116px);
+    max-width: calc(100% - 190px);
     overflow: hidden;
+  }
+
+  /* The title is decoration: on a phone its room is worth more to the two
+     side counts, which must never be cut off. */
+  .hud-top .vs {
+    display: none;
+  }
+
+  /* The speed name lives in the tools panel; the top-right corner keeps only
+     the gear, so the strength bar gets the rest of the row. */
+  .tool-speed {
+    display: none;
   }
 
   .hud-tools {
@@ -909,6 +1124,62 @@ watch(
     min-height: 38px;
     padding: 5px 8px;
     font-size: 12px;
+  }
+
+  /* The bottom bar gives the field as much height as it can: smaller chips,
+     shorter commands and no hint line (the standoff banner and the sheet note
+     carry the same words when they matter). */
+  .command {
+    gap: 6px;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+
+  .command .hint {
+    display: none;
+  }
+
+  .orders .cmd {
+    min-height: 46px;
+    padding: 4px;
+  }
+
+  .cmd-icon {
+    font-size: 18px;
+  }
+
+  .chip {
+    min-height: 42px;
+    padding: 5px 10px;
+  }
+
+  .chip-art {
+    width: 22px;
+    height: 22px;
+    line-height: 22px;
+    font-size: 18px;
+  }
+
+  .sheet-toggle {
+    min-height: 38px;
+    font-size: 13px;
+  }
+
+  .fps {
+    min-width: 38px;
+    min-height: 38px;
+    padding: 5px 6px;
+    font-size: 11px;
+  }
+
+  .fps b {
+    font-size: 13px;
+  }
+
+  /* On a phone the back button is the arrow alone and the frame rate drops the
+     word FPS: the corners stay clear and the strength bar keeps its room. */
+  .tool.quit .quit-text,
+  .fps-label {
+    display: none;
   }
 
   .tools-panel {

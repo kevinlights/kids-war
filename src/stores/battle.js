@@ -3,6 +3,7 @@
  * outcome that is applied back to the world and the player once the fight ends.
  */
 import { defineStore } from 'pinia'
+import { markRaw } from 'vue'
 import {
   createBattle,
   stepBattle,
@@ -22,6 +23,13 @@ import { foodPerBattleOf } from '@/game/difficulty'
 import { usePlayerStore } from './player'
 import { useWorldStore } from './world'
 
+// Real time since the last stamp of the interface.
+let stampClock = 0
+
+// How far past the edge of the field the camera may be dragged, in screen
+// pixels: a small margin of ground shows around the field.
+const PAN_OUTSIDE = 140
+
 export const useBattleStore = defineStore('battle', {
   state: () => ({
     active: false,
@@ -30,6 +38,9 @@ export const useBattleStore = defineStore('battle', {
     result: null, // { outcome, loot, summary, recruits }
     settled: false,
     selectedGroup: null, // null means every squad at once
+    // The live battle data is raw (see `start`), so the interface watches this
+    // counter instead of every soldier. It moves a few times a second.
+    stamp: 0,
     // How fast the simulation runs: 'slow' (the default), 'normal' or 'fast'.
     speed: 'slow',
     // The camera over the battle field: the field is bigger than a phone
@@ -51,22 +62,31 @@ export const useBattleStore = defineStore('battle', {
      */
     isTraining: (s) => !!(s.data && s.data.training),
     /** Player squads with their live count, order, formation and density. */
-    groups: (s) => (s.data ? battleGroups(s.data, 'player') : []),
-    selected: (s) => (s.data && s.selectedGroup ? s.data.groups[s.selectedGroup] || null : null),
+    groups: (s) => {
+      void s.stamp
+      return s.data ? battleGroups(s.data, 'player') : []
+    },
+    selected: (s) => {
+      void s.stamp
+      return s.data && s.selectedGroup ? s.data.groups[s.selectedGroup] || null : null
+    },
     /** Order shown by the command bar: the selected squad's, else the first one's. */
     order: (s) => {
+      void s.stamp
       if (!s.data) return 'attack'
       if (s.selectedGroup && s.data.groups[s.selectedGroup]) return s.data.groups[s.selectedGroup].order
       const first = s.data.playerGroups[0]
       return first && s.data.groups[first] ? s.data.groups[first].order : 'attack'
     },
     formation: (s) => {
+      void s.stamp
       if (!s.data) return 'square'
       if (s.selectedGroup && s.data.groups[s.selectedGroup]) return s.data.groups[s.selectedGroup].formation
       const first = s.data.playerGroups[0]
       return first && s.data.groups[first] ? s.data.groups[first].formation : 'square'
     },
     density: (s) => {
+      void s.stamp
       if (!s.data) return 'tight'
       if (s.selectedGroup && s.data.groups[s.selectedGroup]) return s.data.groups[s.selectedGroup].density
       const first = s.data.playerGroups[0]
@@ -98,14 +118,14 @@ export const useBattleStore = defineStore('battle', {
       atkMul *= player.milestoneEffects.armyAtk
       player.supplies.food = Math.max(0, food - FOOD_PER_BATTLE)
 
-      this.data = createBattle({
+      this.data = markRaw(createBattle({
         playerTroops: player.troops,
         enemyTroops: party.units,
         enemyFaction: party.faction,
         seed,
         playerAtkMul: atkMul,
         playerDefMul: 1 + world.armyBonus
-      })
+      }))
       this.context = { partyId: party.id, faction: party.faction, kind: 'party', hungry: food < FOOD_PER_BATTLE }
       this.selectedGroup = null
       this.result = null
@@ -136,14 +156,14 @@ export const useBattleStore = defineStore('battle', {
       atkMul *= player.milestoneEffects.armyAtk
       player.supplies.food = Math.max(0, food - FOOD_PER_BATTLE)
 
-      this.data = createBattle({
+      this.data = markRaw(createBattle({
         playerTroops: player.troops,
         enemyTroops: settlement.garrison || [],
         enemyFaction: settlement.owner,
         seed,
         playerAtkMul: atkMul,
         playerDefMul: 1 + world.armyBonus
-      })
+      }))
       this.context = {
         partyId: null,
         faction: settlement.owner,
@@ -166,7 +186,7 @@ export const useBattleStore = defineStore('battle', {
      */
     startTraining(seed) {
       const player = usePlayerStore()
-      this.data = createBattle({
+      this.data = markRaw(createBattle({
         playerTroops: player.troops,
         enemyTroops: [],
         enemyFaction: 'training',
@@ -174,7 +194,7 @@ export const useBattleStore = defineStore('battle', {
         playerAtkMul: 1,
         playerDefMul: 1,
         training: true
-      })
+      }))
       spawnTrainingDummies(this.data)
       this.context = { partyId: null, faction: 'training', kind: 'training', hungry: false }
       this.selectedGroup = null
@@ -194,7 +214,7 @@ export const useBattleStore = defineStore('battle', {
      * 快速战斗：选好的两支队伍在选好的战场上打一场真的仗，但战役数据不受影响。
      */
     startQuick({ map, playerTroops, enemyTroops, enemyFaction, seed }) {
-      this.data = createBattle({
+      this.data = markRaw(createBattle({
         playerTroops,
         enemyTroops,
         enemyFaction,
@@ -202,7 +222,7 @@ export const useBattleStore = defineStore('battle', {
         playerAtkMul: 1,
         playerDefMul: 1,
         arenaMap: map || 'mixed'
-      })
+      }))
       this.context = {
         partyId: null,
         faction: enemyFaction,
@@ -223,6 +243,14 @@ export const useBattleStore = defineStore('battle', {
       const mul = speedOf(this.speed).mul
       stepBattle(this.data, Math.min(dt * mul, 0.08))
       if (this.data.outcome && !this.settled) this.settle()
+      // The field itself is raw, so the command bar is refreshed from this
+      // counter: ten times a second is enough for counts and orders and costs
+      // a fraction of a reactive army.
+      stampClock += dt
+      if (stampClock >= 0.1) {
+        stampClock = 0
+        this.stamp += 1
+      }
     },
 
     /** Change how fast the battle runs. */
@@ -237,9 +265,10 @@ export const useBattleStore = defineStore('battle', {
      * Keep the camera on the fighting.
      *
      * The zoom follows the armies: when they are far apart the field is seen
-     * from a distance, and when they meet the camera zooms in. The zoom never
-     * drops below the readable minimum, and the camera never shows the area
-     * outside the field.
+     * from a distance, and when they meet the camera zooms in. A phone screen
+     * is narrow, so its floor is lower: at the opening both armies have to fit
+     * on screen instead of the camera sitting on the empty ground between
+     * them. The camera may also be dragged a little past the edge of the field.
      */
     updateCamera(viewW, viewH) {
       if (!this.data || !viewW || !viewH) return
@@ -248,7 +277,10 @@ export const useBattleStore = defineStore('battle', {
         const needW = Math.max(320, bounds.maxX - bounds.minX + 260)
         const needH = Math.max(240, bounds.maxY - bounds.minY + 260)
         const fit = Math.min(viewW / needW, viewH / needH)
-        this.zoom = Math.max(0.7, Math.min(1.5, fit))
+        // A phone is narrow: zooming to 0.7 would cut both armies off the
+        // sides of the screen at the opening, so the floor is lower there.
+        const floor = viewW <= 640 ? 0.42 : 0.7
+        this.zoom = Math.max(floor, Math.min(1.5, fit))
         if (this.follow) {
           this.camX += (bounds.cx - this.camX) * 0.12
           // The command bar covers the bottom of the screen, so the fighting
@@ -258,13 +290,19 @@ export const useBattleStore = defineStore('battle', {
       } else {
         this.zoom = Math.max(0.55, Math.min(1.5, Math.min(viewW / 560, viewH / 620)))
       }
-      // The camera never shows the area outside the field: when the view is
-      // bigger than the field, the field is pinned to the top left corner and
-      // the rest of the screen shows the ground around it.
+      // The camera may be dragged a little past the edge of the field, so the
+      // ground around it can be seen and the last soldier at the border is not
+      // glued to the side of the screen. The buffer is measured on screen and
+      // turned into field pixels with the zoom.
       const halfW = viewW / this.zoom / 2
       const halfH = viewH / this.zoom / 2
-      this.camX = Math.max(halfW, Math.min(ARENA.w - halfW, this.camX))
-      this.camY = Math.max(halfH, Math.min(ARENA.h - halfH, this.camY))
+      const pad = PAN_OUTSIDE / this.zoom
+      const minX = Math.min(halfW, ARENA.w / 2) - pad
+      const maxX = Math.max(ARENA.w - halfW, ARENA.w / 2) + pad
+      const minY = Math.min(halfH, ARENA.h / 2) - pad
+      const maxY = Math.max(ARENA.h - halfH, ARENA.h / 2) + pad
+      this.camX = Math.max(minX, Math.min(maxX, this.camX))
+      this.camY = Math.max(minY, Math.min(maxY, this.camY))
     },
 
     /** The box around every living soldier: what the camera likes to watch. */

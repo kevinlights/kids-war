@@ -181,8 +181,13 @@ export function generateArenaTerrain(seed, cols = 25, rows = 17, map = 'mixed') 
   }
   const get = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows ? 'plain' : ARENA_TERRAIN_KEYS[cells[index(c, r)]])
 
+  // The field may be bigger than the 25 x 17 it was designed on: each piece
+  // grows with it, so the ground keeps the same mix of open plain and cover.
+  const scale = Math.max(1, Math.round(Math.max(cols / 25, rows / 17)))
+
   /** A blob of one terrain kind around a point. */
   const blob = (cc, rr, radius, key) => {
+    radius = Math.max(1, Math.round(radius * scale))
     for (let r = rr - radius; r <= rr + radius; r += 1) {
       for (let c = cc - radius; c <= cc + radius; c += 1) {
         const dx = c - cc

@@ -287,48 +287,74 @@ export function arenaLineClear(arena, x0, y0, x1, y1, step = 6) {
 }
 
 /**
- * Pick a natural direction for a ranged soldier to fall back.
+ * Pick the best way out of trouble for a ranged squad that has to give ground.
  *
- * It starts with the direction away from the threat and tries a fan of nearby
- * directions. A candidate that keeps a clear line, stays on fast ground and
- * keeps away from the edge wins. This stops a skirmisher from backing into a
- * lake or into the corner of the field.
+ * A squad that only walks straight away from the enemy backs itself into the
+ * nearest wall and stands there trading shots. So the choice is not just "away
+ * from the foe": every way out is measured by **how much open ground it leads
+ * into** — how far the squad can run that way without leaving the field or
+ * wading into deep water — and by how much room it keeps from the enemy. When
+ * the wall is right behind the squad the open ground wins, so the squad slides
+ * along the wall, and if the only way out is round the enemy's flank it takes
+ * that way instead of pressing into the corner.
+ *
+ * `previous` is the direction the squad used last frame: a little weight on it
+ * keeps a squad in a corner from dithering between two equally open walls.
  */
-export function retreatDirection(arena, x, y, awayX, awayY, distance = 110) {
+export function retreatDirection(arena, x, y, awayX, awayY, distance = 110, foe = null, previous = null) {
   const len = Math.hypot(awayX, awayY)
   const base = len > 0.01 ? Math.atan2(awayY, awayX) : 0
-  const angles = [0, 0.3, -0.3, 0.6, -0.6, 0.95, -0.95, 1.35, -1.35]
-  const width = arena ? arena.cols * cellSize(arena) : 1000
-  const height = arena ? arena.rows * cellSize(arena) : 680
+  const width = arena ? arena.cols * cellSize(arena) : 1400
+  const height = arena ? arena.rows * cellSize(arena) : 960
+  const inside = (px, py) => px > 20 && py > 20 && px < width - 20 && py < height - 20
+  const open = (px, py) => inside(px, py) && (!arena || arenaWalkable(arena, px, py))
+
+  // How far the squad could run along a way: the wall and the deep water cut
+  // it short, so a cornered squad sees no room behind it.
+  const reach = Math.max(distance, 150)
+  const room = (angle) => {
+    let far = 0
+    for (let step = 30; step <= reach; step += 30) {
+      const px = x + Math.cos(angle) * step
+      const py = y + Math.sin(angle) * step
+      if (!open(px, py)) break
+      far = step
+    }
+    return far
+  }
+  const keepAway = (px, py) => {
+    if (!foe) return 1
+    return Math.min(Math.hypot(px - foe.x, py - foe.y), 200) / 200
+  }
+
   let best = null
   let bestScore = -Infinity
-
-  for (const offset of angles) {
-    const angle = base + offset
-    const ex = x + Math.cos(angle) * distance
-    const ey = y + Math.sin(angle) * distance
-    if (ex < 20 || ey < 20 || ex > width - 20 || ey > height - 20) continue
-    if (!arenaWalkable(arena, ex, ey)) continue
-    const clear = arenaLineClear(arena, x, y, ex, ey, 8)
-    const ground = arenaTerrainAt(arena, ex, ey)
+  // Sixteen ways around the compass: with the straight-back way blocked the
+  // squad can still pick the wall that opens up, or the way round the foe.
+  for (let i = 0; i < 16; i += 1) {
+    const angle = base + (i / 16) * Math.PI * 2
+    const offset = Math.atan2(Math.sin(angle - base), Math.cos(angle - base))
+    const roomFrac = room(angle) / reach
+    const goal = distance * (0.45 + 0.55 * roomFrac)
+    const ex = x + Math.cos(angle) * goal
+    const ey = y + Math.sin(angle) * goal
+    if (!inside(ex, ey)) continue
+    const ground = arena ? arenaTerrainAt(arena, ex, ey) : { speedMul: 1 }
     const edge = Math.min(ex, ey, width - ex, height - ey)
     const score =
-      Math.cos(offset) * 2 +
-      (clear ? 1 : 0) +
-      (ground.speedMul || 1) * 0.35 +
-      Math.min(edge, 120) / 120 * 0.35
+      roomFrac * 2.6 +
+      Math.cos(offset) * 0.8 +
+      keepAway(ex, ey) * 0.6 +
+      (ground.speedMul || 1) * 0.25 +
+      Math.min(edge, 140) / 140 * 0.25 +
+      (previous ? (Math.cos(angle) * previous.x + Math.sin(angle) * previous.y) * 0.35 : 0)
     if (score > bestScore) {
       bestScore = score
-      best = { x: ex, y: ey }
+      best = { x: Math.cos(angle), y: Math.sin(angle) }
     }
   }
 
-  if (best) {
-    const dx = best.x - x
-    const dy = best.y - y
-    const d = Math.hypot(dx, dy) || 1
-    return { x: dx / d, y: dy / d }
-  }
+  if (best) return best
   if (len > 0.01) return { x: awayX / len, y: awayY / len }
   return { x: 1, y: 0 }
 }

@@ -22,7 +22,7 @@ import {
   stepBattle,
   speedOf
 } from '@/game/battle'
-import { ARENA_TERRAIN, ARENA_TERRAIN_KEYS, arenaCellTerrain, arenaTerrainAt, arenaWalkable, generateArenaTerrain } from '@/game/arena'
+import { ARENA_CELL, ARENA_TERRAIN, ARENA_TERRAIN_KEYS, arenaCellTerrain, arenaTerrainAt, arenaWalkable, generateArenaTerrain } from '@/game/arena'
 import { arenaLineClear, findArenaPath, retreatDirection, smoothArenaPath } from '@/game/arenaPath'
 import {
   DEATH_TIME,
@@ -254,7 +254,11 @@ check('the forest gives cover', ARENA_TERRAIN.forest.defMul > 1)
 check('the desert tires the troops', ARENA_TERRAIN.desert.atkMul < 1)
 check('the river slows the troops down', ARENA_TERRAIN.river.speedMul < 1)
 check('the mountain gives the high ground', ARENA_TERRAIN.mountain.atkMul > 1)
-check('the field is bigger than the old arena', ARENA.w > 900 && ARENA.h > 560, `${ARENA.w}x${ARENA.h}`)
+check(
+  'the field covers about twice the old ground',
+  ARENA.w * ARENA.h >= 1.9 * 1000 * 680 && ARENA.w * ARENA.h <= 2.1 * 1000 * 680,
+  `${ARENA.w}x${ARENA.h}`
+)
 
 /* --------------------- 3b. a new field for every battle --------------------- */
 
@@ -468,6 +472,222 @@ if (lakeCell) {
   check('a retreat direction has unit length', Math.abs(Math.hypot(away.x, away.y) - 1) < 0.001)
   check('a retreat avoids the lake', arenaWalkable(lakeTest.terrain, retreatX, retreatY), `${retreatX.toFixed(0)},${retreatY.toFixed(0)}`)
 }
+
+/* ------------------- 3c. a cornered skirmisher slips out ------------------- */
+
+// A ranged squad told to attack keeps its distance, but a squad that only
+// walks straight away from the enemy backs itself into the corner and stands
+// there trading shots. The retreat has to use the room it has: along the wall,
+// or round the enemy's flank, when the corner is behind it.
+const flatField = generateArenaTerrain(
+  5,
+  Math.round(ARENA.w / ARENA_CELL),
+  Math.round(ARENA.h / ARENA_CELL),
+  'plain'
+)
+const cornerFoe = { x: ARENA.w - 122, y: ARENA.h - 122 }
+const cornerSpot = { x: ARENA.w - 49, y: ARENA.h - 49 }
+const cornerAway = { x: cornerSpot.x - cornerFoe.x, y: cornerSpot.y - cornerFoe.y }
+const cornerAwayLen = Math.hypot(cornerAway.x, cornerAway.y)
+const cornerOut = retreatDirection(
+  flatField,
+  cornerSpot.x,
+  cornerSpot.y,
+  cornerAway.x,
+  cornerAway.y,
+  110,
+  cornerFoe
+)
+const cornerEnd = { x: cornerSpot.x + cornerOut.x * 110, y: cornerSpot.y + cornerOut.y * 110 }
+check(
+  'a cornered squad keeps its retreat inside the field',
+  cornerEnd.x > 20 && cornerEnd.y > 20 && cornerEnd.x < ARENA.w - 20 && cornerEnd.y < ARENA.h - 20,
+  `${cornerEnd.x.toFixed(0)},${cornerEnd.y.toFixed(0)}`
+)
+check(
+  'a cornered squad does not back into the wall',
+  (cornerOut.x * cornerAway.x + cornerOut.y * cornerAway.y) / cornerAwayLen < 0.5,
+  `${((cornerOut.x * cornerAway.x + cornerOut.y * cornerAway.y) / cornerAwayLen).toFixed(2)}`
+)
+check(
+  'a cornered squad does not run through the foe',
+  Math.hypot(cornerEnd.x - cornerFoe.x, cornerEnd.y - cornerFoe.y) > 40,
+  `${Math.hypot(cornerEnd.x - cornerFoe.x, cornerEnd.y - cornerFoe.y).toFixed(0)} px from the foe`
+)
+const cornerNext = retreatDirection(
+  flatField,
+  cornerSpot.x,
+  cornerSpot.y,
+  cornerAway.x,
+  cornerAway.y,
+  110,
+  cornerFoe,
+  cornerOut
+)
+check(
+  'a cornered squad does not dither between two walls',
+  cornerNext.x * cornerOut.x + cornerNext.y * cornerOut.y > 0.8,
+  `${(cornerNext.x * cornerOut.x + cornerNext.y * cornerOut.y).toFixed(2)}`
+)
+const openAway = retreatDirection(flatField, ARENA.w * 0.5, ARENA.h * 0.5, 1, 0, 110)
+check(
+  'a squad in the open still falls back straight away',
+  openAway.x > 0.9 && Math.abs(openAway.y) < 0.2,
+  `${openAway.x.toFixed(2)},${openAway.y.toFixed(2)}`
+)
+
+// The same trap, walked through: archers pinned in the corner with a warband
+// pressing them must work their way out instead of standing against the wall.
+const pinned = createBattle({
+  playerTroops: [{ type: 'archer', tier: 2, count: 4, hp: [] }],
+  enemyTroops: [{ type: 'militia', tier: 1, count: 4, hp: [] }],
+  enemyFaction: 'bandit',
+  arenaMap: 'plain',
+  seed: 1234
+})
+pinned.opening = null
+for (const [i, u] of pinned.units.filter((one) => one.side === 'player').entries()) {
+  u.x = ARENA.w - 46 - (i % 2) * 16
+  u.y = ARENA.h - 46 - Math.floor(i / 2) * 16
+}
+for (const [i, u] of pinned.units.filter((one) => one.side === 'enemy').entries()) {
+  u.x = ARENA.w - 122 + (i % 2) * 14
+  u.y = ARENA.h - 122 - Math.floor(i / 2) * 14
+  u.hp = 400
+  u.maxHp = 400
+}
+for (const key of pinned.playerGroups) pinned.groups[key].order = 'attack'
+for (const key of Object.keys(pinned.groups).filter((one) => one.startsWith('enemy:'))) {
+  pinned.groups[key].order = 'attack'
+}
+const pinnedCentre = () => {
+  const list = pinned.units.filter((one) => one.side === 'player' && one.alive)
+  if (!list.length) return null
+  return list.reduce((a, one) => ({ x: a.x + one.x / list.length, y: a.y + one.y / list.length }), { x: 0, y: 0 })
+}
+const pinStart = pinnedCentre()
+const pinGap = (point) => Math.hypot(ARENA.w - 16 - point.x, ARENA.h - 16 - point.y)
+advance(pinned, 2.5)
+const pinEnd = pinnedCentre()
+check(
+  'a cornered squad works its way out of the corner',
+  !!pinEnd && pinGap(pinEnd) > pinGap(pinStart) + 60,
+  pinEnd ? `${pinGap(pinStart).toFixed(0)} -> ${pinGap(pinEnd).toFixed(0)} px` : 'all down'
+)
+
+/* --------------------- 3d. the charge and the volley --------------------- */
+
+/**
+ * One melee soldier chasing one archer across open ground. The two are placed
+ * far apart on the same line, so the distance, the sprint and the fatigue can
+ * be measured without terrain in the way.
+ */
+function chaseBattle(seed = 909) {
+  const b = createBattle({
+    playerTroops: [{ type: 'spearman', tier: 2, count: 1, hp: [] }],
+    enemyTroops: [{ type: 'archer', tier: 2, count: 1, hp: [] }],
+    enemyFaction: 'bandit',
+    seed,
+    arenaMap: 'plain'
+  })
+  b.opening = null
+  const mine = b.units.find((u) => u.side === 'player')
+  const foe = b.units.find((u) => u.side === 'enemy')
+  mine.x = 200
+  mine.y = ARENA.h / 2
+  foe.x = ARENA.w - 200
+  foe.y = ARENA.h / 2
+  const g = b.groups[b.playerGroups[0]]
+  g.order = 'attack'
+  g.rally = { x: mine.x, y: mine.y }
+  const h = Object.values(b.groups).find((one) => one.side === 'enemy')
+  h.order = 'defend'
+  h.rally = { x: foe.x, y: foe.y }
+  h.anchor = { x: foe.x, y: foe.y }
+  return { b, mine, foe, g, h }
+}
+
+const sprintRun = chaseBattle()
+check(
+  'the terrain grid follows the field',
+  sprintRun.b.terrain.cols === Math.round(ARENA.w / ARENA_CELL) &&
+    sprintRun.b.terrain.rows === Math.round(ARENA.h / ARENA_CELL),
+  `${sprintRun.b.terrain.cols}x${sprintRun.b.terrain.rows}`
+)
+const sprintStart = sprintRun.mine.x
+advance(sprintRun.b, 1)
+const sprintMoved = sprintRun.mine.x - sprintStart
+check('a far melee soldier sprints', sprintRun.mine.sprinting === true)
+check('the sprint covers more than a walk', sprintMoved > 100, `${sprintMoved.toFixed(1)} px in 1 s`)
+check('the sprint burns stamina', sprintRun.mine.stamina < 1, sprintRun.mine.stamina.toFixed(2))
+check('the sprint is stopped at once by a hold order', (() => {
+  const held = chaseBattle(910)
+  held.g.order = 'defend'
+  advance(held.b, 1)
+  return held.mine.sprinting === false
+})())
+let sprintGuard = 0
+while (sprintRun.mine.tired <= 0 && sprintGuard < 300) {
+  advance(sprintRun.b, 0.1)
+  sprintGuard += 1
+}
+check('the sprint is spent after a few seconds', sprintRun.mine.stamina <= 0.001, sprintRun.mine.stamina.toFixed(2))
+check('a spent sprint leaves the soldier tired', sprintRun.mine.tired > 0, sprintRun.mine.tired.toFixed(1))
+check('a tired soldier is out of the sprint', sprintRun.mine.sprinting === false)
+
+/**
+ * An archer told to walk while slowed by its last volley covers less ground
+ * than the same archer with a clear head. `volleyT` is set directly, so the
+ * check measures the slowdown itself and not the aiming code.
+ */
+function walkOf(slowed) {
+  const b = createBattle({
+    playerTroops: [{ type: 'archer', tier: 2, count: 1, hp: [] }],
+    enemyTroops: [{ type: 'militia', tier: 1, count: 1, hp: [] }],
+    enemyFaction: 'bandit',
+    seed: 921,
+    arenaMap: 'plain'
+  })
+  b.opening = null
+  const archer = b.units.find((u) => u.side === 'player')
+  const foe = b.units.find((u) => u.side === 'enemy')
+  foe.x = 60
+  foe.y = 60
+  archer.x = ARENA.w / 2
+  archer.y = ARENA.h / 2
+  const g = b.groups[b.playerGroups[0]]
+  g.order = 'move'
+  g.rally = { x: archer.x + 400, y: archer.y }
+  const h = Object.values(b.groups).find((one) => one.side === 'enemy')
+  h.order = 'defend'
+  h.rally = { x: foe.x, y: foe.y }
+  h.anchor = { x: foe.x, y: foe.y }
+  if (slowed) archer.volleyT = 10
+  const start = archer.x
+  advance(b, 1)
+  return archer.x - start
+}
+const walkFast = walkOf(false)
+const walkSlow = walkOf(true)
+check('an archer slowed by a volley walks less', walkSlow < walkFast * 0.8, `${walkSlow.toFixed(1)} vs ${walkFast.toFixed(1)} px`)
+check('the slow is a short one, not a stop', walkSlow > walkFast * 0.5, `${walkSlow.toFixed(1)} px`)
+
+// A volley sets the slow clock.
+const volleyRun = chaseBattle(922)
+volleyRun.foe.x = volleyRun.mine.x + 110
+volleyRun.h.rally = { x: volleyRun.foe.x, y: volleyRun.foe.y }
+volleyRun.h.anchor = { x: volleyRun.foe.x, y: volleyRun.foe.y }
+volleyRun.foe.cd = 0
+advance(volleyRun.b, 0.05)
+check('a volley slows the archer', volleyRun.foe.volleyT > 0, volleyRun.foe.volleyT.toFixed(2))
+
+// A foe right on top of the archer cannot be shot: the bow needs room.
+volleyRun.b.projectiles = []
+volleyRun.foe.cd = 0
+volleyRun.foe.volleyT = 0
+volleyRun.foe.x = volleyRun.mine.x + 20
+advance(volleyRun.b, 0.05)
+check('a foe in the archer face cannot be shot', volleyRun.b.projectiles.length === 0 && volleyRun.foe.volleyT === 0)
 
 /* ---------------------------- 4. no battle can stall ------------------------- */
 

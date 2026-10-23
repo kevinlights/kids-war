@@ -439,11 +439,12 @@ battle. The meeting card shows the enemy leader, his warband and the two armies'
 arena, while 「🏃 逃跑」 and 「🗣️ 喊话」 let the child walk away or talk back. The whole flow is described in 4.18.
 当敌对部队进入到玩家 **1.3 格**范围内时，世界会停下并进入一场**遭遇对话**，而不是直接开战。遭遇卡片会显示敌将、他的队伍与双方兵力对比；只有点「⚔️ 开战」才进入战场，「🏃 逃跑」与「🗣️ 喊话」让孩子可以直接走开或回话。完整流程见 4.18。
 
-The arena is a **1000 × 680** field that is bigger than a phone screen, so the camera follows the fighting
-instead of showing everything at once. Every troop group you bring — one family at one rank — is an
-independent **squad** with its own order, formation and density, so you can send the spearmen forward, hold the
-archers back and scatter the cavalry, all in the same fight.
-战场是一片 **1000 × 680** 的场地，比手机屏幕还大，因此镜头会跟着战斗走，而不是把整块战场一次塞进屏幕。你带来的每个兵种档位（同一个家族 + 同一个档位）都是一支独立的**小队**，各自拥有命令、队形与密度，因此可以同时做到：长枪兵压上、弓箭手原地待命、骑兵散开包抄。
+The arena is a **1400 × 960** field (about twice the ground of the old 1000 × 680 map, with 35 × 24 terrain
+cells), and the two armies start **784 px** apart, so there is room and time to form up before the lines meet.
+Every troop group you bring — one family at one rank — is an independent **squad** with its own order, formation
+and density, so you can send the spearmen forward, hold the archers back and scatter the cavalry, all in the same
+fight.
+战场是一片 **1400 × 960** 的场地（面积约为旧 1000 × 680 地图的两倍，35 × 24 个地形格），两军相距 **784 px**，因此接战之前既有地方也有时间排兵布阵。你带来的每个兵种档位（同一个家族 + 同一个档位）都是一支独立的**小队**，各自拥有命令、队形与密度，因此可以同时做到：长枪兵压上、弓箭手原地待命、骑兵散开包抄。
 
 #### 开局对峙与下令 · The opening standoff
 
@@ -524,19 +525,41 @@ the hop, shake, lunge and fall, and `BattleMap.vue` draws them. The fight's numb
 smooth fractional placement keeps a walking soldier gliding instead of stepping a whole pixel at a time.
 这些**只影响绘制**：`src/game/battleAnim.js` 把速度、`hitFlash`、`swing` 与经过的时间换算成跳动、晃动、前倾与倒下，再由 `BattleMap.vue` 画出来。战斗的数值与胜负完全不变；小数坐标让行军的士兵平滑滑动，而不是一次跳一整个像素。
 
+#### 大战场性能 · Big-battle performance
+
+A 400 v 400 quick battle — 800 soldiers on the field — holds a steady 60 frames in desktop Chrome (p50 16.7 ms,
+p95 16.8 ms), with the frame-rate chip and the troop counts still updating; before the change the same scene ran at
+8 FPS. Three things made the difference. Finding a foe no longer scans the whole field: the nearest enemy is looked
+up ring by ring in a coarse 90 px grid rebuilt every 0.12 s, and every soldier keeps its target for 0.18 s with the
+refreshes staggered, so one search compares a dozen soldiers instead of all 800. Line of sight is only checked once
+the foe is already within reach, and the push between neighbours compares squared distances. The field itself is no
+longer reactive data: the simulation and the painter read the raw battle, while a counter that moves ten times a
+second drives the command bar.
+400 v 400 的快速战斗（场上 800 名士兵）在桌面 Chrome 里稳定 60 帧（p50 16.7 ms、p95 16.8 ms），帧率芯片与双方兵力照常刷新；改动前同一场景只有 8 帧。三处改动解决了问题。找敌人不再扫描全场：最近的敌人改在 90 px 的粗网格里按圈搜索（网格每 0.12 秒重建），每名士兵把目标记住 0.18 秒并按士兵错开刷新，因此一次搜索只比较十几个人而不是全部 800 人。视线检查只在敌人已经进入攻击距离时才做，士兵之间的推挤改用平方距离比较。战场本身也不再是响应式数据：模拟与绘制直接读原始数据，命令栏由一个每秒更新十次的计数器驱动。
+
+The measured numbers come from `tools/verify-perf-browser.mjs`, which runs the real browser check after the armies
+have met, so the standoff is not mistaken for the load. The same guard fails the suite when a change drops the big
+battle below 30 frames.
+上面的数字来自 `tools/verify-perf-browser.mjs`：它等两军接战之后才开始采样，避免把开局对峙当成负载；以后若有改动让大战场跌破 30 帧，这套检查会直接失败。
+
 #### 镜头 · Camera
 
 The camera zooms with the armies: when they are far apart the whole field is seen from a distance, and when they
-meet it zooms in. A finger drag pans the field and stops the auto-follow, and the 🎯 button brings the camera
-back to the fighting.
-镜头会随两军距离缩放：双方拉开时看全景，交手后自动拉近。用手指拖动战场可以自由查看，并会停止自动跟随；点 🎯 按钮让镜头重新回到战斗。
+meet it zooms in. On a phone the zoom floor is lower (**0.42** instead of 0.7), so at the opening both armies fit on
+a 390 px-wide screen instead of the camera sitting on the empty ground between them. The field pans with the left
+mouse button or a finger, which stops the auto-follow, and the 🎯 button brings the camera back to the fighting. A
+drag may go **140 px past the edge** of the field — on all four sides — so the surrounding ground shows and a
+soldier standing at the border is not pinned to the screen edge; the camera rests there until 🎯 is tapped. A move
+counts as a drag only after 4 px, so a tap still moves the commander; a second finger cannot throw the camera, and
+a drag never plants a rally flag.
+镜头会随两军距离缩放：双方拉开时看全景，交手后自动拉近。手机上缩放下限更低（**0.42**，桌面为 0.7），因此开局在 390 px 宽的手机屏上两支军队都能入镜，而不是把镜头停在双方之间的空地上。用鼠标左键或手指拖动战场可以自由查看，并会停止自动跟随；点 🎯 按钮让镜头重新回到战斗。镜头可以拖出战场边缘 **140 px**（四个方向都可以），看到周围的空地，站在最边上的士兵不再被钉在屏幕边上；松手后镜头停在缓冲位置，点 🎯 才回到战斗。移动超过 4 px 才算拖动，因此轻点仍然是移动指挥官；多出来的手指不会把镜头甩走，拖动也不会误插旗。
 
 Tap a squad chip at the bottom (or 全军 for all of them), then give the order:
 点底部的小队按钮选择部队（或选「全军」），然后下达命令：
 
 | 命令 Order | 行为 Behaviour | 数值 Modifier |
 | --- | --- | --- |
-| ⚔️ 攻击 Attack | 全军压向最近的敌人，**保持队形**推进，远程单位贴近时整队后撤。Charge the nearest enemy **without breaking the formation**; ranged squads step back as one block. | 攻击 ×1.08，防御 ×0.94 |
+| ⚔️ 攻击 Attack | 全军压向最近的敌人，**保持队形**推进，远程单位贴近时整队后撤；退路被墙或湖挡住时沿墙滑开、必要时绕过敌人侧翼，不会钻进角落对射。Charge the nearest enemy **without breaking the formation**; ranged squads step back as one block, slide along a wall or lake that blocks the way back and round the enemy's flank when they must, instead of backing into a corner to trade shots. | 攻击 ×1.08，防御 ×0.94 |
 | 🛡️ 防守 Defend | 原地结阵，守住当前位置，远程单位站着对射。Hold the current spot and trade blows. | 攻击 ×0.96，防御 ×1.25 |
 | 🏇 跟随 Follow | 贴身跟随指挥官移动，沿途交战。Escort the commander and engage whatever is close. | 攻击 ×1，防御 ×1.05 |
 | 🎯 移动 Move | 整队走到点击处后原地待命。March to the tapped point and wait there. | 攻击 ×0.94，防御 ×1 |
@@ -559,6 +582,14 @@ Two rules make the fight read like a battle of armies rather than a crowd:
   too close steps back as one block instead of every soldier running on its own.
   **攻击不乱队形。** 小队会转向敌人，前排压上去，每个士兵守住自己那个位置；队列不会一拥而上，远程小队嫌近了
   也是整队一起后撤，不是各自乱跑。
+- **A corner does not end the kiting.** Backing straight away from the enemy would put a skirmisher's back to the
+  wall, so the retreat first measures how much open ground each way leads into (up to 150 px, stopping at the wall
+  or deep water), how far it keeps from the foe and how fast the ground is. A squad with the edge behind it slides
+  along the wall, and if the only open way is round the enemy's flank it takes that way. The direction it chose last
+  frame carries a little weight, so a squad in a corner does not dither between two equally open walls.
+  **墙角不是风筝的终点。** 直线后退会把远程士兵的背贴到墙上，因此后撤前会先量每个方向还有多少空地（最远
+  150 px，撞墙或深水即止）、离敌人能拉开多远、脚下地皮跑得多快。背后是边缘时就贴着墙滑开，只有绕过敌人
+  侧翼才有空地时就走那一边。上一帧选的方向也有少量权重，因此角落里的队伍不会在两堵同样空旷的墙之间来回犹豫。
 
 | 队形 Formation | 效果 Effect |
 | --- | --- |
@@ -578,14 +609,32 @@ Tapping the battlefield normally moves your commander marker; when the selected 
 plants its yellow rally flag instead.
 点击战场通常是移动指挥官标记；当选中的小队处于「移动」时，同一次点击会改为插下它的黄色目标十字。
 
+#### 冲锋、疲劳与齐射减速 · Charge, fatigue and the volley slow
+
+A melee soldier whose foe is more than **90 px** away breaks into a sprint (**+30% speed**). The sprint is latched:
+once it starts it carries the soldier through the last stretch to contact instead of dying out a few pixels short.
+It burns **2.5 s** of stamina; when the stamina is gone the soldier is winded for **2.5 s** at **−10% speed**, then
+recovers and can charge again. A soldier whose target is a ranged unit leaves its formation slot inside 90 px and
+closes on it directly, so a squad can no longer hold its front rank just outside spear reach.
+近战士兵的目标超过 **90 px** 时会冲刺（**+30% 速度**）。冲刺是「锁住」的：一旦开始就会一直持续到接战，而不是在差几像素时断掉。它消耗 **2.5 秒**体力；体力耗尽后疲劳 **2.5 秒**（**−10% 速度**），喘匀后可以再次冲锋。目标为远程兵的士兵在 90 px 内会离开阵位直接扑上去，因此小队的前排不会再被阵型槽位挡在长枪够不到的地方。
+
+An archer is slowed after every arrow (**0.9 s at 0.72 speed**), cannot draw its bow at under **32 px**, and can
+only back away at **0.85 times** its speed while a foe is in its face. Kiting a melee squad therefore gets harder
+the longer it goes on, which is what makes being caught dangerous; a large melee push can drag an archer line into
+hand-to-hand, while a small archer party can still keep its distance and shoot it to pieces.
+弓箭手每射出一箭都会短暂降速（**0.9 秒 × 0.72 速度**），距离小于 **32 px** 时无法开弓，被贴住时只能以 **0.85 倍**速度后撤。因此连续风筝越久越难，被咬住才真正危险；大规模近战能把弓箭手阵线拖进肉搏，而小股弓箭手仍然能保持距离把人射散。
+
 Damage is `max(1, round(atk × 攻击加成 × 克制系数 × 脚下地形攻击 × 目标防御 × 脚下地形防御 × 0.5 + 随机值))`; melee units swing every 1.0 s and
 ranged units fire a projectile every 1.6 s. Melee units engage inside 26 px; archers shoot at 150 px and every rank
 beyond 初级 adds 10%.
 伤害为 `max(1, round(攻击 × 攻击加成 × 克制系数 × 脚下地形攻击 × 目标防御 × 脚下地形防御 × 0.5 + 随机值))`；近战单位每 1.0 秒攻击一次，远程单位每 1.6 秒射出一支箭。近战单位在 26 px 内接战；弓箭手射程 150 px，每升一档 +10%。
 
 The three families form a rock-paper-scissors cycle — **长枪兵克制骑兵、骑兵克制弓箭手、弓箭手克制长枪兵** —
-worth **+40% attack when countering and −25% when countered**.
-三个主力兵种形成循环克制 —— **长枪兵克制骑兵、骑兵克制弓箭手、弓箭手克制长枪兵** —— **克制方攻击 +40%，被克制方 −25%**。
+worth **+40% attack when countering and −25% when countered**. The charge and the volley slow do not remove that
+cycle: equal archers still beat equal spearmen on a small field (5 v 5 and 8 v 8 lose four times out of five), and
+a 20 v 20 spear push only wins by surviving the arrows and finishing with seven to eleven men. Militia still lose to
+equal archers, while cavalry still ride archers down in six or seven seconds.
+三个主力兵种形成循环克制 —— **长枪兵克制骑兵、骑兵克制弓箭手、弓箭手克制长枪兵** —— **克制方攻击 +40%，被克制方 −25%**。冲锋与齐射减速并没有取消这个循环：同数量的弓箭手在小规模下仍然压制长矛兵（5 v 5 与 8 v 8 里长矛兵五局只赢一局），20 v 20 的长矛兵要撑过箭雨、最后只剩七到十一人才险胜；民兵仍打不过同数量弓箭手，而骑兵依旧能在六七秒内冲垮弓箭手。
 
 **After the battle, your warband is exactly the soldiers who survived it.**
 **战斗结束后，你的队伍就是战场上真正的幸存者。**
@@ -842,6 +891,11 @@ times over and counts the results.
   own warband is lost. The result panel says so and takes you back to the setup.
   **战役不受影响。** 快速战斗只是练习：没有战利品、不记战绩，主角自己的队伍一个士兵都不会少；结算面板会说明这一点，
   并把你带回设置页。
+- **It can be left at any moment.** A 「← 返回」 button sits in the corner of the fight and returns straight to the
+  setup, without waiting for one side to break. A campaign battle has no such button: there the fight has to be
+  decided.
+  **随时可以退出。** 战斗界面右上角有「← 返回」按钮，直接回到设置页，不必等一方被打垮；战役里的战斗没有这个按钮，
+  必须分出胜负。
 - **Or look at the odds first.** 「📊 先看看胜率」 runs the same two armies through 20 fights and reports the win
   rate, the wins, losses and draws, the average survivors and fallen on both sides and the average length of a
   fight. It reuses `createBattle()` and `stepBattle()` from `src/game/battle.js`, only with the largest step,
@@ -959,7 +1013,7 @@ Your commander is a separate marker on the battlefield (120 HP, speed 150) used 
 | 游戏介绍 Guide | `#/guide` | 目标、地图、据点、考试、科目（含百科知识与已加载的 Mod 科目）、记忆曲线、兵种克制循环与**兵种升级图**（逐档属性与升级价）、战术 / 队形 / 密度说明，以及题库扩展方式。Goals, map, settlements, exams, the subject list (encyclopedia plus any loaded mod subjects), the memory curve, the RPS cycle and the generated **unit upgrade diagram**, plus the tactics / formation / density tables and how to extend the question bank. |
 | 世界地图 World map | `#/world` | 全屏 canvas 地图、右上角小地图与图例（图标 + 势力色块）、📖 详细地图浮层（拖动平移、回到主角）、顶部状态栏（含 👤 角色详情 芯片、📅 天数时钟芯片（天数 + 时刻 + 当天进度条）与 🎚 难度芯片）、点难度芯片弹出的难度设置面板、底部按钮（进入 / ⛺ 扎营 / ⚔️ 赶走强盗 / 🏰 准备围城 / ⏳ 围城倒计时 / 🚫 取消围城 / ⚔️ 攻打 / 🚩 占领 / ⚔️ 攻城）与四个功能按钮、提示条、扎营时的帐篷与篝火、据点上的归属光环与驻军角标、**遇敌时弹出的遭遇对话框（敌将头像 / 兵力对比 / 名册 / 开战 · 逃跑 · 喊话）**、存档提示浮层。Full-screen canvas map, the corner minimap with its sprite legend, the 📖 detailed atlas overlay (drag to pan, recentre on the lord), status chips (including the 👤 lord info chip, the 📅 day clock chip with the day, the hour and a day-progress bar, and the 🎚 difficulty chip), the difficulty sheet behind that chip, the bottom buttons (enter / ⛺ camp / ⚔️ drive off bandits / 🏰 prepare a siege / ⏳ siege countdown / 🚫 cancel the siege / ⚔️ storm / 🚩 claim / ⚔️ assault) plus four action buttons, hint bar, a tent and campfire while camping, the ownership ring and garrison badge on every settlement, **the meeting card that opens when an enemy catches the lord (portrait / army sizes / roster / fight · run · talk back)**, and toasts. |
 | 据点 Settlement | `#/settlement?id=…` | 据点标题栏（左上角显示城镇等级，中间是 📅 天数时钟芯片，右侧显示归属与金币 / 兵力）、招募 / 升级 / 市场 / 城镇 / 考试 五个页签。Header (town level in the top-left corner, the 📅 day clock chip in the middle, owner, gold and troops on the right) plus Recruit / Upgrade / Market / Town / Exam tabs. |
-| 战斗 Battle | `#/battle` | 战场 canvas（带地形、可拖动的镜头）、顶部双方兵力、右上角的 ⚙ 战斗工具（速度 🐢/🚶/🐇 与地形说明）与 🎯 回中按钮、小队选择条（每档一个按钮）、攻击 / 防守 / 跟随 / 移动 四个命令、可折叠的队形与密度面板、提示行、战斗结果面板；**练兵模式**下顶部写着「🎯 练兵」、对面是训练木桩，底部多出「🏕 结束练兵」。Arena canvas (with terrain and a draggable camera), both sides' strength, the ⚙ battle tools (speed 🐢/🚶/🐇 and the terrain legend) plus the 🎯 recentre button, a squad chip bar, the four orders, a collapsible formation / density sheet, a hint line and the result panel; in **training mode** the bar reads 「🎯 练兵」, the other side is the wooden dummies and a 🏕 结束练兵 button sits under the command bar. |
+| 战斗 Battle | `#/battle` | 战场 canvas（带地形，鼠标左键或手指都能拖动镜头）、顶部双方兵力、右上角的帧率芯片（最近半秒平均帧率）、⚙ 战斗工具（速度 🐢/🚶/🐇 与地形说明）、🎯 回中按钮与快速战斗专属的「← 返回」、小队选择条（每档一个按钮）、攻击 / 防守 / 跟随 / 移动 四个命令、可折叠的队形与密度面板、提示行、战斗结果面板；战斗中左缘滑动返回会被拦下并提示；**练兵模式**下顶部写着「🎯 练兵」、对面是训练木桩，底部多出「🏕 结束练兵」。Arena canvas (with terrain, panned by the left mouse button or a finger), both sides' strength, a frame-rate chip in the corner (the average of the last half second), the ⚙ battle tools (speed 🐢/🚶/🐇 and the terrain legend), the 🎯 recentre button and a 「← 返回」 button in a quick battle, a squad chip bar, the four orders, a collapsible formation / density sheet, a hint line and the result panel; an edge swipe back is refused with a note while the fight is on; in **training mode** the bar reads 「🎯 练兵」, the other side is the wooden dummies and a 🏕 结束练兵 button sits under the command bar. |
 
 A first-run intro modal shows the guide before the campaign starts, so new players always see the rules.
 首次开始游戏会先弹出介绍弹窗，保证新玩家一定看到规则。
@@ -1112,11 +1166,28 @@ instead of the page, and `setPointerCapture` keeps the drag alive when the finge
 详细地图用 **pointer 事件**加 `touch-action: none` 拖动，因此手指拖动的是地图而不是页面；`setPointerCapture` 保证手指移出画布后拖动仍然连续。
 
 The **battle field** is designed the same way: it is bigger than a phone screen, so the camera follows the fighting
-and a finger drag pans the field (the battle canvas uses the same pointer-event scheme, and a drag never plants a
-rally flag). The battle tools sit in the top-right corner instead of the command bar, so the field stays as tall as
-possible on a phone.
-**战场**也是同样的思路：它比手机屏幕大，因此镜头跟着战斗走，手指拖动可以平移战场（战斗 canvas 用同一套 pointer
-事件，拖动时不会误插旗）。战斗工具放在右上角而不是底部命令栏，这样手机上的战场能留到最大。
+and a drag pans the field (the battle canvas uses the same pointer-event scheme, and a drag never plants a rally
+flag). It takes the primary pointer only — the left button of a mouse, one finger — and calls a move a drag after
+4 px of travel, so a tap still moves the commander on both inputs; a tap is decided on `pointerup`, not on the click
+that a touch may or may not synthesise. The battle tools sit in the top-right corner instead of the command bar, so
+the field stays as tall as possible on a phone.
+**战场**也是同样的思路：它比手机屏幕大，因此镜头跟着战斗走，拖动可以平移战场（战斗 canvas 用同一套 pointer 事件，
+拖动时不会误插旗）。它只认主指针（鼠标左键或一根手指），移动累计超过 4 px 才算拖动，因此在两种输入下轻点都仍然是
+移动指挥官；轻点在 `pointerup` 上判定，不依赖触摸时可能根本不生成的 click。战斗工具放在右上角而不是底部命令栏，
+这样手机上的战场能留到最大。
+
+The command bar at the bottom is **clear**: the squad chips, the order buttons, the formation toggle and the hint
+each carry their own panel, so the field is visible in the gaps instead of sitting under a dark sheet. The hint has a
+text shadow to stay readable on the grass, and the buttons still take the full 44 px touch target.
+底部的**命令栏是透明的**：小队按钮、命令按钮、队形开关与提示行各自带面板，战场在按钮之间的空隙里依然看得见，
+不再被一层黑色渐变罩住。提示行加了文字阴影，在草地上也读得清；按钮本身仍然保持 44 px 的触控高度。
+
+The battle screen also refuses a **browser back step** while the fight is on: a phone's edge swipe is exactly that,
+and it would otherwise throw the fight away. The refusal is a route guard rather than a swallowed touch, so it holds
+for the Android back key too, and the screen says why; the on-screen button sets the flag that lets the leave
+through.
+战斗界面还会在战斗进行中**拒绝浏览器的后退**：手机左缘的滑动返回就是一次后退，否则会把整场战斗甩掉。拦截放在路由
+守卫里而不是吞掉触摸事件，因此安卓的返回键同样被拦住，画面上也会说明原因；界面上的返回按钮会先放行再离开。
 
 The battle runs **slow by default**, so a child can read the field and give orders before the next clash — the fast
 speed is one tap away in the ⚙ panel.
@@ -1464,9 +1535,11 @@ The game has a set of dependency-free checks under `tools/`, all runnable with p
 | `node tools/verify-upgrade-head.mjs` | 同一套升级检查跑在修复前的源码上（`291eddaa81d`），用来复现旧缺陷：升级后会写入一个没有 `type` 的兵员，界面回退显示成民兵，并且只扣 8 金币保底价。The same upgrade suite against the pre-fix sources (`291eddaa81d`), reproducing the old defect: a soldier with no `type` is written, the panel falls back to militia, and only the 8-gold floor is charged. |
 | `node tools/verify-upgrade-browser.mjs` | 真实 Chrome（headless + CDP）走一遍界面：预置一份站在村庄旁的存档，进村、打开「升级」页签、真的点「升级」按钮，再读回 DOM 与金币。Real Chrome (headless over CDP) walks the interface: a save with the lord next to a village, into the village, the 升级 tab, a real click on 升级, and the DOM and treasury read back. |
 | `node tools/verify-settlements-browser.mjs` | 真实 Chrome 走一遍据点玩法：地图上的归属光环、角色面板里的伤兵、赶走强盗、准备围城并攻打城镇，以及城镇面板（等级 / 繁荣度 / 资金 / 建医院 / 注入资金 / 投入发展）。Real Chrome walks the settlement features: the ownership ring on the map, the wounded in the lord panel, driving off bandits, preparing a siege and storming the town, and the town panel (level / prosperity / funds / building a hospital / injecting money / investing). |
-| `node tools/verify-battle.mjs` | 150 项检查：难度（三种难度的金币、科目加成、开局资源、军粮、招募价、威胁与敌军成长、存档读写）、战斗速度（默认慢速、慢速推进更少）、**开局对峙**（双方先驻守、敌军 5 秒后变阵 / 再 2.4 秒后冲锋、先动手会立刻引来应战、全军出击一次下令、练兵没有对峙）、**每战一张新地图**（12 个种子给出 12 张不同布局、同种子可复现、每张都含五种地形、湖泊不贴边也不进列阵区、六种预设各自仍有该有的地形、没有士兵开局站在深水里）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、**绕湖寻路**（直线被湖挡住、A* 找到干路、路径与平滑后都在陆地上、撤退方向不进水）、**反击与队形**（士兵记住攻击者、转身还手、挨打掉血；攻击时队形保持、各排仍有距离、两边都有伤亡）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）。150 checks: the difficulty (the gold of the three levels, the subject bonus, the opening resources, the food, the recruit markup, the threat and the enemy growth, the save round trip), the battle speed (slow by default, the slow speed advances less), **the opening standoff** (both armies hold, the enemy dresses its ranks after five seconds and charges 2.4 seconds later, a first strike brings the answer at once, the charge button orders everyone, a drill has no standoff), **a new field for every battle** (twelve seeds give twelve different layouts, the same seed rebuilds the same map, each holds all five kinds of ground, the lake never touches the edge or a deployment band, the six presets keep their own ground and nobody starts in deep water), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), **the path around a lake** (the straight line is blocked, A* finds a dry route, the raw and the smoothed path stay on land, the retreat does not back into water), **the counterattack and the formation**, twelve battles that always end, and the sieges. |
+| `node tools/verify-battle.mjs` | 168 项检查：难度（三种难度的金币、科目加成、开局资源、军粮、招募价、威胁与敌军成长、存档读写）、战斗速度（默认慢速、慢速推进更少）、**开局对峙**（双方先驻守、敌军 5 秒后变阵 / 再 2.4 秒后冲锋、先动手会立刻引来应战、全军出击一次下令、练兵没有对峙）、**每战一张新地图**（12 个种子给出 12 张不同布局、同种子可复现、每张都含五种地形、湖泊不贴边也不进列阵区、六种预设各自仍有该有的地形、没有士兵开局站在深水里）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、**绕湖寻路**（直线被湖挡住、A* 找到干路、路径与平滑后都在陆地上、撤退方向不进水）、**反击与队形**（士兵记住攻击者、转身还手、挨打掉血；攻击时队形保持、各排仍有距离、两边都有伤亡）、**远程不再钻墙角**（角落里的后撤方向不出界、不往墙里退、不穿过敌人、不会来回犹豫，开阔地仍然直线后退；4 名弓箭手被压进角落 2.5 秒内要离开至少 60 px）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）；**冲锋与齐射**（战场面积约为旧场的两倍且格子跟随、远处的近战 1 秒走出 100 px 以上并掉体力、停下命令立刻取消冲刺、2.5 秒后疲劳、齐射后的弓箭手 1 秒只走不到正常时的 80%、射击点亮减速计时、20 px 内无法开弓）。168 checks: the difficulty (the gold of the three levels, the subject bonus, the opening resources, the food, the recruit markup, the threat and the enemy growth, the save round trip), the battle speed (slow by default, the slow speed advances less), **the opening standoff** (both armies hold, the enemy dresses its ranks after five seconds and charges 2.4 seconds later, a first strike brings the answer at once, the charge button orders everyone, a drill has no standoff), **a new field for every battle** (twelve seeds give twelve different layouts, the same seed rebuilds the same map, each holds all five kinds of ground, the lake never touches the edge or a deployment band, the six presets keep their own ground and nobody starts in deep water), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), **the path around a lake** (the straight line is blocked, A* finds a dry route, the raw and the smoothed path stay on land, the retreat does not back into water), **the counterattack and the formation**, **the cornered skirmisher** (the retreat stays inside the field, does not back into the wall, does not run through the foe and does not dither between two walls, while an open field still falls back straight away; four archers pressed into a corner get at least 60 px clear within 2.5 s), twelve battles that always end, and the sieges; **the charge and the volley** (the field covers about twice the old area with the grid following it, a distant melee soldier covers over 100 px in one second while its stamina falls, a hold order cancels the sprint, the burst is spent after 2.5 s, an archer slowed by a volley covers under 80 percent of its normal ground, a shot lights the slow clock, and a foe 20 px away cannot be shot). |
 | `node tools/verify-difficulty.mjs` | 58 项检查：普通档保留原来的 5 / 8 / 12 题收入（239 / 410 / 677），困难约为普通的 74%，简单档整卷封顶（50 / 80 / 120），三档的单价、开局资源、军粮与招募价单调递增；威胁随胜场与城镇上升、按档封顶且永不低于 1；同一种子的世界在困难档敌军更多、简单档更少；城镇招募价与旧档迁移；以及世界每天真的按难度与威胁补兵、封顶生效。58 checks: normal keeps the shipped 5 / 8 / 12 question payouts (239 / 410 / 677), hard pays about 74% of normal, the practice paper is capped (50 / 80 / 120), and the price, the starting resources, the food and the recruit markup rise monotonically; the threat rises with wins and towns, is capped per level and never falls below 1; the same world seed fields more enemies on hard and fewer on easy; the town prices and the old-save migration; and the world really reinforces by the difficulty and the threat, with the ceiling holding. |
-| `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、**战斗开局**（双方驻守 + 「⚔️ 全军出击」提示条，点一下全军出击）、战斗界面的速度按钮与地形说明、镜头拖动与回中、控制台 0 报错。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, **the battle opening** (both armies holding with the 「⚔️ 全军出击」 banner, and a real click on it), the speed buttons and the terrain legend on the battle screen, dragging and recentring the camera, and a clean console. |
+| `node tools/verify-battle-mobile-browser.mjs` | 真实 Chrome 用 **390 × 844（dpr 3、触摸）** 的手机视口进一场真实战斗：页面不滚动、画布满屏、顶栏与工具不重叠也不出界、顶栏文字不被截断、两条栏之间留出 **580 px（69%）** 净空、命令栏不超过屏幕三分之一、每个按钮 ≥38 px、开局两支军队全部在画面内（缩放 0.42）、手指拖动平移镜头、左右边缘各留出 **140 px** 外围空地、点 🎯 恢复跟随；换成快速战斗（多一个「← 返回」，工具最宽）后顶栏仍不被工具压住、文字不被截断、返回按钮留在屏幕内；控制台 0 报错（24 项）。Real Chrome enters a real battle with a **390 x 844 (dpr 3, touch)** phone viewport: no page scroll, the canvas fills the screen, the top bar and the tools neither overlap nor leave the screen, the top-bar text is not clipped, **580 px (69 percent)** of clear field sits between the bars, the command bar stays under a third of the screen, every button is at least 38 px, both armies are on screen at the opening (zoom 0.42), a finger drag pans the camera, each side leaves **140 px** of ground past the edge, 🎯 restores the follow, a quick battle (the extra back button makes the tools widest) keeps the top bar clear, unclipped and the back button on screen, and the console stays clean (24 checks). |
+| `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、**战斗开局**（双方驻守 + 「⚔️ 全军出击」提示条，点一下全军出击）、战斗界面的速度按钮与地形说明、帧率芯片、**真的用鼠标拖动和触摸拖动战场**（镜头跟着动、自动跟随停止、指挥官不动）、轻点仍然移动指挥官、点 🎯 恢复跟随、真的执行一次 `history.back()` 确认战斗没有被退出，命令栏透明而按钮各自带面板，以及控制台 0 报错（44 项）；点下「⚔️ 全军出击」后还会确认对峙提示条真的从 DOM 里消失。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, **the battle opening** (both armies holding with the 「⚔️ 全军出击」 banner, and a real click on it that clears the banner from the DOM), the speed buttons and the terrain legend on the battle screen, the frame-rate chip, **a real mouse drag and a real touch drag** (the camera moves, the auto-follow stops, the commander stays put), a tap that still moves the commander, the 🎯 recentre, a real `history.back()` proving the battle is not left, a clear command bar with panels on its buttons, and a clean console (44 checks). |
+| `node tools/verify-perf-browser.mjs` | 真实 Chrome 开一场 400 v 400（800 名士兵）的快速战斗，等双方接战后再采样 6 秒 `requestAnimationFrame`：断言至少 30 帧、95% 的帧不超过 50 ms，并确认阵亡让存活数下降、命令栏的 `stamp` 在前进、顶部兵力文字发生变化、画布不是空白、控制台 0 报错（9 项）。Real Chrome opens a 400 v 400 quick battle (800 soldiers), waits for the armies to meet, then samples `requestAnimationFrame` for six seconds: at least 30 frames and 95% of frames under 50 ms, with the alive count falling, the command bar's `stamp` advancing, the strength text changing, the canvas painted and the console clean (9 checks). |
 | `node tools/verify-training-browser.mjs` | 真实 Chrome 走一遍新功能：首页显示版本号、点徽章展开更新内容；世界地图上**没扎营时没有「练兵」按钮**、扎营后出现；点进去后战斗界面写着「🎯 练兵」、对面是训练木桩、store 认得出这是训练、没有敌人、**没有胜负**、金币 / 军粮 / 队伍都不变；木桩真的挨打而士兵毫发无伤；点「🏕 结束练兵」回到世界地图，营地还在，控制台 0 报错。Real Chrome walks the new features: the home screen shows the version and the badge opens the update notes; the world map has **no drill button before the camp** and one after it; inside, the battle screen reads 「🎯 练兵」, the other side is the wooden dummies, the store knows it is a drill, there is no enemy, **no outcome**, and the purse, the food and the warband do not move; the dummies really take the blows while the soldiers stay untouched; 「🏕 结束练兵」 returns to the world map with the camp still pitched, and the console stays clean. |
 | `node tools/verify-encounter.mjs` | 50 项检查：遇敌时**不直接开战**而是停下世界、对话内容（势力口气 / 敌军名册 / 双方兵力）、三种选项、逃跑只落在**走得到、站得住的 3–6 格**且不损兵不花钱、冷却按游戏时间计（冻结时也不走）、扎营被打断、喊话只换台词，以及「开战」把刚才那支队伍带进战场。50 checks: a meeting **never drops straight into battle** but freezes the world, the card carries the faction voice / the roster / both army sizes, the three choices all resolve, running lands on a **reachable tile 3–6 away** for free, the cooldown runs on game time (and pauses with the frozen clock), camping is broken, talking only swaps lines, and 开战 throws exactly that party into the arena. |
 | `node tools/verify-encounter-browser.mjs` | 真实 Chrome（headless + CDP）走一遍遭遇：预置一支贴着主角的强盗，读回对话框（头像 / 名册 / 三个按钮）且**没有进战斗**；连点两次「喊话」换台词；点「逃跑」后对话框关闭、冷却生效、主角离敌人更远且没损失；再点「开战」真的进战场且敌人就是那支队伍，控制台 0 报错。Real Chrome (headless over CDP) walks a meeting: a bandit party seeded beside the lord brings up the card (portrait / roster / three buttons) with **no battle started**; two 喊话 taps swap the lines; 逃跑 closes the card, arms the cooldown, moves the lord farther away and loses nothing; 开战 really enters the arena with that same party, and the console stays clean. |
@@ -1507,9 +1580,11 @@ kids-war-game/
 ├── tools/verify-upgrade-head.mjs # 同一套检查跑在修复前的源码上，复现旧缺陷
 ├── tools/verify-upgrade-browser.mjs # 真实 Chrome 走一遍「升级」界面
 ├── tools/verify-settlements-browser.mjs # 真实 Chrome 走一遍据点、围城与城镇面板
-├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 开局对峙 / 每战一张新地图 / 战场地形 / 绕湖寻路 / 反击与队形 / 围城中断自检（无头，150 项检查）
+├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 开局对峙 / 每战一张新地图 / 战场地形 / 绕湖寻路 / 远程后撤 / 冲锋与齐射 / 反击与队形 / 围城中断自检（无头，168 项检查）
 ├── tools/verify-difficulty.mjs # 难度数值、开局、军粮、招募价、威胁与敌军成长自检（无头，58 项检查）
 ├── tools/verify-battle-browser.mjs # 真实 Chrome 走一遍难度、开局对峙、速度、地形与围城中断
+├── tools/verify-battle-mobile-browser.mjs # 真实 Chrome 用 390 × 844 手机视口走一遍战斗 / 快速战斗布局与拖动缓冲（24 项）
+├── tools/verify-perf-browser.mjs # 真实 Chrome 采样 800 人战场帧率（≥30 FPS）
 ├── tools/verify-training.mjs  # 版本号与练兵自检（无头，62 项检查）
 ├── tools/verify-training-browser.mjs # 真实 Chrome 走一遍版本号与练兵
 ├── tools/verify-training.entry.mjs # 版本号与练兵检查的用例
@@ -1617,7 +1692,7 @@ kids-war-game/
 | `src/game/settlement.js` | 据点归属、驻军、围城规则、城镇经济（繁荣度 / 发展 / 等级）与设施效果。Settlement ownership, garrisons, the siege rules, the town economy (prosperity / development / level) and the facility effects. |
 | `src/game/battle.js` | 战斗模拟：小队命令、队形 / 密度、克制伤害、远程风筝、地形效果、速度档、开局对峙（双方先驻守、敌军变阵后冲锋）与胜负判定。Battle simulation: squad orders, formations / densities, counter damage, ranged kiting, the terrain effects, the speed settings, the opening standoff (both sides hold, the enemy dresses its ranks and then charges) and win/lose logic. |
 | `src/game/arena.js` | 战场地形：五种地形的定义与效果、**按战斗种子重新生成整张战场**（河流走向、湖泊 / 山地 / 森林 / 沙地的位置与大小）、不可通行规则。Battlefield terrain: the five kinds and their effects, **a whole new field drawn from the battle seed** (the river's course, the place and size of the lake, mountain, forests and sand) and the impassable rule. |
-| `src/game/arenaPath.js` | 战场寻路：25 × 17 格上的 A*、二叉堆、路径平滑、直线视线与绕湖撤退方向。Arena navigation: A* and its min-heap on the 25 × 17 grid, path smoothing, line of sight and the retreat direction that keeps off the water. |
+| `src/game/arenaPath.js` | 战场寻路：25 × 17 格上的 A*、二叉堆、路径平滑、直线视线，以及按「每个方向还剩多少空地」挑选的撤退方向（避开墙、湖与敌人，必要时沿墙或绕侧翼）。Arena navigation: A* and its min-heap on the 25 × 17 grid, path smoothing, line of sight, and the retreat direction that weighs the open room in every way out (off the wall, the lake and the foe, sliding along a wall or round the flank when it must). |
 | `src/game/difficulty.js` | 难度设置：收入 / 军费 / 敌军三条轴、开局资源与随胜场上升的战役威胁。The difficulty setting: the pay, cost and enemy axes, the opening resources and the campaign threat that rises with every win. |
 | `src/game/daynight.js` | 昼夜规则：夜晚占一天的五分之一、黑度曲线与夜晚的减速系数。The day and night rules: the night share of the day, the darkness curve and the night slowdown. |
 | `src/game/encounter.js` | 遇敌对话：三个势力的台词库、敌军名册、逃生点（3–6 格、可站立、走得到）与 30 秒冷却。The meeting: the three factions' line banks, the enemy roster, the escape tiles (3–6 tiles, walkable and reachable) and the 30-second cooldown. |

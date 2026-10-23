@@ -353,6 +353,19 @@ try {
   `)
   check('the charge button orders every squad', charged.attacks === true, JSON.stringify(charged))
   check('the charge ends the standoff', charged.phase !== 'wait', JSON.stringify(charged))
+  // The banner must really leave the screen, not just the phase machine: the
+  // opening lives in raw data, and a banner reading it through another
+  // computed would freeze while the fight already moves on.
+  await waitFor("!document.querySelector('.standoff')", 'the standoff banner to clear')
+  const cleared = await evaluate(`
+    (() => {
+      const banner = document.querySelector('.standoff')
+      const hint = document.querySelector('.hint')
+      return { banner: !!banner, hint: hint ? hint.textContent.trim() : '' }
+    })()
+  `)
+  check('the standoff banner clears once the charge starts', cleared.banner === false, JSON.stringify(cleared))
+  check('the hint follows the charge', !cleared.hint.includes('对峙'), JSON.stringify(cleared))
 
   // The tools panel opens and the speed can be changed.
   await clickByText('.tool', '⚙')
@@ -395,20 +408,227 @@ try {
   `)
   check('a strike and a wound drive the animations', animation.swing && animation.flash, JSON.stringify(animation))
 
-  // A drag pans the field, and the recenter button brings the camera back.
-  const camera = await evaluate(`
+  // The frame rate is on screen: the chip reads a positive number and turns a
+  // colour of its own, so a stutter can be judged without the dev tools.
+  const fpsChip = await evaluate(`
     (() => {
-      const b = window.kidsWarGame.stores.battle
-      const before = { x: b.camX, follow: b.follow }
-      b.panCamera(120, 0)
-      const after = { x: b.camX, follow: b.follow }
-      b.recenter()
-      return { before, after, follow: b.follow }
+      const chip = document.querySelector('.fps')
+      if (!chip) return null
+      return {
+        text: chip.textContent.trim(),
+        value: Number((chip.querySelector('b') || chip).textContent.trim()),
+        tone: ['good', 'ok', 'bad'].find((t) => chip.classList.contains(t)) || null,
+        title: chip.getAttribute('title') || ''
+      }
     })()
   `)
-  check('a drag moves the camera', camera.after.x !== camera.before.x, JSON.stringify(camera))
-  check('a drag stops the auto follow', camera.after.follow === false, JSON.stringify(camera))
-  check('the recenter button follows the fight again', camera.follow === true, JSON.stringify(camera))
+  check('the battle screen shows the frame rate', !!fpsChip && /\d/.test(fpsChip.text), JSON.stringify(fpsChip))
+  check('the frame rate is measured', !!fpsChip && fpsChip.value > 0, JSON.stringify(fpsChip))
+  check(
+    'the frame rate has a tone and a slowest frame',
+    !!fpsChip && !!fpsChip.tone && /ms/.test(fpsChip.title),
+    JSON.stringify(fpsChip)
+  )
+
+  // The command bar must not lay a dark sheet over the field: only the chips
+  // and buttons carry a panel of their own.
+  const bar = await evaluate(`
+    (() => {
+      const c = document.querySelector('.command')
+      const chip = document.querySelector('.chip')
+      const cmd = document.querySelector('.orders .cmd')
+      const own = (el) => {
+        if (!el) return null
+        const s = getComputedStyle(el)
+        return { color: s.backgroundColor, image: s.backgroundImage }
+      }
+      return { bar: own(c), chip: own(chip), cmd: own(cmd) }
+    })()
+  `)
+  const clear = (s) => !s || s.color === 'rgba(0, 0, 0, 0)' || s.color === 'transparent'
+  check('the command bar leaves the field clear', clear(bar.bar) && bar.bar.image === 'none', JSON.stringify(bar))
+  const panel = (s) => !clear(s) || (s && s.image !== 'none')
+  check(
+    'the chips and orders keep their own panel',
+    panel(bar.chip) && panel(bar.cmd),
+    JSON.stringify(bar)
+  )
+
+  // A real drag on the field pans the camera: the pointer handlers, the CSS
+  // touch action and the camera all have to line up for this to pass. The
+  // drag goes towards the side with room left, because a view wider than the
+  // field is already showing the whole field and cannot pan on that axis.
+  const fieldBox = await evaluate(`
+    (() => {
+      const c = document.querySelector('.battle-canvas')
+      const r = c.getBoundingClientRect()
+      const b = window.kidsWarGame.stores.battle
+      const t = b.data ? b.data.terrain : null
+      return {
+        x: r.x, y: r.y, w: r.width, h: r.height, camX: b.camX, camY: b.camY, zoom: b.zoom,
+        fieldW: t ? t.cols * t.cell : 0, fieldH: t ? t.rows * t.cell : 0
+      }
+    })()
+  `)
+  const grabX = Math.round(fieldBox.x + fieldBox.w * 0.35)
+  const grabY = Math.round(fieldBox.y + fieldBox.h * 0.45)
+  const roomOf = (cam, size, view, zoom) => {
+    const half = view / zoom / 2
+    return { low: cam - half, high: size - half - cam }
+  }
+  const hRoom = roomOf(fieldBox.camX, fieldBox.fieldW, fieldBox.w, fieldBox.zoom)
+  const vRoom = roomOf(fieldBox.camY, fieldBox.fieldH, fieldBox.h, fieldBox.zoom)
+  const dx = hRoom.high >= hRoom.low ? -60 : 60
+  const dy = vRoom.high >= vRoom.low ? -60 : 60
+
+  const dragMouse = async () => {
+    await evaluate('window.kidsWarGame.stores.battle.recenter(); true')
+    await sleep(150)
+    const before = await evaluate(`
+      (() => {
+        const b = window.kidsWarGame.stores.battle
+        return {
+          x: b.camX,
+          y: b.camY,
+          follow: b.follow,
+          zoom: b.zoom,
+          tx: b.data ? b.data.commander.tx : -1,
+          ty: b.data ? b.data.commander.ty : -1
+        }
+      })()
+    `)
+    await send('Input.dispatchMouseEvent', {
+      type: 'mousePressed', x: grabX, y: grabY, button: 'left', buttons: 1, clickCount: 1
+    })
+    for (let i = 1; i <= 6; i += 1) {
+      await send('Input.dispatchMouseEvent', {
+        type: 'mouseMoved',
+        x: grabX + Math.round((dx * i) / 6),
+        y: grabY + Math.round((dy * i) / 6),
+        button: 'left',
+        buttons: 1
+      })
+      await sleep(20)
+    }
+    await send('Input.dispatchMouseEvent', {
+      type: 'mouseReleased', x: grabX + dx, y: grabY + dy, button: 'left', buttons: 0, clickCount: 1
+    })
+    await sleep(150)
+    const after = await evaluate(`
+      (() => {
+        const b = window.kidsWarGame.stores.battle
+        return {
+          x: b.camX,
+          y: b.camY,
+          follow: b.follow,
+          tx: b.data ? b.data.commander.tx : -1,
+          ty: b.data ? b.data.commander.ty : -1
+        }
+      })()
+    `)
+    return { before, after, dx, dy, hRoom, vRoom }
+  }
+
+  const mouse = await dragMouse()
+  check('a mouse drag stops the auto follow', mouse.after.follow === false, JSON.stringify(mouse))
+  check(
+    'a mouse drag pans the field',
+    mouse.after.x !== mouse.before.x || mouse.after.y !== mouse.before.y,
+    JSON.stringify(mouse)
+  )
+  check(
+    'a drag does not tap the field',
+    mouse.after.tx === mouse.before.tx && mouse.after.ty === mouse.before.ty,
+    JSON.stringify(mouse)
+  )
+
+  // The same handlers serve a finger: touch emulation makes Chrome send touch
+  // pointers, which is what a phone in the field would send.
+  await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 })
+  const beforeTouch = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      b.recenter()
+      return { follow: b.follow }
+    })()
+  `)
+  await sleep(150)
+  const touchStart = [{ x: grabX, y: grabY, id: 1 }]
+  await send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: touchStart })
+  for (let i = 1; i <= 6; i += 1) {
+    await send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ x: grabX + Math.round((dx * i) / 6), y: grabY + Math.round((dy * i) / 6), id: 1 }]
+    })
+    await sleep(20)
+  }
+  await send('Input.dispatchTouchEvent', {
+    type: 'touchEnd',
+    touchPoints: []
+  })
+  await sleep(150)
+  const touch = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      return { x: b.camX, y: b.camY, follow: b.follow }
+    })()
+  `)
+  await send('Emulation.setTouchEmulationEnabled', { enabled: false })
+  check('a touch drag stops the auto follow', touch.follow === false, JSON.stringify({ beforeTouch, touch }))
+  check(
+    'a touch drag pans the field',
+    touch.x !== mouse.after.x || touch.y !== mouse.after.y,
+    JSON.stringify({ mouse, touch })
+  )
+
+  // The recenter button follows the fight again, and a tap still places a flag
+  // when the finger did not drag.
+  await clickByText('.tool', '🎯')
+  await sleep(200)
+  const recentered = await evaluate('window.kidsWarGame.stores.battle.follow')
+  check('the recenter button follows the fight again', recentered === true, JSON.stringify({ recentered }))
+
+  const tapX = Math.round(fieldBox.x + fieldBox.w * 0.62)
+  const tapY = Math.round(fieldBox.y + fieldBox.h * 0.3)
+  const beforeTap = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      return { tx: b.data.commander.tx, ty: b.data.commander.ty }
+    })()
+  `)
+  await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: tapX, y: tapY, button: 'left', buttons: 1, clickCount: 1 })
+  await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: tapX, y: tapY, button: 'left', buttons: 0, clickCount: 1 })
+  await sleep(200)
+  const tap = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      return { tx: b.data.commander.tx, ty: b.data.commander.ty }
+    })()
+  `)
+  check(
+    'a tap without a drag still moves the commander',
+    tap.tx !== beforeTap.tx || tap.ty !== beforeTap.ty,
+    JSON.stringify({ beforeTap, tap })
+  )
+
+  // A back step is what a phone's edge swipe sends. The fight is a commitment,
+  // so it is refused and the screen says why.
+  const routeBefore = await evaluate('location.pathname')
+  await evaluate('history.back(); true')
+  await sleep(600)
+  const guarded = await evaluate(`
+    (() => ({
+      path: location.pathname,
+      active: window.kidsWarGame.stores.battle.active,
+      hint: document.querySelector('.leave-hint') ? document.querySelector('.leave-hint').textContent.trim() : ''
+    }))()
+  `)
+  check(
+    'a back step does not leave the running battle',
+    guarded.active === true && guarded.path === routeBefore,
+    JSON.stringify({ routeBefore, guarded })
+  )
+  check('a refused back step says why', guarded.hint.length > 0, JSON.stringify(guarded))
 
   check('the console stays clean', consoleErrors.length === 0, consoleErrors.join(' | '))
 } catch (err) {

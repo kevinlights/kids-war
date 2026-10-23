@@ -363,6 +363,29 @@ try {
   const ordered = await evaluate("window.kidsWarGame.stores.battle.order")
   check('the orders work in a quick battle', ordered === 'attack', String(ordered))
 
+  // A quick fight is practice, so it can be left at any moment instead of
+  // waiting for one army to break: the back button in the corner returns to
+  // the setup screen.
+  const quit = await evaluate(`
+    (() => {
+      const btn = document.querySelector('.hud-tools .tool.quit')
+      return { there: !!btn, label: btn ? btn.textContent.trim() : '', title: btn ? btn.title : '' }
+    })()
+  `)
+  check('a quick battle offers a way out at once', quit.there === true, JSON.stringify(quit))
+  check('the way out is a back button', quit.label.includes('返回'), JSON.stringify(quit.label))
+  await clickByText('.hud-tools .tool.quit', '返回')
+  await sleep(400)
+  const afterQuit = await evaluate(`
+    (() => ({
+      path: location.hash,
+      setup: !!document.querySelector('.quick'),
+      active: window.kidsWarGame.stores.battle.active
+    }))()
+  `)
+  check('the back button returns to the quick battle setup', afterQuit.path.includes('/quick') && afterQuit.setup === true, JSON.stringify(afterQuit))
+  check('the left battle is closed', afterQuit.active === false, JSON.stringify(afterQuit.active))
+
   check('the console stayed clean', consoleErrors.length === 0, consoleErrors.join(' | '))
 } catch (err) {
   failed += 1

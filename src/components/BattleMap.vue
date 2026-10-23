@@ -5,8 +5,7 @@
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
-    @pointercancel="onPointerUp"
-    @click="onPointer"
+    @pointercancel="onPointerCancel"
   ></canvas>
 </template>
 
@@ -50,6 +49,13 @@ let groundTerrain = null
 // Drag state: a finger that moves over the field pans the camera.
 let dragging = false
 let dragMoved = false
+// The pointer that owns the field: a second finger is ignored, so a stray
+// touch while dragging does not jump the camera.
+let activePointer = null
+// How far the pointer has travelled since it went down: a few pixels of shake
+// is still a tap on the field.
+let travel = 0
+const DRAG_THRESHOLD = 4
 let lastX = 0
 let lastY = 0
 
@@ -546,8 +552,13 @@ function toField(e) {
 }
 
 function onPointerDown(e) {
+  // A mouse has several buttons; the field answers the left one only.
+  if (e.pointerType === 'mouse' && e.button !== 0) return
+  if (activePointer !== null) return
+  activePointer = e.pointerId
   dragging = true
   dragMoved = false
+  travel = 0
   lastX = e.clientX
   lastY = e.clientY
   if (canvasEl.value.setPointerCapture) {
@@ -560,32 +571,51 @@ function onPointerDown(e) {
 }
 
 function onPointerMove(e) {
-  if (!dragging) return
+  if (!dragging || e.pointerId !== activePointer) return
   const dx = e.clientX - lastX
   const dy = e.clientY - lastY
   lastX = e.clientX
   lastY = e.clientY
-  // A small movement is a tap, a longer one is a drag of the field.
-  if (!dragMoved && Math.hypot(dx, dy) < 2) return
+  travel += Math.hypot(dx, dy)
+  // A few pixels of shake is still a tap, a longer move drags the field.
+  if (!dragMoved && travel < DRAG_THRESHOLD) return
   dragMoved = true
+  // No text selection or native drag while the field is being panned.
+  if (e.cancelable) e.preventDefault()
   battle.panCamera(dx, dy)
 }
 
-function onPointerUp() {
+function releasePointer(e) {
   dragging = false
+  dragMoved = false
+  travel = 0
+  activePointer = null
+  if (canvasEl.value.hasPointerCapture && canvasEl.value.hasPointerCapture(e.pointerId)) {
+    try {
+      canvasEl.value.releasePointerCapture(e.pointerId)
+    } catch {
+      /* the pointer may already be gone */
+    }
+  }
 }
 
-function onPointer(e) {
-  // A drag pans the field; the click that follows it must not place a flag.
-  if (dragMoved) {
-    dragMoved = false
-    return
-  }
+function onPointerUp(e) {
+  if (e.pointerId !== activePointer) return
+  const wasDrag = dragMoved
+  releasePointer(e)
+  // A drag pans the field; the release must not plant a flag.
+  if (wasDrag) return
   if (!battle.data || battle.data.outcome) return
   // A squad waiting on a move order plants its rally flag here; otherwise the
-  // tap moves the commander.
+  // tap moves the commander. Handling the release instead of a click keeps a
+  // finger and a mouse on the same path.
   const p = toField(e)
   battle.tapField(p.x, p.y)
+}
+
+function onPointerCancel(e) {
+  if (e.pointerId !== activePointer) return
+  releasePointer(e)
 }
 
 // The ground is painted once per battle.

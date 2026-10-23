@@ -284,6 +284,50 @@ export const BATCHES = [
     { zh: "**战场每次都重新生成**：河流的走向、湖泊与山地的大小和位置、森林与沙地都不再固定，每次进入战斗都会按新的种子重新铺一张地图，同一种子才会得到同一张地图；混战 / 平原 / 密林 / 山地 / 河流 / 湖泽六种预设仍然各自保证该有的地形。", en: "**A new field every time**: the river's course, the size and place of the lake and the mountain and the patches of forest and sand all come from a fresh battle seed, so no two fights share a map, while the same seed still rebuilds the same one; the six presets (mixed, plain, forest, mountain, river, lake) each still promise their own ground." },
     { zh: "**湖不会切断战场**：湖泊只落在战场内部、避开两侧的列阵区，因此不会把战场分成两半，也不会让士兵或指挥官一开始就站在深水里。", en: "**The lake never cuts the field in two**: it is always placed inside the field and clear of the two deployment bands, so no army starts in deep water and every route around it stays open." }
     ]
+  },
+  {
+    batch: 27,
+    title: "远程后撤不再钻墙角 Ranged squads stop backing into the wall",
+    date: "2026-10-23",
+    items: [
+    { zh: "**远程小队会贴着墙、绕着敌人后撤**：攻击命令下退得太近时，弓箭手不再一路直线退到战场边缘站着对射；它会先衡量每个方向还有多少空地，背后是墙或湖时改为沿墙滑开，必要时从敌人侧翼绕出去，不会把自己逼进角落。", en: "**Ranged squads slip along the wall and round the enemy**: a ranged squad that has to give ground no longer backs straight into the arena edge and trades shots there; it weighs how much open ground each way leads into, slides along a wall or a lake when the way back is closed, and rounds the enemy's flank when that is the only way out of the corner." }
+    ]
+  },
+  {
+    batch: 28,
+    title: "战斗界面：随时退出、帧率与拖动 Battle screen: leave, frame rate and dragging",
+    date: "2026-10-23",
+    items: [
+    { zh: "**快速战斗随时可以退出**：快速战斗的右上角多出「← 返回」，什么时候都能回到快速战斗的设置页，不必等一方被打垮；战役里的战斗仍然要分出胜负。", en: "**A quick battle can be left at any moment**: its corner gained a 「← 返回」 button that goes straight back to the quick battle setup, without waiting for one side to break; a battle in the campaign still has to be decided." },
+    { zh: "**战斗界面显示帧率**：右上角的小芯片写着最近半秒的平均帧率，低于 50 变成金色、低于 30 变成红色；把鼠标停在上面（手机按住）还能看到这半秒里最慢的一帧花了多少毫秒，卡顿一眼就能看出来。", en: "**The battle screen shows the frame rate**: a small chip in the corner reads the average of the last half second, turning gold below 50 and red below 30, and hovering it (or holding it on a phone) shows the slowest frame of that window in milliseconds, so a stutter is easy to judge." },
+    { zh: "**战场可以用鼠标或手指拖动**：PC 上用左键、手机上用一根手指都能平移战场，拖动会停止自动跟随，点「🎯」让镜头回到战斗；移动不到 4 px 的轻点仍然是移动指挥官，拖动不会再被当成一次点击，多出来的手指也不会把镜头甩走。", en: "**The field drags with a mouse or a finger**: the left button on a PC and one finger on a phone both pan the field and stop the auto-follow, and 「🎯」 brings the camera back to the fighting; a tap that moves less than 4 px still moves the commander, a drag is never read as a tap, and a second finger cannot throw the camera." },
+    { zh: "**底部按钮不再罩住地图**：小队、命令、队形与提示各自带自己的面板，整条命令栏不再铺一层黑色渐变，战场在按钮之间的空隙里依然看得见。", en: "**The bottom buttons no longer cover the map**: the squads, the orders, the formation sheet and the hint each carry their own panel, and the whole command bar no longer lays a dark gradient over the field, so the ground shows through the gaps between them." },
+    { zh: "**手机左缘滑动不会退出战斗**：从屏幕左缘往右滑本来是浏览器的「后退」，战斗中会被拦下，并在画面中间提示一句；要离开请用界面上的返回按钮（快速战斗 / 练兵）或打完这一仗。", en: "**A phone's edge swipe no longer leaves the battle**: the swipe from the left edge of the browser is a back step, and during a fight it is refused with a note over the field; leaving is done with the button on screen (quick battle / drill) or by finishing the fight." }
+    ]
+  },
+  {
+    batch: 29,
+    title: "800 人战场稳定 60 帧 A big battle holds 60 frames",
+    date: "2026-10-23",
+    items: [
+    { zh: "**800 人的战场不再卡顿**：400 v 400 的快速战斗在桌面 headless Chrome 里从 **8 FPS** 提到 **60 FPS**（p50 16.7 ms、p95 16.8 ms、最慢 16.8 ms），帧率芯片、双方兵力与小队芯片在交战过程中照常刷新；镜头缩放与拖动不受影响。", en: "**A field of 800 soldiers no longer crawls**: a 400 v 400 quick battle went from **8 FPS** to **60 FPS** in headless Chrome on the desktop (p50 16.7 ms, p95 16.8 ms, worst 16.8 ms), with the frame-rate chip, both troop counts and the squad chips keeping up during the fighting; zooming and dragging the camera still work." },
+    { zh: "**找敌人不再全场扫描**：最近的敌人改为在 90 px 的粗网格里按圈搜索，并让每名士兵把目标记住 0.18 秒（按士兵错开刷新），一次搜索从比较全场 800 人降到十几次；视线检查只在敌人已经进入攻击距离时才做，士兵之间的推挤改用平方距离比较。", en: "**Finding a foe no longer scans the whole field**: the nearest enemy is looked up ring by ring in a coarse 90 px grid, and every soldier keeps its target for 0.18 s (with the refreshes staggered per soldier), so one search drops from comparing all 800 soldiers to a dozen or so; line of sight is checked only once the foe is already within reach, and the push between neighbours compares squared distances." },
+    { zh: "**战场数据不再经过界面框架的响应式代理**：模拟与绘制直接读原始数据，命令栏改由一个每秒更新十次的计数器驱动，因此每帧数百名士兵的坐标与生命值不再逐次穿过代理；兵力数字、命令与队形照常即时更新。", en: "**The field no longer runs through the interface framework's reactive proxies**: the simulation and the painter read the raw data, while the command bar is driven by a counter that moves ten times a second, so the positions and health of hundreds of soldiers no longer cross a proxy on every read; the troop counts, orders and formations still update at once." },
+    { zh: "**对峙提示条会立刻收起**：点「⚔️ 全军出击」之后，顶上的对峙提示条立刻消失、底部提示换成冲锋说明，不会在敌军变阵的一秒多里继续挂着。", en: "**The standoff banner leaves at once**: after 「⚔️ 全军出击」 the banner is gone immediately and the hint switches to the charge, instead of hanging on for the second the enemy spends dressing its ranks." }
+    ]
+  },
+  {
+    batch: 30,
+    title: "手机战场、拖动缓冲与冲锋 A phone battlefield, a drag buffer and the charge",
+    date: "2026-10-23",
+    items: [
+    { zh: "**战场的面积翻倍**：战场从 1000 × 680 扩到 **1400 × 960**（约为原来的 **1.98 倍面积**，宽高各约 1.4 倍，地形格 35 × 24），两军从 **784 px** 外开始推进，开局多出约四成的行军时间用来排兵布阵；湖泊、森林、山地、沙地与河流按新地图一起放大，各地形占战场的比例保持不变。", en: "**The battlefield covers twice the ground**: the arena grows from 1000 x 680 to **1400 x 960** (about **1.98 times the area**, each side about 1.4 times longer, with 35 x 24 terrain cells) and the armies start **784 px** apart, which gives roughly forty percent more marching time to form up; the lake, the woods, the mountains, the sand and the river grow with the field so every terrain keeps its share of the map." },
+    { zh: "**镜头可以拖出战场边缘**：手指或鼠标把镜头拖到地图边时还能再拖出 **140 px**，看到战场外围的空地，站在最边上的士兵不再被钉在屏幕边上；左右与上下四个方向都一样，松手后镜头就停在缓冲位置，点 🎯 才回到战斗。", en: "**The camera can be dragged past the edge of the field**: a finger or a mouse drags it up to **140 px** beyond the map so the empty ground around the battlefield shows and a soldier on the border is no longer pinned to the screen edge; all four sides allow it, the camera rests there when the drag ends, and only 🎯 brings it back to the fight." },
+    { zh: "**手机上的战斗界面**：在 **390 × 844（dpr 3，触摸）** 的手机视口里实测，顶部兵力条不再被截断（手机上隐藏装饰性的「战斗」标题与速度名，兵力条留出 200 px），底部命令栏从 **256 px 压到 220 px**（隐藏底部提示行、缩短命令按钮与队形开关、收窄间距），两条栏之间留出 **580 px（69%）** 的净空；开局镜头缩到 **0.42** 让两支军队同时入镜，接战后自动拉近到 0.7。", en: "**The battle screen on a phone**: measured in a **390 x 844** viewport (dpr 3, touch on), the top strength bar is no longer clipped (the decorative 「战斗」 title and the speed name are hidden on phones and the bar keeps 200 px) and the command bar shrinks from **256 px to 220 px** (the bottom hint line is hidden and the commands, formation toggle and gaps are tightened), leaving **580 px (69 percent)** of clear field between the bars; the opening camera zooms out to **0.42** so both armies are on screen, then closes to 0.7 once they meet." },
+    { zh: "**近战会冲锋，也会累**：近战士兵的目标超过 **90 px** 时进入冲刺（**+30% 速度**），冲刺会一直持续到接战；体力约 **2.5 秒**耗尽，随后疲劳 **2.5 秒**（−10% 速度），喘匀后可以再冲。士兵的目标是远程兵时，进入 90 px 后会脱离阵位直接扑上去，不再被阵型槽位挡在攻击距离之外。", en: "**Melee soldiers charge, and they tire**: a melee soldier whose target is over **90 px** away breaks into a sprint (**+30 percent speed**) that carries through to contact; the burst lasts about **2.5 s** and leaves the soldier winded for **2.5 s** (−10 percent speed) before it can charge again. A soldier whose target is a ranged unit leaves its slot once within 90 px and closes on it directly, so the formation can no longer hold the front rank a few pixels short of reach." },
+    { zh: "**齐射之后会慢，贴脸时更危险**：弓箭手每射出一箭都会短暂降速（**0.9 秒 × 0.72**），距离小于 **32 px** 时无法开弓，只能以 **0.85 倍**的速度后撤；因此被近战咬住之后连续风筝越来越难，长矛兵可以把弓箭手拖进肉搏。", en: "**Slow after a volley, and in real danger at point-blank range**: every arrow leaves the archer slowed for a moment (**0.9 s at 0.72 speed**), it cannot draw its bow under **32 px** and can only back away at **0.85 times** its speed; sustained kiting therefore gets harder once a melee soldier is on it, and spearmen can drag archers into hand-to-hand." },
+    { zh: "**同数量对局的实测**：长矛兵对弓箭手 **8 v 8** 只赢 **1/5**（弓箭手虽赢，但每局要损失 1–4 人）；**20 v 20** 长矛兵 **5/5** 惨胜，打 **27–38 秒**、20 人只剩 **7–11 人**；单挑时一名长矛兵能在 **26 秒**后以 19 点生命取胜。民兵仍打不过同数量弓箭手（0/5），骑兵依旧碾压（5/5，6–7 秒）。", en: "**The measured equal fights**: spearmen beat archers only **1/5** at **8 v 8** (the archers win but lose one to four soldiers each time); at **20 v 20** the spearmen win **5/5** at a heavy cost, taking **27–38 s** and finishing with **7–11 of 20**; one spearman against one archer wins after **26 s** with 19 health left. Militia still lose to equal archers (0/5) while cavalry still ride them down (5/5 in 6–7 s)." }
+    ]
   }
 ]
 

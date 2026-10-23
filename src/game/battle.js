@@ -28,7 +28,10 @@ import { arenaLineClear, findArenaPath, retreatDirection } from './arenaPath'
  * The battle field. It is deliberately larger than the screen of a phone: the
  * camera follows the fighting instead, so the armies still have room to manoeuvre.
  */
-export const ARENA = { w: 1000, h: 680, margin: 50 }
+// The field covers about twice the ground it used to (1.98x the area), so both
+// armies have room to form up and the fight takes a while to close:
+// 1400 x 960, 35 x 24 terrain cells.
+export const ARENA = { w: 1400, h: 960, margin: 50 }
 
 /** Standing orders a squad can be given. */
 export const ORDERS = [
@@ -79,6 +82,25 @@ export const FORMATION_MODS = {
 
 const MELEE_RANGE = 26
 const AGGRO = 320
+// A melee soldier that is still far from its foe sprints, then pays for it.
+const CHARGE_DISTANCE = 90
+const CHARGE_MULT = 1.3
+// A full breath of sprint lasts about two and a half seconds and takes about
+// four seconds to recover, so the pursuit closes ground in bursts.
+const CHARGE_DRAIN = 0.4
+const CHARGE_REGEN = 0.25
+const TIRED_TIME = 2.5
+const TIRED_MULT = 0.9
+// A volley costs a moment of movement: the archer plants its feet to shoot,
+// which is what makes a long kite more and more expensive.
+const VOLLEY_SLOW_TIME = 0.9
+const VOLLEY_SLOW_MULT = 0.72
+// A bow needs room to draw: a foe that is right on top of the archer cannot be
+// shot at, which is what makes closing the distance worth the effort.
+const ARCHER_MIN_RANGE = 32
+// Backing away with a foe in the face is slower than a clean retreat, but not
+// as slow as the recovery from a volley: the archer can still break away.
+const ARCHER_PRESSED_MULT = 0.85
 /** Pixels per second at `speed: 1`. */
 const BASE_SPEED = 90
 
@@ -293,6 +315,11 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
     y: clamp(group.anchor.y + slot.oy, 18, ARENA.h - 18),
     cd: b.rng.float(0, 0.6),
     alive: true,
+    // Sprint and volley clocks (see `stepBattle`).
+    stamina: 1,
+    sprinting: false,
+    tired: 0,
+    volleyT: 0,
     facing: dir > 0 ? 1 : -1,
     hitFlash: 0,
     // A short visual lunge after a strike: the renderer leans the soldier into
@@ -464,6 +491,10 @@ export function spawnTrainingDummies(b, count = TRAINING_DUMMY_COUNT) {
       y: clamp(anchorY + slot.oy, 18, ARENA.h - 18),
       cd: 0,
       alive: true,
+      stamina: 1,
+      sprinting: false,
+      tired: 0,
+      volleyT: 0,
       facing: -1,
       hitFlash: 0,
       swing: 0,
@@ -499,19 +530,73 @@ function aliveUnits(b, side) {
   return b.units.filter((u) => u.alive && u.side === side)
 }
 
+// A big battle has hundreds of soldiers a side, and looking for the nearest
+// foe by scanning the whole field costs O(n^2) every frame. A coarse grid
+// rebuilt a few times a second turns the search into a handful of cells, and
+// a soldier keeps its target for a moment instead of searching again on every
+// frame.
+const TARGET_CELL = 90
+const TARGET_REFRESH = 0.18
+const TARGET_GRID_LIFE = 0.12
+
+/** The soldier buckets of this field, rebuilt when they go stale. */
+function targetGrid(b) {
+  const grid = b._targetGrid
+  if (grid && b.time - grid.at < TARGET_GRID_LIFE) return grid
+  const cells = new Map()
+  const byId = new Map()
+  for (const u of b.units) {
+    if (!u.alive) continue
+    byId.set(u.id, u)
+    const key = Math.floor(u.x / TARGET_CELL) + ':' + Math.floor(u.y / TARGET_CELL)
+    let list = cells.get(key)
+    if (!list) cells.set(key, (list = []))
+    list.push(u)
+  }
+  b._targetGrid = { at: b.time, cells, byId }
+  return b._targetGrid
+}
+
 function nearestEnemy(b, unit) {
   const foeSide = unit.side === 'player' ? 'enemy' : 'player'
+  const grid = targetGrid(b)
+  const gx = Math.floor(unit.x / TARGET_CELL)
+  const gy = Math.floor(unit.y / TARGET_CELL)
+  // A dozen rings reach every corner of the field whatever its size.
+  const maxRing = Math.ceil(Math.max(ARENA.w, ARENA.h) / TARGET_CELL) + 1
   let best = null
-  let bestD = Infinity
-  for (const u of b.units) {
-    if (!u.alive || u.side !== foeSide) continue
-    const d = Math.hypot(u.x - unit.x, u.y - unit.y)
-    if (d < bestD) {
-      bestD = d
-      best = u
+  let bestD2 = Infinity
+  const visit = (cx, cy) => {
+    const list = grid.cells.get(cx + ':' + cy)
+    if (!list) return
+    for (const u of list) {
+      if (u.side !== foeSide) continue
+      const dx = u.x - unit.x
+      const dy = u.y - unit.y
+      const d2 = dx * dx + dy * dy
+      if (d2 < bestD2) {
+        bestD2 = d2
+        best = u
+      }
     }
   }
-  return { unit: best, dist: bestD }
+  for (let r = 0; r <= maxRing; r += 1) {
+    if (r === 0) {
+      visit(gx, gy)
+    } else {
+      for (let cx = gx - r; cx <= gx + r; cx += 1) {
+        visit(cx, gy - r)
+        visit(cx, gy + r)
+      }
+      for (let cy = gy - r + 1; cy <= gy + r - 1; cy += 1) {
+        visit(gx - r, cy)
+        visit(gx + r, cy)
+      }
+    }
+    // The next ring is at least r cells away, so a closer foe cannot be left.
+    if (best && bestD2 <= (r * TARGET_CELL) * (r * TARGET_CELL)) break
+  }
+  return { unit: best, dist: best ? Math.sqrt(bestD2) : Infinity }
 }
 
 /**
@@ -522,9 +607,23 @@ function nearestEnemy(b, unit) {
  * somewhere else. Out of reach the nearest enemy is the target as usual.
  */
 function foeFor(b, unit) {
-  const nearest = nearestEnemy(b, unit)
+  // The nearest foe moves slowly: keep it for a moment, drop it the instant it
+  // falls, and spread the refreshes over the whole army with a per-soldier
+  // phase so no single frame searches for every soldier at once.
+  const cached = unit.foeCache
+  let nearest
+  if (cached && cached.unit && cached.unit.alive && b.time - cached.at < TARGET_REFRESH) {
+    const dx = cached.unit.x - unit.x
+    const dy = cached.unit.y - unit.y
+    nearest = { unit: cached.unit, dist: Math.sqrt(dx * dx + dy * dy) || 0 }
+  } else {
+    nearest = nearestEnemy(b, unit)
+    const phase = ((unit.id * 37) % 100) / 100
+    unit.foeCache = { unit: nearest.unit, at: b.time - phase * TARGET_REFRESH }
+  }
   if (!unit.lastAttackerId) return nearest
-  const attacker = b.units.find((u) => u.id === unit.lastAttackerId)
+  const grid = targetGrid(b)
+  const attacker = grid.byId.get(unit.lastAttackerId)
   if (!attacker || !attacker.alive) return nearest
   const d = Math.hypot(attacker.x - unit.x, attacker.y - unit.y)
   const reach = unit.def.ranged ? unit.def.range : MELEE_RANGE
@@ -817,10 +916,11 @@ function updateGroupTargets(b) {
 
     // A ranged squad keeps its distance: the whole formation steps back
     // together instead of every soldier running on its own. The direction
-    // avoids lakes, the map edge and the slowest ground.
+    // avoids lakes and the map edge, and when the enemy has it against a wall
+    // it looks for the open ground along that wall or round the enemy's flank.
     const d = Math.hypot(foe.x - cx, foe.y - cy)
     if (def.ranged && d < def.range * 0.5) {
-      g.retreat = retreatDirection(b.terrain, cx, cy, cx - foe.x, cy - foe.y, 110)
+      g.retreat = retreatDirection(b.terrain, cx, cy, cx - foe.x, cy - foe.y, 110, foe, g.retreat)
     } else {
       g.retreat = null
     }
@@ -858,6 +958,12 @@ function strike(b, unit, target) {
   unit.swing = 0.16
 
   if (def.ranged) {
+    // A bow needs room to draw: at point-blank the archer cannot loose and has
+    // to give ground instead, so a foe that gets in is genuinely dangerous.
+    const gap = Math.hypot(target.x - unit.x, target.y - unit.y)
+    if (gap < ARCHER_MIN_RANGE) return
+    // Planting the bow costs a step: the next volley starts a little slower.
+    unit.volleyT = VOLLEY_SLOW_TIME
     b.projectiles.push({
       x: unit.x,
       y: unit.y,
@@ -970,13 +1076,50 @@ export function stepBattle(b, dt) {
     // The ground the soldier stands on slows it down: a forest or a river
     // costs time, a mountain gives a better view but a slippery footing.
     const ground = arenaTerrainAt(b.terrain, unit.x, unit.y)
-    const speed = def.speed * BASE_SPEED * mods.speedMul * ground.speedMul
+    // A melee soldier far from its foe breaks into a sprint. The sprint is
+    // latched: once it starts beyond `CHARGE_DISTANCE` it carries the soldier
+    // through the last stretch to contact instead of dying out at 30 px, which
+    // is what makes a chase feel like a charge rather than a walk.
+    let chargeMul = 1
+    const melee = !def.ranged && !unit.isDummy
+    const attacking = group.order === 'attack'
+    if (melee && unit.tired > 0) {
+      unit.tired = Math.max(0, unit.tired - dt)
+      chargeMul = TIRED_MULT
+    }
+    if (melee) {
+      // Contact, a lost target or a new order ends the sprint at once.
+      if (unit.sprinting && (!foe || dist <= MELEE_RANGE || !attacking || unit.stamina <= 0)) {
+        unit.sprinting = false
+      }
+      if (!unit.sprinting && foe && dist > CHARGE_DISTANCE && attacking && unit.tired <= 0 && unit.stamina > 0) {
+        unit.sprinting = true
+      }
+      if (unit.sprinting) {
+        unit.stamina = Math.max(0, unit.stamina - CHARGE_DRAIN * dt)
+        chargeMul = CHARGE_MULT
+        if (unit.stamina <= 0) {
+          unit.sprinting = false
+          unit.tired = TIRED_TIME
+        }
+      } else if (unit.tired <= 0) {
+        unit.stamina = Math.min(1, unit.stamina + CHARGE_REGEN * dt)
+      }
+    }
+    // The archer is slower right after loosing a volley, and slower still
+    // while it backs away with a foe in its face: a bow cannot be run with.
+    if (unit.volleyT > 0) unit.volleyT = Math.max(0, unit.volleyT - dt)
+    const pressed = def.ranged && !!foe && dist < ARCHER_MIN_RANGE
+    const volleyMul = pressed ? ARCHER_PRESSED_MULT : unit.volleyT > 0 ? VOLLEY_SLOW_MULT : 1
+    const speed = def.speed * BASE_SPEED * mods.speedMul * ground.speedMul * chargeMul * volleyMul
     const prevX = unit.x
     const prevY = unit.y
     // The formation breathes. Every soldier sways a little inside its slot,
     // dodges aside when it is hit and slides away from a neighbour that
     // stands too close — the shape of the squad stays, the line is alive.
-    const sighted = !foe || def.ranged ||
+    // A distant foe is out of reach anyway: skip the line check until it can
+    // actually be struck, which is most of the soldiers in a big battle.
+    const sighted = !foe || def.ranged || dist > engage ||
       arenaLineClear(b.terrain, unit.x, unit.y, foe.x, foe.y, 6)
     const inReach = !!(foe && dist <= engage && sighted)
     const wob = unit.wobble || { x: 0, y: 0, dx: 0, dy: 0, phase: 0, speed: 1 }
@@ -996,8 +1139,9 @@ export function stepBattle(b, dt) {
       if (other === unit) continue
       const ddx = unit.x - other.x
       const ddy = unit.y - other.y
-      const d = Math.hypot(ddx, ddy)
-      if (d > 14 || d < 0.01) continue
+      const d2 = ddx * ddx + ddy * ddy
+      if (d2 > 196 || d2 < 0.0001) continue
+      const d = Math.sqrt(d2)
       pushX += (ddx / d) * (14 - d)
       pushY += (ddy / d) * (14 - d)
     }
@@ -1015,8 +1159,14 @@ export function stepBattle(b, dt) {
     // A scattered squad is the exception: it has no block to keep, so every
     // soldier closes on the foe itself and attacks it.
     const scattered = group.formation === 'random' && group.order === 'attack' && !!foe
-    const tx = scattered ? foe.x + offX * 1.6 : group.tx + slot.ox + offX
-    const ty = scattered ? foe.y + offY * 1.6 : group.ty + slot.oy + offY
+    // A melee soldier whose foe is close but still out of reach leaves the
+    // block and closes on it directly. The squad still forms up for the march,
+    // but the last stretch is a chase: the charge is only worth anything if the
+    // soldier can actually take hold of the archer it ran down.
+    const pressing =
+      melee && !!foe && foe.def.ranged && dist <= CHARGE_DISTANCE && group.order === 'attack'
+    const tx = scattered || pressing ? foe.x + offX * 1.6 : group.tx + slot.ox + offX
+    const ty = scattered || pressing ? foe.y + offY * 1.6 : group.ty + slot.oy + offY
 
     let wantsToMove = false
     if (group.retreat) {
