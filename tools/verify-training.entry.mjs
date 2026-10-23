@@ -37,7 +37,25 @@ const allNotes = CHANGELOG.flatMap((entry) => entry.summary || []).join('\n')
 check('the changelog mentions the version display', allNotes.includes('版本号'))
 check('the changelog mentions the training session', allNotes.includes('练兵'))
 check('the changelog mentions the quick battle', allNotes.includes('快速战斗'))
-check('the current release mentions the slow town clock', CHANGELOG[0].summary.some((line) => line.includes('城镇') && line.includes('1 分钟')))
+// The notes of the current release must describe the batch that shipped last:
+// they are written by hand, so this checks they still talk about the same work.
+function sharedRun(a, b) {
+  let best = 0
+  for (let i = 0; i < a.length; i += 1) {
+    for (let j = 0; j < b.length; j += 1) {
+      let k = 0
+      while (a[i + k] && a[i + k] === b[j + k]) k += 1
+      if (k > best) best = k
+    }
+  }
+  return best
+}
+const newestBatch = BATCHES[BATCHES.length - 1]
+check(
+  'the current release describes the newest batch',
+  CHANGELOG[0].summary.some((line) => newestBatch.items.some((item) => sharedRun(line, item.zh) >= 4)),
+  `release ${CHANGELOG[0].version} vs batch ${newestBatch.batch}`
+)
 // The notes are the batches of the progress file.
 const progressText = readFileSync(path.join(globalThis.__kwgRoot || process.cwd(), 'progress.md'), 'utf8')
 // Only the batches that hold something a player can see are in the notes.

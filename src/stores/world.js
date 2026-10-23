@@ -7,6 +7,7 @@ import { factionOf, NPC_FACTIONS } from '@/game/factions'
 import { darknessOf, isNight, speedFactorOf } from '@/game/daynight'
 import { normalizeTroops, healTroops, unitDef } from '@/game/units'
 import { createRng } from '@/game/rng'
+import { FLEE_COOLDOWN, fleeCandidates } from '@/game/encounter'
 import { enemyCapMulOf, enemySizeMulOf, foeOf, threatOf } from '@/game/difficulty'
 import {
   BANDIT,
@@ -545,6 +546,14 @@ export const useWorldStore = defineStore('world', {
 
     // Advance the player, roaming parties and the day counter.
     tick(dt) {
+      // The meeting with a hostile warband freezes the whole world: the two
+      // sides stand and talk until the child picks a line, so nobody walks
+      // away while the dialog is open.
+      // 与敌军相遇会冻结整个世界：双方站定说话，直到孩子做出选择。
+      if (this.encounter) {
+        this.timeFlowing = false
+        return
+      }
       const player = usePlayerStore()
       // The night slows the whole world down: the lord walks a quarter slower
       // in the deepest night, and so does every roaming warband.
@@ -676,6 +685,9 @@ export const useWorldStore = defineStore('world', {
           if (d < 1.3) {
             this.encounter = { partyId: p.id, faction: p.faction }
             this.stop()
+            // A meeting interrupts the camp as well, so the clock stays put
+            // while the two leaders talk.
+            this.stopCamp()
             break
           }
         }
@@ -706,6 +718,47 @@ export const useWorldStore = defineStore('world', {
 
     clearEncounter() {
       this.encounter = null
+    },
+
+    /**
+     * Run from the party the lord has just met.
+     *
+     * The lord dashes 3–6 tiles in a random direction away from the enemy and
+     * the enemy is put on a cooldown, so the same meeting does not immediately
+     * happen again. Nothing is lost and no battle is fought: fleeing is always
+     * the safe choice, it only costs the time it takes to run.
+     * 从刚刚遇到的敌人身边逃开：主角朝背对敌人的随机方向冲出 3–6 格，
+     * 敌人进入冷却，因此同一场遭遇不会立刻重演。逃跑不损失任何东西，也不打仗。
+     */
+    fleeEncounter(seed) {
+      const enc = this.encounter
+      if (!enc) return { ok: false, reason: '现在没有遇到敌人' }
+      const party = this.partyById(enc.partyId)
+      if (!party) {
+        this.encounter = null
+        return { ok: false, reason: '敌人已经离开了' }
+      }
+      const rng = createRng(Number.isFinite(seed) ? seed : Math.floor(Math.random() * 1e9))
+      const candidates = fleeCandidates({
+        grid: this.grid,
+        player: this.playerPos,
+        party,
+        rng
+      })
+      for (const spot of candidates) {
+        const path = findPath(this.grid, this.playerPos, { x: spot.x, y: spot.y }, terrainCost)
+        if (!path.length) continue
+        const last = path[path.length - 1]
+        // The pathfinder falls back to the closest tile when the goal is
+        // walled off; a dash has to land exactly where it was aimed.
+        if (last.x !== spot.x || last.y !== spot.y) continue
+        this.encounter = null
+        this.stopCamp()
+        this.path = path
+        this.cooldown[party.id] = FLEE_COOLDOWN
+        return { ok: true, x: spot.x, y: spot.y, distance: spot.distance, steps: path.length }
+      }
+      return { ok: false, reason: '四周都被堵住，跑不掉了' }
     }
   }
 })

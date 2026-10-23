@@ -40,7 +40,7 @@
             <span class="pick-sub">{{ s.perSide }} × {{ s.perSide }}</span>
           </button>
         </div>
-        <p class="note">规模只决定每方多少人，具体兵种的数量可以自己填。The size only says how many soldiers there are; the mix is yours to set.</p>
+        <p class="note">规模只决定每方多少人，具体兵种的数量可以自己填；每种最多 100 名，拖动滑杆即可快速设置。The size only says how many soldiers there are; the mix is yours to set, every kind holds up to 100, and the slider sets it quickly.</p>
       </section>
 
       <!-- The two sides -->
@@ -69,6 +69,16 @@
               <span class="num">{{ playerCounts[u.key] }}</span>
               <button class="step" @click="change(playerCounts, u.key, 1)">+</button>
             </div>
+            <input
+              class="counter-slider"
+              type="range"
+              min="0"
+              :max="QUICK_MAX_COUNT"
+              step="1"
+              :value="playerCounts[u.key]"
+              :aria-label="`${u.name}数量`"
+              @input="setCount(playerCounts, u.key, $event.target.value)"
+            />
           </div>
         </div>
 
@@ -96,6 +106,16 @@
               <span class="num">{{ enemyCounts[u.key] }}</span>
               <button class="step" @click="change(enemyCounts, u.key, 1)">+</button>
             </div>
+            <input
+              class="counter-slider"
+              type="range"
+              min="0"
+              :max="QUICK_MAX_COUNT"
+              step="1"
+              :value="enemyCounts[u.key]"
+              :aria-label="`${u.name}数量`"
+              @input="setCount(enemyCounts, u.key, $event.target.value)"
+            />
           </div>
         </div>
       </section>
@@ -208,10 +228,15 @@ function total(counts) {
   return countTotal(counts)
 }
 
+/** Set the count of one kind, keeping it inside the slider range. */
+function setCount(counts, key, value) {
+  const next = Math.max(0, Math.min(QUICK_MAX_COUNT, Math.round(Number(value) || 0)))
+  counts[key] = next
+}
+
 /** Add or remove one soldier of a kind. */
 function change(counts, key, step) {
-  const next = Math.max(0, Math.min(QUICK_MAX_COUNT, (counts[key] || 0) + step))
-  counts[key] = next
+  setCount(counts, key, (counts[key] || 0) + step)
 }
 
 /** The lord fields one kind of soldier. */
@@ -429,12 +454,15 @@ h1 {
   color: var(--gold);
 }
 
-/* One row per kind of soldier: its name and a stepper for its count. */
+/* One row per kind of soldier: its name, a stepper and a quick slider. */
 .counter {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    'name stepper'
+    'slider slider';
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px 10px;
   padding: 6px 10px;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
@@ -442,14 +470,25 @@ h1 {
 }
 
 .counter-name {
+  grid-area: name;
   font-size: 13.5px;
   font-weight: 700;
 }
 
 .stepper {
+  grid-area: stepper;
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.counter-slider {
+  grid-area: slider;
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  accent-color: var(--gold);
+  cursor: pointer;
 }
 
 .step {

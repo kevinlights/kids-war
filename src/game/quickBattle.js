@@ -6,7 +6,7 @@
  * squads, the same orders, the same terrain — so the quick battle is a real
  * fight, only without a campaign around it.
  */
-import { createBattle, stepBattle } from './battle'
+import { createBattle, hastenEnemy, stepBattle } from './battle'
 import { ARENA_MAPS } from './arena'
 import { unitDef } from './units'
 
@@ -22,7 +22,7 @@ export const QUICK_UNITS = [
 export const QUICK_TIER = 2
 
 /** The most soldiers one kind may have on a side. */
-export const QUICK_MAX_COUNT = 200
+export const QUICK_MAX_COUNT = 100
 
 /** The battlefields a quick battle can be fought on. */
 export const QUICK_MAPS = ARENA_MAPS
@@ -220,6 +220,11 @@ export function simulateRound({ map, playerTroops, enemyTroops, enemyFaction, se
     playerDefMul: 1,
     arenaMap: map
   })
+  // An instant simulation assumes the lord gives the attack order at once: the
+  // standoff at the start of a watched fight is skipped, so the result is the
+  // fight itself. The enemy answers just as it does in a real battle.
+  for (const key of battle.playerGroups) battle.groups[key].order = 'attack'
+  hastenEnemy(battle)
   const dt = 0.1
   let time = 0
   while (!battle.outcome && time < maxTime) {

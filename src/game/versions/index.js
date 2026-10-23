@@ -16,12 +16,15 @@ import release001 from './v0.0.1'
 import release002 from './v0.0.2'
 import release003 from './v0.0.3'
 import release004 from './v0.0.4'
+import release005 from './v0.0.5'
+import release006 from './v0.0.6'
+import release007 from './v0.0.7'
 
 /** The version of this build. */
-export const VERSION = '0.0.4'
+export const VERSION = '0.0.7'
 
 /** Every release, newest first. */
-export const VERSIONS = [release004, release003, release002, release001]
+export const VERSIONS = [release007, release006, release005, release004, release003, release002, release001]
 
 /** The notes of the current build. */
 export const CHANGELOG = VERSIONS

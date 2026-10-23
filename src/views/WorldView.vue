@@ -130,6 +130,15 @@
       </div>
     </div>
 
+    <!-- Meeting a hostile warband: the world stops and the leader talks
+         before either side draws a sword. -->
+    <EncounterDialog
+      v-if="encounterParty"
+      :party="encounterParty"
+      @fight="fightEncounter"
+      @flee="fleeEncounter"
+    />
+
     <!-- Lord info panel -->
     <CharacterPanel v-if="showCharacter" @close="showCharacter = false" />
 
@@ -145,6 +154,7 @@ import WorldMap from '@/components/WorldMap.vue'
 import MiniMap from '@/components/MiniMap.vue'
 import WorldAtlas from '@/components/WorldAtlas.vue'
 import CharacterPanel from '@/components/CharacterPanel.vue'
+import EncounterDialog from '@/components/EncounterDialog.vue'
 import DayClock from '@/components/DayClock.vue'
 import { useWorldStore } from '@/stores/world'
 import { usePlayerStore } from '@/stores/player'
@@ -174,6 +184,10 @@ let toastTimer = 0
 let autosave = 0
 
 const nearby = computed(() => world.nearbySettlement)
+// The party the lord is talking to, if the two sides have just met.
+const encounterParty = computed(() =>
+  world.encounter ? world.partyById(world.encounter.partyId) : null
+)
 const canEnter = computed(() => (st) => canEnterSettlement(st))
 // Only a town held by a kingdom can be besieged: a neutral town is claimed and
 // a town of the lord's own needs no war at all.
@@ -344,21 +358,44 @@ function exitToHome() {
   router.push('/')
 }
 
-// Route into battle as soon as a hostile party catches the player.
+// A hostile party that catches the player does not start the battle: it opens
+// the meeting dialog, which freezes the world (see `world.tick`). The child
+// then picks 「⚔️ 开战」 or runs away.
 watch(
   () => world.encounter,
   (enc) => {
     if (!enc) return
-    const party = world.partyById(enc.partyId)
-    if (!party) {
-      world.clearEncounter()
-      return
-    }
-    battle.start(party, Math.floor(Math.random() * 1e9))
-    persistGame()
-    router.push('/battle')
+    world.stop()
+    // The meeting takes over the screen, so the sheets go away.
+    showSettings.value = false
+    showCharacter.value = false
+    showAtlas.value = false
+    if (!world.partyById(enc.partyId)) world.clearEncounter()
   }
 )
+
+/** 「⚔️ 开战」: the meeting ends and the real arena opens. */
+function fightEncounter() {
+  const party = encounterParty.value
+  if (!party) {
+    world.clearEncounter()
+    return
+  }
+  battle.start(party, Math.floor(Math.random() * 1e9))
+  persistGame()
+  router.push('/battle')
+}
+
+/** 「🏃 逃跑」: dash a few random tiles away and put the enemy on cooldown. */
+function fleeEncounter() {
+  const res = world.fleeEncounter()
+  if (!res.ok) {
+    flash(`🚫 ${res.reason}`)
+    return
+  }
+  flash(`🏃 你带着队伍跑出 ${res.distance} 格，暂时甩掉了敌人`)
+  persistGame()
+}
 
 onMounted(() => {
   if (!player.username) {

@@ -4,7 +4,7 @@
  */
 import { generateWorld, gridToIds } from '@/game/worldgen'
 
-export function buildSave(seed = 20261019, username = 'tester') {
+export function buildSave(seed = 20261019, username = 'tester', options = {}) {
   const world = generateWorld(seed)
   // A village the lord may actually walk into: a bandit village is closed.
   const village =
@@ -29,6 +29,48 @@ export function buildSave(seed = 20261019, username = 'tester') {
     }
   }
 
+  // Optionally drop a hostile party right beside the lord, so a check can walk
+  // straight into the meeting dialog instead of hunting for an enemy.
+  let encounter = null
+  if (options.encounter) {
+    let spot = null
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, 1],
+      [-1, -1]
+    ]) {
+      const x = playerPos.x + dx
+      const y = playerPos.y + dy
+      const terrain = world.grid[y] && world.grid[y][x]
+      if (terrain && terrain !== 'water' && terrain !== 'mountain') {
+        spot = { x, y }
+        break
+      }
+    }
+    if (spot) {
+      encounter = {
+        id: `test-${options.encounter}`,
+        faction: options.encounter,
+        x: spot.x,
+        y: spot.y,
+        homeX: spot.x,
+        homeY: spot.y,
+        units: [
+          { type: 'militia', tier: 1, count: 4, hp: [30, 30, 30, 30] },
+          { type: 'archer', tier: 1, count: 2, hp: [34, 34] }
+        ],
+        speed: 1,
+        wanderTimer: 0,
+        targetX: spot.x,
+        targetY: spot.y
+      }
+      world.parties.push(encounter)
+    }
+  }
+
   return {
     payload: {
       version: 1,
@@ -46,6 +88,7 @@ export function buildSave(seed = 20261019, username = 'tester') {
       stats: { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 },
       questionStats: {}
     },
-    settlement: village
+    settlement: village,
+    encounter
   }
 }

@@ -12,12 +12,17 @@
  * there, and density sets the spacing between its soldiers. All three also
  * carry combat modifiers, listed in the guide.
  *
+ * A fight opens on a standoff: both armies hold their ground, the lord gives
+ * his own orders, and the enemy spends the first seconds dressing its ranks
+ * before it charges (see `OPENING`).
+ *
  * Counter damage is family based (spearman > cavalry > archer > spearman) and
  * comes from `counterMultiplier` in `units.js`.
  */
 import { unitDef, unitName, counterMultiplier, normalizeTroops } from './units'
 import { createRng } from './rng'
 import { arenaTerrainAt, arenaWalkable, ARENA_CELL, generateArenaTerrain } from './arena'
+import { arenaLineClear, findArenaPath, retreatDirection } from './arenaPath'
 
 /**
  * The battle field. It is deliberately larger than the screen of a phone: the
@@ -77,6 +82,13 @@ const AGGRO = 320
 /** Pixels per second at `speed: 1`. */
 const BASE_SPEED = 90
 
+// Navigation tuning. A soldier only asks A* for a path when the direct line is
+// blocked, keeps that path until its goal has moved far enough to matter, and
+// skips the waypoints it can already see past.
+const NAV_REPATH_DISTANCE = 18
+const NAV_REACHED = 9
+const NAV_RETRY = 0.65
+
 /**
  * How fast the battle runs. The slow speed is the default one, so a child can
  * read the field and give orders before the next clash happens.
@@ -86,6 +98,22 @@ export const SPEEDS = [
   { key: 'normal', name: '正常', en: 'Normal', icon: '🚶', mul: 1, note: '游戏原本的速度' },
   { key: 'fast', name: '快速', en: 'Fast', icon: '🐇', mul: 1.8, note: '战局推进很快，适合熟练之后' }
 ]
+
+/**
+ * The opening standoff of a battle, in game seconds.
+ *
+ * The map opens with both armies standing still: the lord has time to read the
+ * field and give his own orders, and the enemy spends that time dressing its
+ * ranks. It then attacks. A lord who strikes first cuts the wait short.
+ */
+export const OPENING = {
+  // How long both sides hold before the enemy starts dressing its ranks.
+  wait: 5,
+  // How long the enemy spends changing formation before it charges.
+  dress: 2.4,
+  // How long the enemy takes to answer a lord who attacks first.
+  react: 0.8
+}
 
 /** The speed record of a key, falling back to the slow one. */
 export function speedOf(key) {
@@ -225,11 +253,14 @@ function addSide(b, side, troops, dir, atkMul) {
       name: unitName(t.type, def.tier),
       formation: side === 'player' ? 'square' : 'line2',
       density: 'tight',
-      order: 'attack',
+      // The map opens on a standoff: every squad holds its ground until it is
+      // ordered otherwise, and the enemy dresses its ranks before it charges.
+      // A training session is not a battle, so the drill keeps its free attack.
+      order: b.training ? 'attack' : 'defend',
       // The way the formation faces: it turns towards the foe it attacks.
       dir,
       anchor: { x: originX, y: anchorY },
-      rally: null,
+      rally: side === 'player' ? { x: originX, y: anchorY } : null,
       tx: originX,
       ty: anchorY,
       count: t.count,
@@ -269,6 +300,9 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
     swing: 0,
     // The soldier that hit it last: it answers that one first.
     lastAttackerId: null,
+    // The cached arena path of the soldier, used only when deep water blocks
+    // the direct line to its slot.
+    nav: { path: [], index: 0, goal: null, at: -1 },
     // The personal space of the soldier inside the formation: it sways a
     // little, dodges aside when it is hit and slides away from a neighbour
     // that stands too close. The shape of the squad survives, the line is
@@ -334,11 +368,17 @@ export function createBattle({
       // need a special path for the lord.
       hitFlash: 0,
       swing: 0,
+      nav: { path: [], index: 0, goal: null, at: -1 },
       isCommander: true
     },
     projectiles: [],
     effects: [],
     time: 0,
+    // The opening standoff: `phase` runs wait → dress → advance. A drill has no
+    // enemy to wait for, so it carries no opening at all.
+    opening: training
+      ? null
+      : { phase: 'wait', t: 0, wait: OPENING.wait, dress: OPENING.dress },
     outcome: null, // 'win' | 'lose' | null
     kills: 0,
     losses: 0
@@ -427,6 +467,7 @@ export function spawnTrainingDummies(b, count = TRAINING_DUMMY_COUNT) {
       facing: -1,
       hitFlash: 0,
       swing: 0,
+      nav: { path: [], index: 0, goal: null, at: -1 },
       isDummy: true,
       // When a dummy went down, so it can stand back up a moment later.
       downAt: 0
@@ -488,6 +529,11 @@ function foeFor(b, unit) {
   const d = Math.hypot(attacker.x - unit.x, attacker.y - unit.y)
   const reach = unit.def.ranged ? unit.def.range : MELEE_RANGE
   if (d > reach) return nearest
+  // A blow cannot cross deep water. If the attacker is on the far shore, the
+  // soldier keeps looking for a foe it can actually reach.
+  if (!unit.def.ranged && !arenaLineClear(b.terrain, unit.x, unit.y, attacker.x, attacker.y, 6)) {
+    return nearest
+  }
   return { unit: attacker, dist: d }
 }
 
@@ -505,6 +551,89 @@ function nearestFoeTo(b, side, x, y) {
     }
   }
   return best
+}
+
+/** The cached navigation state of a soldier or of the commander. */
+function navOf(unit) {
+  if (!unit.nav || !Array.isArray(unit.nav.path)) {
+    unit.nav = { path: [], index: 0, goal: null, at: -1 }
+  }
+  return unit.nav
+}
+
+/**
+ * The point this soldier should walk toward right now.
+ *
+ * A clear line means the goal itself: the ordinary case on the open plain.
+ * When deep water blocks it, A* runs once and the soldier follows its
+ * smoothed waypoints. The path is kept until the goal moves, or until a very
+ * short retry window passes when no route was found.
+ */
+function navigationPoint(b, unit, tx, ty) {
+  if (!b.terrain) return { x: tx, y: ty }
+  const nav = navOf(unit)
+  if (arenaLineClear(b.terrain, unit.x, unit.y, tx, ty, 8)) {
+    nav.path = []
+    nav.index = 0
+    nav.goal = null
+    return { x: tx, y: ty }
+  }
+
+  const moved = !nav.goal || Math.hypot(tx - nav.goal.x, ty - nav.goal.y) > NAV_REPATH_DISTANCE
+  const retry = !nav.path.length && b.time - nav.at > NAV_RETRY
+  if (moved || retry) {
+    nav.path = findArenaPath(
+      b.terrain,
+      { x: unit.x, y: unit.y },
+      { x: tx, y: ty }
+    )
+    nav.index = 0
+    nav.goal = { x: tx, y: ty }
+    nav.at = b.time
+  }
+  if (!nav.path.length) return { x: tx, y: ty }
+
+  // Skip waypoints already underfoot, then look ahead to the farthest point
+  // that can still be reached in a straight line.
+  while (nav.index < nav.path.length) {
+    const p = nav.path[nav.index]
+    if (Math.hypot(p.x - unit.x, p.y - unit.y) > NAV_REACHED) break
+    nav.index += 1
+  }
+  while (nav.index + 1 < nav.path.length) {
+    const p = nav.path[nav.index + 1]
+    if (!arenaLineClear(b.terrain, unit.x, unit.y, p.x, p.y, 8)) break
+    nav.index += 1
+  }
+  if (nav.index >= nav.path.length) {
+    nav.path = []
+    nav.goal = null
+    return { x: tx, y: ty }
+  }
+  return nav.path[nav.index]
+}
+
+/** Walk toward a point, following a cached path around any lake in the way. */
+function moveTo(b, unit, tx, ty, speed, dt) {
+  const aim = navigationPoint(b, unit, tx, ty)
+  moveToward(unit, aim.x, aim.y, speed, dt, (x, y) => blockedAt(b, x, y))
+}
+
+/**
+ * The anchor a squad should march toward.
+ *
+ * If the squad can see the foe, that is the foe itself. If a lake is in the
+ * way, the first smoothed point of a group path is used instead, so the whole
+ * formation walks around the shore together instead of each soldier finding a
+ * different way and breaking the shape.
+ */
+function groupApproach(b, cx, cy, fx, fy) {
+  if (!b.terrain || arenaLineClear(b.terrain, cx, cy, fx, fy, 8)) {
+    return { x: fx, y: fy, direct: true }
+  }
+  const path = findArenaPath(b.terrain, { x: cx, y: cy }, { x: fx, y: fy })
+  if (!path.length) return { x: fx, y: fy, direct: false }
+  return { x: path[0].x, y: path[0].y, direct: false }
 }
 
 function moveToward(unit, tx, ty, speed, dt, blocked) {
@@ -541,6 +670,63 @@ function blockedAt(b, x, y) {
   return !arenaWalkable(b.terrain, x, y)
 }
 
+/* ------------------------------ opening standoff ----------------------------- */
+
+/**
+ * The enemy dresses its ranks: ranged squads spread into a firing line, melee
+ * squads tighten into a wedge. This is the visible beat before a charge.
+ */
+export function dressEnemyRanks(b) {
+  const o = b.opening
+  if (!o || o.phase !== 'wait') return false
+  o.phase = 'dress'
+  o.t = 0
+  for (const g of Object.values(b.groups)) {
+    if (g.side !== 'enemy' || g.isDummy) continue
+    const def = unitDef(g.type, g.tier)
+    g.formation = def.ranged ? 'line1' : 'wedge'
+    g.slots = formationSlots(g.unitCount, g.formation, g.density, g.dir)
+  }
+  return true
+}
+
+/** The enemy has finished dressing: every enemy squad is ordered to attack. */
+export function enemyAdvance(b) {
+  const o = b.opening
+  if (!o) return false
+  o.phase = 'advance'
+  o.t = 0
+  for (const g of Object.values(b.groups)) {
+    if (g.side !== 'enemy' || g.isDummy) continue
+    g.order = 'attack'
+  }
+  return true
+}
+
+/**
+ * Cut the standoff short: the enemy dresses its ranks now and charges a moment
+ * later. Used when the lord attacks first, or when a blow already landed.
+ */
+export function hastenEnemy(b) {
+  const o = b.opening
+  if (!o || o.phase === 'advance') return false
+  if (o.phase === 'wait') dressEnemyRanks(b)
+  o.t = Math.max(o.t, o.dress - OPENING.react)
+  return true
+}
+
+/** Advance the standoff clock: wait, dress the ranks, then charge. */
+function updateOpening(b, dt) {
+  const o = b.opening
+  if (!o || o.phase === 'advance') return
+  o.t += dt
+  if (o.phase === 'wait') {
+    if (o.t >= o.wait) dressEnemyRanks(b)
+    return
+  }
+  if (o.phase === 'dress' && o.t >= o.dress) enemyAdvance(b)
+}
+
 /**
  * Where each squad is heading this frame: the enemy for an attack, its own
  * anchor for a defence, the commander for a follow and its rally point for a
@@ -575,23 +761,30 @@ function updateGroupTargets(b) {
     cy = n ? cy / n : g.anchor.y
     g.center = { x: cx, y: cy }
 
-    if (g.side === 'player') {
-      if (g.order === 'follow') {
-        g.tx = b.commander.x - 40
-        g.ty = b.commander.y
-        g.retreat = null
-        continue
-      }
-      if (g.order === 'defend' || g.order === 'move') {
-        const point = g.rally || g.anchor
-        g.tx = point.x
-        g.ty = point.y
-        g.retreat = null
-        continue
-      }
+    // The ranks close up: the survivors take the front slots, so a thinned
+    // squad keeps a line instead of standing in the gaps left by the dead.
+    const living = b.units
+      .filter((u) => u.alive && u.group === g.key)
+      .sort((one, other) => one.slotIndex - other.slotIndex)
+    g.packed = new Map(living.map((u, i) => [u.id, i]))
+
+    if (g.side === 'player' && g.order === 'follow') {
+      g.tx = b.commander.x - 40
+      g.ty = b.commander.y
+      g.retreat = null
+      continue
+    }
+    // A squad that holds stands on its rally point (or its anchor). This is
+    // both armies at the start of a fight and every squad told to defend.
+    if (g.order === 'defend' || g.order === 'move') {
+      const point = g.rally || g.anchor
+      g.tx = point.x
+      g.ty = point.y
+      g.retreat = null
+      continue
     }
 
-    // attack (and every enemy squad): advance on the nearest enemy.
+    // attack: advance on the nearest enemy.
     const foe = nearestFoeTo(b, g.side, cx, cy)
     if (!foe) {
       g.retreat = null
@@ -609,16 +802,25 @@ function updateGroupTargets(b) {
     // while the rest of the formation stays behind it.
     const def = unitDef(g.type, g.tier)
     const press = def.ranged ? 0 : 7
-    const toward = Math.hypot(cx - foe.x, cy - foe.y) || 1
-    g.tx = foe.x + ((cx - foe.x) / toward) * press
-    g.ty = foe.y + ((cy - foe.y) / toward) * press
+    // The squad as a whole follows a path around deep water. Without this the
+    // formation anchor would sit on the far shore, and soldiers would try to
+    // reach slots behind the lake instead of walking around it.
+    const approach = groupApproach(b, cx, cy, foe.x, foe.y)
+    if (approach.direct) {
+      const toward = Math.hypot(cx - foe.x, cy - foe.y) || 1
+      g.tx = foe.x + ((cx - foe.x) / toward) * press
+      g.ty = foe.y + ((cy - foe.y) / toward) * press
+    } else {
+      g.tx = approach.x
+      g.ty = approach.y
+    }
 
     // A ranged squad keeps its distance: the whole formation steps back
-    // together instead of every soldier running on its own.
+    // together instead of every soldier running on its own. The direction
+    // avoids lakes, the map edge and the slowest ground.
     const d = Math.hypot(foe.x - cx, foe.y - cy)
     if (def.ranged && d < def.range * 0.5) {
-      const len = d || 1
-      g.retreat = { x: (cx - foe.x) / len, y: (cy - foe.y) / len }
+      g.retreat = retreatDirection(b.terrain, cx, cy, cx - foe.x, cy - foe.y, 110)
     } else {
       g.retreat = null
     }
@@ -680,6 +882,8 @@ export function applyDamage(b, target, dmg, attacker) {
   // attacker instead of the nearest enemy.
   if (attacker && attacker.side !== target.side) {
     target.lastAttackerId = attacker.id
+    // A blow against the enemy ends its wait: it dresses its ranks and charges.
+    if (target.side === 'enemy' && attacker.side === 'player') hastenEnemy(b)
     // The blow shoves it aside: the line shuffles instead of standing still.
     if (target.wobble) {
       const dx = target.x - attacker.x
@@ -718,9 +922,12 @@ export function stepBattle(b, dt) {
   b.time += dt
   const cmd = b.commander
 
-  // Move the commander smoothly toward its click target.
+  // First the standoff: it decides whether the enemy still holds or attacks.
+  updateOpening(b, dt)
+
+  // Move the commander toward its click target, around any lake.
   if (cmd.alive) {
-    moveToward(cmd, cmd.tx, cmd.ty, cmd.speed, dt, (x, y) => blockedAt(b, x, y))
+    moveTo(b, cmd, cmd.tx, cmd.ty, cmd.speed, dt)
     if (cmd.cd > 0) cmd.cd -= dt
     if (cmd.hitFlash > 0) cmd.hitFlash -= dt
     if (cmd.swing > 0) cmd.swing -= dt
@@ -751,7 +958,10 @@ export function stepBattle(b, dt) {
     if (!group) continue
 
     const mods = groupMods(group)
-    const slot = group.slots[unit.slotIndex] || { ox: 0, oy: 0 }
+    // A thinned squad closes its ranks: the survivor of a lost front rank takes
+    // the front slot, so the line still faces the foe.
+    const packed = group.packed ? group.packed.get(unit.id) : undefined
+    const slot = group.slots[packed === undefined ? unit.slotIndex : packed] || { ox: 0, oy: 0 }
     // The target: whoever hit this soldier last comes first while it is in
     // reach, so an attack is always answered.
     const { unit: foe, dist } = foeFor(b, unit)
@@ -766,7 +976,9 @@ export function stepBattle(b, dt) {
     // The formation breathes. Every soldier sways a little inside its slot,
     // dodges aside when it is hit and slides away from a neighbour that
     // stands too close — the shape of the squad stays, the line is alive.
-    const inReach = !!(foe && dist <= engage)
+    const sighted = !foe || def.ranged ||
+      arenaLineClear(b.terrain, unit.x, unit.y, foe.x, foe.y, 6)
+    const inReach = !!(foe && dist <= engage && sighted)
     const wob = unit.wobble || { x: 0, y: 0, dx: 0, dy: 0, phase: 0, speed: 1 }
     // A soldier that is trading blows only shuffles a little, or it would
     // step out of reach.
@@ -811,13 +1023,13 @@ export function stepBattle(b, dt) {
       // A ranged squad that is too close steps back as one block, so every
       // soldier keeps its place in the formation.
       wantsToMove = true
-      moveToward(
+      moveTo(
+        b,
         unit,
-        unit.x + group.retreat.x * 60,
-        unit.y + group.retreat.y * 60,
+        unit.x + group.retreat.x * 70,
+        unit.y + group.retreat.y * 70,
         speed,
-        dt,
-        (x, y) => blockedAt(b, x, y)
+        dt
       )
     } else {
       // Walk to the slot unless this soldier is already shooting / swinging.
@@ -827,12 +1039,12 @@ export function stepBattle(b, dt) {
       // A soldier that is trading blows still shuffles back into its place
       // after a blow shoved it aside.
       const shuffle = Math.hypot(wob.dx + pushX * 0.4, wob.dy + pushY * 0.4)
-      if (dSlot > 2 && (holding || !foe || dist > engage || shuffle > 2)) {
+      if (dSlot > 2 && (holding || !foe || !inReach || shuffle > 2)) {
         wantsToMove = true
-        moveToward(unit, tx, ty, speed, dt, (x, y) => blockedAt(b, x, y))
+        moveTo(b, unit, tx, ty, speed, dt)
       }
     }
-    if (foe && dist <= engage) {
+    if (inReach) {
       // The soldier turns to the foe it answers and strikes.
       unit.facing = foe.x >= unit.x ? 1 : -1
       strike(b, unit, foe)
@@ -844,6 +1056,10 @@ export function stepBattle(b, dt) {
     unit.stuck = wantsToMove && moved < 0.2 ? (unit.stuck || 0) + dt : 0
     if (unit.stuck > 0.8 && !unit.isDummy) {
       unit.stuck = 0
+      const nav = navOf(unit)
+      nav.path = []
+      nav.goal = null
+      nav.at = -1
       const dx = tx - unit.x
       const dy = ty - unit.y
       const len = Math.hypot(dx, dy) || 1

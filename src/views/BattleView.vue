@@ -56,6 +56,13 @@
       <!-- Training: the session ends whenever the lord wants it to. -->
       <button v-if="training" class="end-train" @click="returnToWorld">🏕 结束练兵，回到世界地图</button>
 
+      <!-- The opening standoff: both armies hold, the enemy dresses its ranks,
+           and this is the order that starts the lord's own advance. -->
+      <div v-if="standoff" class="standoff">
+        <span class="standoff-text">{{ standoff }}</span>
+        <button class="standoff-btn" @click="battle.allAttack()">⚔️ 全军出击</button>
+      </div>
+
       <!-- Squad selector: one chip per family and rank, plus 全军. -->
       <div class="chips">
         <button class="chip all" :class="{ on: battle.selectedGroup === null }" @click="battle.selectGroup(null)">
@@ -250,6 +257,21 @@ const scopeName = computed(() => (battle.selectedGroup ? battle.selected?.name |
 const formationLabel = computed(() => formationOf(formation.value).name)
 const densityLabel = computed(() => densityOf(density.value).name)
 
+/** The opening standoff of this fight, or null when there is nothing to show. */
+const opening = computed(() => (training.value ? null : battle.data?.opening || null))
+
+/**
+ * The standoff banner: both armies hold at first, then the enemy dresses its
+ * ranks and charges. The banner goes away once the enemy is on its way.
+ */
+const standoff = computed(() => {
+  const o = opening.value
+  if (!o || o.phase === 'advance') return ''
+  if (o.phase === 'dress') return '🚩 敌军正在变阵，马上就要冲锋！'
+  const left = Math.max(0, Math.ceil(o.wait - o.t))
+  return `⏳ 双方对峙：敌军 ${left} 秒后进攻，现在就下令出击！`
+})
+
 /** Effect text of the selected formation and density, for the folded panel. */
 const sheetNote = computed(
   () => `${formationOf(formation.value).note} · ${densityOf(density.value).note}`
@@ -257,6 +279,7 @@ const sheetNote = computed(
 
 const hint = computed(() => {
   if (training.value) return '🎯 练兵：这里没有敌人，练习移动、队形与命令，木桩打倒会自动立起来'
+  if (standoff.value) return '⏳ 双方还站着不动：先给部队下令，或者等敌军先冲过来'
   if (order.value === 'move') return `${scopeName.value}：点击战场放置移动目标（黄色十字）`
   if (order.value === 'follow') return `${scopeName.value}跟随指挥官，点击战场可移动指挥官`
   if (order.value === 'defend') return `${scopeName.value}原地结阵防守，远程单位原地射击`
@@ -520,6 +543,36 @@ watch(
   padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
   background: linear-gradient(180deg, rgba(8, 12, 8, 0.35), rgba(8, 12, 8, 0.92) 34%);
   z-index: 5;
+}
+
+/* The opening standoff: a thin strip above the squad chips, so the field
+   stays as tall as possible while the order is still being given. */
+.standoff {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(20, 30, 48, 0.92);
+  border: 1px solid rgba(111, 136, 192, 0.75);
+  color: #dfe7ff;
+  font-size: 12.5px;
+}
+
+.standoff-text {
+  flex: 1;
+}
+
+.standoff-btn {
+  flex: none;
+  min-height: 34px;
+  padding: 5px 12px;
+  border-radius: 9px;
+  background: rgba(232, 197, 106, 0.16);
+  border: 1px solid var(--gold-deep);
+  color: var(--gold);
+  font-size: 12.5px;
+  font-weight: 800;
 }
 
 .chips {
@@ -875,6 +928,12 @@ watch(
 
   .command {
     gap: 6px;
+  }
+
+  .standoff {
+    font-size: 12px;
+    gap: 8px;
+    padding: 5px 8px;
   }
 
   .chip {

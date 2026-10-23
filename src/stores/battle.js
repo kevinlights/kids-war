@@ -11,6 +11,7 @@ import {
   survivorsByType,
   fallenByType,
   formationSlots,
+  hastenEnemy,
   spawnTrainingDummies,
   ARENA
 } from '@/game/battle'
@@ -314,6 +315,19 @@ export const useBattleStore = defineStore('battle', {
         // point, or use where it is right now.
         if (key === 'move' && !g.rally) g.rally = { x: g.tx, y: g.ty }
       }
+      // Attacking ends the enemy's wait: it answers within a moment instead of
+      // standing there while the lord's squads walk the whole field.
+      if (key === 'attack') hastenEnemy(this.data)
+    },
+
+    /**
+     * The 「全军出击」 button of the standoff banner: every squad attacks at
+     * once, whatever is selected. It is the one tap that starts the fight.
+     */
+    allAttack() {
+      if (!this.data) return
+      for (const k of this.data.playerGroups) this.setOrder('attack', k)
+      hastenEnemy(this.data)
     },
 
     setFormation(key, groupKey) {

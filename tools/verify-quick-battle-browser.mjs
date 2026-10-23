@@ -224,6 +224,8 @@ try {
         factions: document.querySelectorAll('.side')[1] ? document.querySelectorAll('.side')[1].querySelectorAll('.presets .chip').length : 0,
         counters: document.querySelectorAll('.counter').length,
         steps: document.querySelectorAll('.counter .step').length,
+        sliders: document.querySelectorAll('.counter .counter-slider').length,
+        slidersAtHundred: [...document.querySelectorAll('.counter .counter-slider')].every((s) => s.max === '100'),
         title: document.querySelector('h1') ? document.querySelector('h1').textContent.trim() : null
       }
     })()
@@ -235,6 +237,8 @@ try {
   check('three enemy factions can be picked', options.factions === 3, String(options.factions))
   check('every kind of soldier has a counter', options.counters === 8, String(options.counters))
   check('every counter has a stepper', options.steps === 16, String(options.steps))
+  check('every counter has a quick slider', options.sliders === 8, String(options.sliders))
+  check('the slider tops out at 100', options.slidersAtHundred === true, String(options.slidersAtHundred))
 
   // The number of soldiers of a kind can be set to any value.
   const before = await evaluate(`
@@ -276,6 +280,36 @@ try {
     })()
   `)
   check('the count of a kind can be cleared', Number(zero) === 0, String(zero))
+
+  // The slider is the quick way to set a large count, and it stops at 100.
+  await evaluate(`
+    (() => {
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      const slider = row.querySelector('.counter-slider')
+      slider.value = '100'
+      slider.dispatchEvent(new Event('input', { bubbles: true }))
+      return true
+    })()
+  `)
+  await sleep(200)
+  const slid = await evaluate(`
+    (() => {
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      return row.querySelector('.num').textContent.trim()
+    })()
+  `)
+  check('the slider sets a count quickly', Number(slid) === 100, String(slid))
+
+  await evaluate(`
+    (() => {
+      const row = document.querySelectorAll('.side')[0].querySelectorAll('.counter')[0]
+      const slider = row.querySelector('.counter-slider')
+      slider.value = '0'
+      slider.dispatchEvent(new Event('input', { bubbles: true }))
+      return true
+    })()
+  `)
+  await sleep(200)
 
   // Pick a battlefield, a faction and an army, then walk into the battle.
   await clickByText('.maps .pick', '密林')

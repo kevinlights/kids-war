@@ -317,6 +317,43 @@ try {
   check('the field is painted with many colours', battleState.colors > 8, JSON.stringify(battleState))
   check('the camera zooms into the field', battleState.zoom > 0.5 && battleState.zoom < 2, JSON.stringify(battleState))
 
+  // The map opens on a standoff: both sides hold their ground and the banner
+  // asks the lord for the order that starts his own advance.
+  const opening = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      const groups = Object.values(b.data.groups)
+      const banner = document.querySelector('.standoff')
+      return {
+        phase: b.data.opening ? b.data.opening.phase : null,
+        playerHolds: b.data.playerGroups.every((k) => b.data.groups[k].order === 'defend'),
+        enemyHolds: groups.filter((g) => g.side === 'enemy').every((g) => g.order === 'defend'),
+        text: banner ? banner.textContent.trim() : '',
+        button: banner ? banner.querySelector('button').textContent.trim() : ''
+      }
+    })()
+  `)
+  check('the battle opens on a standoff', opening.phase === 'wait', JSON.stringify(opening))
+  check('both armies hold at the start', opening.playerHolds && opening.enemyHolds, JSON.stringify(opening))
+  check(
+    'the standoff banner asks for an order',
+    opening.text.includes('对峙') && opening.button.includes('全军出击'),
+    JSON.stringify(opening)
+  )
+  await clickByText('.standoff button', '全军出击')
+  await sleep(300)
+  const charged = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      return {
+        attacks: b.data.playerGroups.every((k) => b.data.groups[k].order === 'attack'),
+        phase: b.data.opening ? b.data.opening.phase : null
+      }
+    })()
+  `)
+  check('the charge button orders every squad', charged.attacks === true, JSON.stringify(charged))
+  check('the charge ends the standoff', charged.phase !== 'wait', JSON.stringify(charged))
+
   // The tools panel opens and the speed can be changed.
   await clickByText('.tool', '⚙')
   await waitFor("!!document.querySelector('.tools-panel')", 'the battle tools')
@@ -349,7 +386,7 @@ try {
         const units = (b.data && b.data.units) || []
         if (units.some((u) => u.swing > 0)) swing = true
         if (units.some((u) => u.hitFlash > 0) || (b.data && b.data.commander.hitFlash > 0)) flash = true
-        if ((swing && flash) || performance.now() - started > 8000) {
+        if ((swing && flash) || performance.now() - started > 12000) {
           clearInterval(timer)
           resolve({ swing, flash })
         }

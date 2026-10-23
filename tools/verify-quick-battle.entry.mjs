@@ -123,7 +123,9 @@ const { playerTroops, enemyTroops } = buildQuickArmies({
 })
 check('the quick battle has two armies', playerTroops.length === 1 && enemyTroops.length === 2)
 check('the quick battle armies have the asked size', troopTotal(playerTroops) === 8 && troopTotal(enemyTroops) === 8)
-check('the counts are capped', QUICK_MAX_COUNT > 0)
+check('the count of a kind is capped at 100', QUICK_MAX_COUNT === 100, String(QUICK_MAX_COUNT))
+const overfilled = buildArmy({ militia: QUICK_MAX_COUNT + 50 })
+check('an overfilled kind is capped', troopTotal(overfilled) === QUICK_MAX_COUNT, String(troopTotal(overfilled)))
 
 /* --------------------------- 3. the fight itself --------------------------- */
 

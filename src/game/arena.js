@@ -163,8 +163,9 @@ export function arenaMapOf(key) {
  * Generate the terrain of a battle field.
  *
  * The field is `cols` by `rows` cells. A winding river crosses it, a lake and
- * a mountain sit in the corners and a couple of forests and a stretch of sand
- * break up the plain.
+ * a mountain sit in the field and a couple of forests and a stretch of sand
+ * break up the plain. **Every piece is placed from the seed**, so two battles
+ * never share a map, even when they use the same preset.
  *
  * The `map` preset decides which of those pieces the field holds:
  * `mixed` is the full set, `plain` is empty ground and the other presets put
@@ -194,6 +195,11 @@ export function generateArenaTerrain(seed, cols = 25, rows = 17, map = 'mixed') 
     }
   }
 
+  // Where a piece may stand. The seed picks every position, and the bounds keep
+  // the pieces on the field and out of the two deployment bands.
+  const span = (lo, hi, size) => Math.max(1, Math.min(size - 2, Math.floor((lo + rng.next() * (hi - lo)) * size)))
+  const radiusOf = (big, small) => (big ? 4 : small + (rng.next() < 0.4 ? 1 : 0))
+
   // Which pieces of terrain this battlefield holds.
   const wantRiver = map === 'mixed' || map === 'river'
   const wantLake = map === 'mixed' || map === 'lake'
@@ -201,50 +207,57 @@ export function generateArenaTerrain(seed, cols = 25, rows = 17, map = 'mixed') 
   const wantForest = map === 'mixed' || map === 'forest'
   const wantDesert = map === 'mixed'
 
-  // The river winds from the top to the bottom of the field.
-  let riverCol = Math.floor(cols * (0.3 + rng.next() * 0.4))
+  // The river winds from the top to the bottom of the field: where it starts,
+  // how wide it is and which way it leans all come from the seed.
+  let riverCol = span(0.24, 0.54, cols)
+  const baseWidth = map === 'river' ? 3 : rng.next() < 0.4 ? 2 : 1
+  const riverAt = new Array(rows).fill(riverCol)
   if (wantRiver) {
+    let drift = rng.next() * 2 - 1
     for (let r = 0; r < rows; r += 1) {
-      const width = map === 'river' ? 3 : rng.next() < 0.25 ? 2 : 1
+      riverAt[r] = riverCol
+      const width = baseWidth + (rng.next() < 0.12 ? 1 : 0)
       for (let c = riverCol; c < riverCol + width; c += 1) set(c, r, 'river')
-      riverCol += rng.next() < 0.5 ? 0 : rng.next() < 0.5 ? -1 : 1
-      riverCol = Math.max(1, Math.min(cols - 3, riverCol))
+      drift += rng.next() * 1.7 - 0.85
+      riverCol += drift > 0.55 ? 1 : drift < -0.55 ? -1 : 0
+      riverCol = Math.max(1, Math.min(cols - 4, riverCol))
     }
   }
 
-  // A lake and a mountain, each in its own half of the field.
+  // A lake in the middle and a mountain in one of the upper corners. The lake
+  // stays strictly inside the field, so it can never cut it in two.
   if (wantLake) {
     if (map === 'lake') blob(Math.floor(cols * 0.5), Math.floor(rows * 0.5), 4, 'lake')
-    else blob(Math.floor(cols * 0.45), Math.floor(rows * 0.68), 2, 'lake')
+    else blob(span(0.36, 0.64, cols), span(0.3, 0.72, rows), radiusOf(false, 2), 'lake')
   }
   if (wantMountain) {
     if (map === 'mountain') {
-      blob(Math.floor(cols * 0.32), Math.floor(rows * 0.35), 4, 'mountain')
-      blob(Math.floor(cols * 0.68), Math.floor(rows * 0.65), 4, 'mountain')
+      blob(span(0.2, 0.34, cols), span(0.25, 0.4, rows), 4, 'mountain')
+      blob(span(0.66, 0.8, cols), span(0.6, 0.75, rows), 4, 'mountain')
     } else {
-      blob(Math.floor(cols * 0.78), Math.floor(rows * 0.26), 3, 'mountain')
+      blob(span(0.66, 0.86, cols), span(0.14, 0.4, rows), radiusOf(false, 2), 'mountain')
     }
   }
 
   // Forests and a stretch of sand.
   if (wantForest) {
     if (map === 'forest') {
-      blob(Math.floor(cols * 0.25), Math.floor(rows * 0.3), 4, 'forest')
-      blob(Math.floor(cols * 0.75), Math.floor(rows * 0.7), 4, 'forest')
+      blob(span(0.16, 0.32, cols), span(0.22, 0.4, rows), 4, 'forest')
+      blob(span(0.66, 0.84, cols), span(0.6, 0.78, rows), 4, 'forest')
     } else {
-      blob(Math.floor(cols * 0.18), Math.floor(rows * 0.28), 3, 'forest')
-      blob(Math.floor(cols * 0.72), Math.floor(rows * 0.74), 3, 'forest')
+      blob(span(0.08, 0.26, cols), span(0.14, 0.4, rows), radiusOf(false, 2), 'forest')
+      blob(span(0.4, 0.7, cols), span(0.56, 0.86, rows), radiusOf(false, 2), 'forest')
     }
   }
-  if (wantDesert) blob(Math.floor(cols * 0.5), Math.floor(rows * 0.12), 2, 'desert')
+  if (wantDesert) blob(span(0.34, 0.66, cols), span(0.08, 0.2, rows), radiusOf(false, 2), 'desert')
 
-  // The lake must not swallow the road between the two army lines.
+  // Where a lake sits under the river it becomes shallow water: the lake must
+  // not dam the one way across the field.
   if (wantRiver) {
     for (let r = 0; r < rows; r += 1) {
       for (let c = 0; c < cols; c += 1) {
         if (get(c, r) !== 'lake') continue
-        const nearRiver = Math.abs(c - riverCol) <= 2
-        if (nearRiver) set(c, r, 'river')
+        if (Math.abs(c - riverAt[r]) <= 2) set(c, r, 'river')
       }
     }
   }

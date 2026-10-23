@@ -13,6 +13,7 @@ import { usePlayerStore } from '@/stores/player'
 import { useBattleStore } from '@/stores/battle'
 import {
   ARENA,
+  OPENING,
   applyDamage,
   createBattle,
   damageOf,
@@ -22,6 +23,7 @@ import {
   speedOf
 } from '@/game/battle'
 import { ARENA_TERRAIN, ARENA_TERRAIN_KEYS, arenaCellTerrain, arenaTerrainAt, arenaWalkable, generateArenaTerrain } from '@/game/arena'
+import { arenaLineClear, findArenaPath, retreatDirection, smoothArenaPath } from '@/game/arenaPath'
 import {
   DEATH_TIME,
   SWING_TIME,
@@ -120,6 +122,8 @@ function march(speedKey) {
     enemyFaction: 'bandit',
     seed: 11
   })
+  // The map opens on a standoff, so the lord gives his attack order first.
+  for (const key of b.playerGroups) b.groups[key].order = 'attack'
   const before = b.units.find((u) => u.side === 'player').x
   battle.data = b
   battle.active = true
@@ -133,6 +137,105 @@ const fastMarch = march('fast')
 check('the slow speed advances less', slowMarch < fastMarch, `${slowMarch.toFixed(1)} vs ${fastMarch.toFixed(1)}`)
 check('the slow speed still moves the army', slowMarch > 0, String(slowMarch))
 battle.speed = 'slow'
+
+/* -------------------------- 2b. the opening standoff ----------------------- */
+
+/**
+ * Step a battle in small, fixed slices, the way the browser does every frame.
+ * The standoff is measured in game seconds, so the tests move the clock too.
+ */
+function advance(b, seconds) {
+  const steps = Math.ceil(seconds * 60)
+  for (let i = 0; i < steps; i += 1) stepBattle(b, 1 / 60)
+  return b
+}
+
+/** Distance between the two armies' centres, in arena pixels. */
+function armyGap(b) {
+  const centre = (side) => {
+    const list = b.units.filter((u) => u.alive && u.side === side)
+    if (!list.length) return { x: 0, y: 0 }
+    return list.reduce((a, u) => ({ x: a.x + u.x / list.length, y: a.y + u.y / list.length }), { x: 0, y: 0 })
+  }
+  const mine = centre('player')
+  const foe = centre('enemy')
+  return Math.hypot(mine.x - foe.x, mine.y - foe.y)
+}
+
+function standoffBattle() {
+  return createBattle({
+    playerTroops: [{ type: 'spearman', tier: 2, count: 4, hp: [] }],
+    enemyTroops: [{ type: 'militia', tier: 1, count: 4, hp: [] }],
+    enemyFaction: 'bandit',
+    seed: 71
+  })
+}
+
+const enemiesOf = (b) => Object.values(b.groups).filter((g) => g.side === 'enemy' && !g.isDummy)
+
+const hold = standoffBattle()
+check('the lord opens on the defensive order', hold.groups[hold.playerGroups[0]].order === 'defend')
+check('so does the enemy', enemiesOf(hold).every((g) => g.order === 'defend'))
+check('the standoff starts in the wait phase', !!hold.opening && hold.opening.phase === 'wait')
+check('the wait is a few seconds long', OPENING.wait >= 3 && OPENING.wait <= 8, String(OPENING.wait))
+
+const gapOpen = armyGap(hold)
+advance(hold, 1)
+const gapHeld = armyGap(hold)
+check('both armies hold when the map opens', Math.abs(gapHeld - gapOpen) < 12, `${gapOpen.toFixed(1)} -> ${gapHeld.toFixed(1)}`)
+check('the enemy still waits after a moment', hold.opening.phase === 'wait' && enemiesOf(hold).every((g) => g.order === 'defend'))
+
+advance(hold, OPENING.wait - 1 + 0.1)
+check('the enemy dresses its ranks after the wait', hold.opening.phase === 'dress')
+check('the dressing changes the formation', enemiesOf(hold).every((g) => g.formation === 'wedge' || g.formation === 'line1'))
+check('the enemy still holds while it dresses', enemiesOf(hold).every((g) => g.order === 'defend'))
+
+advance(hold, OPENING.dress + 0.1)
+check('the enemy attacks once it is dressed', hold.opening.phase === 'advance' && enemiesOf(hold).every((g) => g.order === 'attack'))
+const gapCharge = armyGap(hold)
+advance(hold, 3)
+check('the enemy really closes in', armyGap(hold) < gapCharge - 40, `${gapCharge.toFixed(1)} -> ${armyGap(hold).toFixed(1)}`)
+check('the lord is still standing where he was', hold.groups[hold.playerGroups[0]].order === 'defend')
+
+// The lord's own attack order ends the wait at once.
+const rushed = standoffBattle()
+battle.data = rushed
+battle.active = true
+battle.setOrder('attack', rushed.playerGroups[0])
+check('ordering an attack ends the wait', rushed.groups[rushed.playerGroups[0]].order === 'attack' && rushed.opening.phase === 'dress')
+advance(rushed, OPENING.react + 0.1)
+check('the enemy answers a first attack quickly', rushed.opening.phase === 'advance' && enemiesOf(rushed).every((g) => g.order === 'attack'))
+battle.data = null
+battle.active = false
+
+// A blow that lands before the wait is over does the same.
+const struck = standoffBattle()
+const hero = struck.units.find((u) => u.side === 'player')
+const victim = struck.units.find((u) => u.side === 'enemy')
+applyDamage(struck, victim, 3, hero)
+check('a first blow also ends the wait', struck.opening.phase === 'dress')
+
+// The 「全军出击」 button orders every squad at once.
+const all = standoffBattle()
+battle.data = all
+battle.active = true
+battle.selectedGroup = null
+battle.allAttack()
+check('the charge button orders every squad', all.playerGroups.every((k) => all.groups[k].order === 'attack'))
+check('the charge button ends the standoff', all.opening.phase !== 'wait')
+battle.data = null
+battle.active = false
+battle.selectedGroup = null
+
+// A drill is not a battle: it has no standoff and keeps its free attack.
+const drill = createBattle({
+  playerTroops: [{ type: 'militia', tier: 1, count: 2, hp: [] }],
+  enemyTroops: [],
+  seed: 5,
+  training: true
+})
+check('a drill has no standoff', drill.opening === null)
+check('a drill keeps its free attack', drill.groups[drill.playerGroups[0]].order === 'attack')
 
 /* ------------------------------- 3. terrain -------------------------------- */
 
@@ -152,6 +255,71 @@ check('the desert tires the troops', ARENA_TERRAIN.desert.atkMul < 1)
 check('the river slows the troops down', ARENA_TERRAIN.river.speedMul < 1)
 check('the mountain gives the high ground', ARENA_TERRAIN.mountain.atkMul > 1)
 check('the field is bigger than the old arena', ARENA.w > 900 && ARENA.h > 560, `${ARENA.w}x${ARENA.h}`)
+
+/* --------------------- 3b. a new field for every battle --------------------- */
+
+// Every battle is fought on its own field: the layout is drawn from the battle
+// seed, and the real battles use a fresh seed each time.
+function layoutOf(seed) {
+  const t = generateArenaTerrain(seed)
+  let out = ''
+  for (let r = 0; r < t.rows; r += 1) {
+    for (let c = 0; c < t.cols; c += 1) out += arenaCellTerrain(t, c, r).key[0]
+  }
+  return out
+}
+const layouts = new Set()
+for (let seed = 1; seed <= 12; seed += 1) layouts.add(layoutOf(seed * 7919))
+check('every battle gets its own field', layouts.size === 12, `${layouts.size}/12 distinct`)
+check('the same seed rebuilds the same field', layoutOf(7919) === layoutOf(7919))
+check('every layout holds all five kinds of ground', [...layouts].every((l) => new Set(l).size === 6), `${[...layouts].map((l) => new Set(l).size).join(',')}`)
+
+// The lake is always placed inside the field and clear of the two deployment
+// bands, so it can never cut the field in two or swallow a starting army.
+let lakeOnEdge = 0
+let lakeInDeploy = 0
+for (let seed = 1; seed <= 20; seed += 1) {
+  const t = generateArenaTerrain(seed * 104729)
+  for (let r = 0; r < t.rows; r += 1) {
+    for (let c = 0; c < t.cols; c += 1) {
+      if (arenaCellTerrain(t, c, r).key !== 'lake') continue
+      if (r === 0 || c === 0 || r === t.rows - 1 || c === t.cols - 1) lakeOnEdge += 1
+      if (c <= Math.floor(t.cols * 0.28) || c >= Math.floor(t.cols * 0.72)) lakeInDeploy += 1
+    }
+  }
+}
+check('no lake reaches the edge of the field', lakeOnEdge === 0, String(lakeOnEdge))
+check('no lake swallows a deployment band', lakeInDeploy === 0, String(lakeInDeploy))
+
+// A preset still guarantees the ground it promises, whatever the seed says.
+const presetGround = { plain: null, forest: 'forest', mountain: 'mountain', river: 'river', lake: 'lake' }
+for (const [key, kind] of Object.entries(presetGround)) {
+  const t = generateArenaTerrain(20261023, 25, 17, key)
+  const present = new Set()
+  for (let r = 0; r < t.rows; r += 1) {
+    for (let c = 0; c < t.cols; c += 1) present.add(arenaCellTerrain(t, c, r).key)
+  }
+  check(
+    `the ${key} preset keeps its ground`,
+    kind ? present.has(kind) : present.size === 1 && present.has('plain'),
+    [...present].join(',')
+  )
+}
+check('the mixed preset keeps a bit of everything', layoutOf(20261023).length > 0 && new Set(layoutOf(20261023)).size === 6)
+
+// Nobody is dropped into deep water: the deployment bands are cleared.
+let wetStart = 0
+for (let seed = 1; seed <= 12; seed += 1) {
+  const b = createBattle({
+    playerTroops: [{ type: 'militia', tier: 1, count: 3, hp: [30, 30, 30] }],
+    enemyTroops: [{ type: 'militia', tier: 1, count: 3, hp: [30, 30, 30] }],
+    enemyFaction: 'bandit',
+    seed: seed * 7919
+  })
+  for (const u of b.units) if (u.alive && !arenaWalkable(b.terrain, u.x, u.y)) wetStart += 1
+  if (!arenaWalkable(b.terrain, b.commander.x, b.commander.y)) wetStart += 1
+}
+check('no soldier starts in deep water', wetStart === 0, String(wetStart))
 
 // A soldier in the forest is slower than one on the plain.
 function walkOn(key) {
@@ -175,6 +343,9 @@ function walkOn(key) {
   const unit = b.units.find((u) => u.side === 'player')
   unit.x = spot.x
   unit.y = spot.y
+  // Walking is measured under an attack order, so the soldier heads for the
+  // enemy instead of walking back to its own anchor.
+  b.groups[unit.group].order = 'attack'
   // Push the enemy far away so the soldier keeps walking.
   const foe = b.units.find((u) => u.side === 'enemy')
   foe.x = Math.max(20, Math.min(ARENA.w - 20, spot.x + 400))
@@ -244,6 +415,58 @@ if (lakeCell) {
   const ly = lakeCell.r * lakeTest.terrain.cell + lakeTest.terrain.cell / 2
   check('the middle of the lake is not walkable', !arenaWalkable(lakeTest.terrain, lx, ly))
   check('the shore of the lake is walkable', arenaWalkable(lakeTest.terrain, lx - lakeTest.terrain.cell, ly))
+
+  // A straight line across the water is blocked, and A* finds a dry route
+  // around it. The route is made of walkable waypoints, and smoothing keeps
+  // the corners off the grid without cutting through the lake.
+  let crossing = null
+  for (let d = 2; d <= 6 && !crossing; d += 1) {
+    for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1], [-1, 0], [0, -1]]) {
+      const start = {
+        x: lx + dx * lakeTest.terrain.cell * d,
+        y: ly + dy * lakeTest.terrain.cell * d
+      }
+      const goal = {
+        x: lx - dx * lakeTest.terrain.cell * d,
+        y: ly - dy * lakeTest.terrain.cell * d
+      }
+      const inField = (p) => p.x > 16 && p.y > 16 && p.x < ARENA.w - 16 && p.y < ARENA.h - 16
+      if (!inField(start) || !inField(goal)) continue
+      if (!arenaWalkable(lakeTest.terrain, start.x, start.y)) continue
+      if (!arenaWalkable(lakeTest.terrain, goal.x, goal.y)) continue
+      if (arenaLineClear(lakeTest.terrain, start.x, start.y, goal.x, goal.y, 6)) continue
+      crossing = { start, goal }
+      break
+    }
+  }
+  check('the lake blocks a straight line', !!crossing)
+  if (crossing) {
+    const route = findArenaPath(lakeTest.terrain, crossing.start, crossing.goal)
+    check('a path is found around the lake', route.length > 0, `${route.length} waypoints`)
+    check(
+      'the path stays on dry land',
+      route.every((p) => arenaWalkable(lakeTest.terrain, p.x, p.y))
+    )
+    const last = route[route.length - 1]
+    check(
+      'the path ends near the goal',
+      !!last && Math.hypot(last.x - crossing.goal.x, last.y - crossing.goal.y) < lakeTest.terrain.cell,
+      last ? `${Math.hypot(last.x - crossing.goal.x, last.y - crossing.goal.y).toFixed(1)} px` : 'no end'
+    )
+    const smoothed = smoothArenaPath(lakeTest.terrain, route, crossing.start)
+    check('smoothing keeps the route on dry land', smoothed.every((p) => arenaWalkable(lakeTest.terrain, p.x, p.y)))
+    check('smoothing keeps the last waypoint', smoothed.length > 0 &&
+      Math.hypot(smoothed[smoothed.length - 1].x - last.x, smoothed[smoothed.length - 1].y - last.y) < 1,
+      `${smoothed.length} of ${route.length}`)
+  }
+
+  // Falling back away from a threat must not back into the lake.
+  const shore = { x: lx - lakeTest.terrain.cell, y: ly }
+  const away = retreatDirection(lakeTest.terrain, shore.x, shore.y, -1, 0, 80)
+  const retreatX = shore.x + away.x * 60
+  const retreatY = shore.y + away.y * 60
+  check('a retreat direction has unit length', Math.abs(Math.hypot(away.x, away.y) - 1) < 0.001)
+  check('a retreat avoids the lake', arenaWalkable(lakeTest.terrain, retreatX, retreatY), `${retreatX.toFixed(0)},${retreatY.toFixed(0)}`)
 }
 
 /* ---------------------------- 4. no battle can stall ------------------------- */
@@ -295,13 +518,23 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   // The near foe stands to the right, the shooter to the left.
   hero.x = 500
   hero.y = 340
-  near.x = 540
+  near.x = 570
   near.y = 340
   far.x = 440
   far.y = 340
+  // The armies hold in place, so every squad is pinned where the test puts it.
+  for (const g of Object.values(b.groups)) {
+    const unit = b.units.find((u) => u.alive && u.group === g.key)
+    if (!unit) continue
+    g.anchor = { x: unit.x, y: unit.y }
+    g.rally = { x: unit.x, y: unit.y }
+    g.order = 'defend'
+  }
   // The far archer shoots the hero.
   far.cd = 0
-  for (let i = 0; i < 200; i += 1) stepBattle(b, 1 / 60)
+  // One second is enough: the arrow lands at once, and the hero turns before
+  // the enemy's own charge (which a first blow starts) can reach him.
+  for (let i = 0; i < 60; i += 1) stepBattle(b, 1 / 60)
   check('the soldier remembers who hit it', hero.lastAttackerId === far.id, String(hero.lastAttackerId))
   check('the soldier answers the attacker', hero.facing < 0, String(hero.facing))
   check('the hero took the blow', hero.hp < hero.maxHp, `${hero.hp}/${hero.maxHp}`)
@@ -318,7 +551,8 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
     enemyFaction: 'bandit',
     seed: 88
   })
-  // Let the two sides close and fight.
+  // Let the lord charge and the two sides close and fight.
+  for (const key of b.playerGroups) b.groups[key].order = 'attack'
   for (let i = 0; i < 60 * 20; i += 1) stepBattle(b, 1 / 60)
   const group = b.groups[b.playerGroups[0]]
   const living = b.units.filter((u) => u.alive && u.side === 'player')
@@ -385,6 +619,8 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   const group = b.groups[b.playerGroups[0]]
   group.formation = 'random'
   group.slots = formationSlots(8, 'random', 'tight', group.dir)
+  // A scattered squad has no block to keep: it fights as soon as it is ordered.
+  group.order = 'attack'
   let t = 0
   while (!b.outcome && t < 120) {
     stepBattle(b, 0.1)
@@ -432,7 +668,9 @@ check('a walking soldier kicks dust', dustOf(100, Math.PI / 4) > 0)
   check('soldiers carry a swing timer', b.units.every((u) => u.swing === 0))
   check('the commander carries the visual fields', b.commander.hitFlash === 0 && b.commander.swing === 0)
 
-  // The swing timer really fires when a blow lands.
+  // The swing timer really fires when a blow lands: the lord charges, so the
+  // two lines meet inside the watched window.
+  for (const key of b.playerGroups) b.groups[key].order = 'attack'
   let sawSwing = false
   let sawFlash = false
   for (let i = 0; i < 60 * 12 && !b.outcome; i += 1) {

@@ -253,6 +253,37 @@ export const BATCHES = [
     { zh: "**受伤与出手都有反应**：挨打时白光一闪、红圈扩散、身体左右晃动；重伤的士兵脚边持续红色脉冲；出手时身体向目标前倾一下。", en: "**Hits and strikes have a reaction**: a blow flashes white, expands a red ring and shakes the body; a badly wounded soldier keeps a red pulse at its feet; a strike leans the body into the target." },
     { zh: "**阵亡不再瞬间消失**：倒下的士兵会向侧面倒下、下沉并淡出，练兵木桩也一样倒下，然后在两秒后重新站起。", en: "**The fallen no longer vanish**: a defeated soldier tips over, drops and fades out, and a training dummy does the same before it stands back up two seconds later." }
     ]
+  },
+  {
+    batch: 24,
+    title: "遇敌对话与逃跑 Meet the enemy before the fight",
+    date: "2026-10-23",
+    items: [
+    { zh: "**遇敌先说话**：敌对部队追上主角时不再立刻进入战场，而是弹出遭遇对话框——敌将的像素头像、所属势力、拦路的身份和「敌方 6 兵 / 我方 12 兵」的对比都在卡片上，下面按兵种列出对方的队伍。", en: "**The enemy speaks first**: a hostile party that catches the lord no longer drags him into the arena; a meeting card opens instead, with the leader's pixel portrait, his faction, what kind of party he leads and the 「their 6 / your 12」 tally, plus the enemy warband listed troop by troop." },
+    { zh: "**可以逃跑**：点「🏃 逃跑」，主角会随机退开 **3–6 格**，遇到的那支敌军在短时间里追不上来；逃跑不损失士兵，也不花金币。", en: "**Running away works**: 「🏃 逃跑」 dashes the lord a random **3–6 tiles** away and the party that caught him cannot chase again for a while; no soldier and no coin is lost." },
+    { zh: "**也可以喊话或开战**：「🗣️ 喊话」会让敌将再回一句，循环听得到每个势力的所有台词；点「⚔️ 开战」才真正进入战斗地图，敌人就是刚才拦路的那支队伍。", en: "**Talk back or fight**: 「🗣️ 喊话」 makes the leader answer, and every line of the faction can be heard in turn; only 「⚔️ 开战」 opens the battle map, with the very party that blocked the road." },
+    { zh: "**对话时世界暂停**：对话框打开期间，天数、时钟和地图上的所有部队都停住，读完台词再决定，不会被偷袭。", en: "**The world waits during the talk**: while the card is open the day, the clock and every party on the map hold still, so the child can read and decide without being ambushed." }
+    ]
+  },
+  {
+    batch: 25,
+    title: "开局先对峙，等主角下令 A standoff before the charge, and the lord gives the order",
+    date: "2026-10-23",
+    items: [
+    { zh: "**开局双方都不动**：刚进入战斗地图时，敌我双方的士兵都驻守在原地——主角有时间看清战场、调整队形，不会被一开场就打乱。", en: "**Both armies hold when the map opens**: entering the arena no longer starts a charge; every squad on both sides stands its ground, so the lord has time to read the field and dress his own line." },
+    { zh: "**敌军会先变阵再进攻**：对峙约 5 秒后，敌军换阵型（远程散成一线、近战收成楔形），再过约 2.4 秒才冲锋；主角先动手的话，敌军会在 1 秒内应战。", en: "**The enemy dresses its ranks and then charges**: after about five seconds the enemy changes formation (ranged into a firing line, melee into a wedge) and attacks some 2.4 seconds later — and answers within a second if the lord strikes first." },
+    { zh: "**命令由玩家下**：底部提示条倒数「敌军 N 秒后进攻」，并给出「⚔️ 全军出击」；点它一次全军出动，也可以先选一支小队单独下 ⚔️ 攻击 / 🛡️ 防守 / 🏇 跟随 / 🎯 移动。", en: "**The orders are the lord's**: the command bar counts the standoff down and offers 「⚔️ 全军出击」 — one tap sends every squad, while a single squad can be picked and given attack / defend / follow / move on its own." },
+    { zh: "**减员会收拢队形**：前排倒下后，幸存者补上前排的位置，人少的小队仍然面朝敌人继续接战，不会出现两边各剩一人却永远够不着的情况。", en: "**The ranks close up**: survivors take the front slots after the front rank falls, so a thinned squad still faces the foe — no fight stalls with one soldier left on each side, just out of reach." }
+    ]
+  },
+  {
+    batch: 26,
+    title: "每一战都是新战场 A fresh battlefield for every battle",
+    date: "2026-10-23",
+    items: [
+    { zh: "**战场每次都重新生成**：河流的走向、湖泊与山地的大小和位置、森林与沙地都不再固定，每次进入战斗都会按新的种子重新铺一张地图，同一种子才会得到同一张地图；混战 / 平原 / 密林 / 山地 / 河流 / 湖泽六种预设仍然各自保证该有的地形。", en: "**A new field every time**: the river's course, the size and place of the lake and the mountain and the patches of forest and sand all come from a fresh battle seed, so no two fights share a map, while the same seed still rebuilds the same one; the six presets (mixed, plain, forest, mountain, river, lake) each still promise their own ground." },
+    { zh: "**湖不会切断战场**：湖泊只落在战场内部、避开两侧的列阵区，因此不会把战场分成两半，也不会让士兵或指挥官一开始就站在深水里。", en: "**The lake never cuts the field in two**: it is always placed inside the field and clear of the two deployment bands, so no army starts in deep water and every route around it stays open." }
+    ]
   }
 ]
 
