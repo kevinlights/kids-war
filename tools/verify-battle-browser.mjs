@@ -9,7 +9,7 @@
  * Usage: node tools/verify-battle-browser.mjs
  */
 import { spawn } from 'node:child_process'
-import { mkdir } from 'node:fs/promises'
+import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
@@ -317,6 +317,47 @@ try {
   check('the field is painted with many colours', battleState.colors > 8, JSON.stringify(battleState))
   check('the camera zooms into the field', battleState.zoom > 0.5 && battleState.zoom < 2, JSON.stringify(battleState))
 
+  // Both generals are on the field with their bodyguards, and the two bars at
+  // the top of the screen really read them.
+  const generalBars = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      const rows = [...document.querySelectorAll('.gen-row .gen')]
+      const guardOf = (id) => b.data.units.filter((u) => u.isGuard && u.guardOf === id).length
+      return {
+        lord: !!b.data.commander,
+        enemy: !!b.data.enemyCommander,
+        enemyArt: b.data.enemyCommander ? b.data.enemyCommander.sprite : '',
+        lordGuards: guardOf('commander'),
+        enemyGuards: guardOf('enemy-commander'),
+        rows: rows.length,
+        bars: rows.map((r) => {
+          const fill = r.querySelector('.gen-bar i')
+          return { width: fill ? fill.style.width : '', text: r.textContent.trim() }
+        })
+      }
+    })()
+  `)
+  check('the field carries both generals', generalBars.lord && generalBars.enemy, JSON.stringify(generalBars))
+  check('the hostile general wears a faction sprite', ['bandit', 'wolf', 'eagle'].includes(generalBars.enemyArt), generalBars.enemyArt)
+  check('each general starts behind a bodyguard', generalBars.lordGuards > 0 && generalBars.enemyGuards > 0, JSON.stringify(generalBars))
+  check('the top bar shows the two general bars', generalBars.rows === 2, JSON.stringify(generalBars.bars))
+  check(
+    'the general bars are filled',
+    generalBars.bars.every((bar) => bar.width.endsWith('%') && parseFloat(bar.width) > 0),
+    JSON.stringify(generalBars.bars)
+  )
+
+  // Keep a picture of the field with both generals and their bars, for a human
+  // to look at afterwards.
+  {
+    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+    const shotFile = path.join(cache, 'battle-generals.png')
+    await writeFile(shotFile, Buffer.from(shot.data, 'base64'))
+    check('the general screenshot was saved', true, shotFile)
+    console.log('\nscreenshot: ' + shotFile)
+  }
+
   // The map opens on a standoff: both sides hold their ground and the banner
   // asks the lord for the order that starts his own advance.
   const opening = await evaluate(`
@@ -327,7 +368,8 @@ try {
       return {
         phase: b.data.opening ? b.data.opening.phase : null,
         playerHolds: b.data.playerGroups.every((k) => b.data.groups[k].order === 'defend'),
-        enemyHolds: groups.filter((g) => g.side === 'enemy').every((g) => g.order === 'defend'),
+        // The bodyguard follows its general, so only the squads are checked.
+        enemyHolds: groups.filter((g) => g.side === 'enemy' && !g.isGuard).every((g) => g.order === 'defend'),
         text: banner ? banner.textContent.trim() : '',
         button: banner ? banner.querySelector('button').textContent.trim() : ''
       }
@@ -629,6 +671,172 @@ try {
     JSON.stringify({ routeBefore, guarded })
   )
   check('a refused back step says why', guarded.hint.length > 0, JSON.stringify(guarded))
+
+  /* ------------------ 4. a general going down ends the fight ----------------- */
+  // The whole way back: a general falls, the fight is settled, and both armies
+  // turn up on the world map around the field they just fought over.
+  console.log('the way back to the map')
+  await loadScenario('bandit')
+  const fieldTile = await evaluate('({ ...window.kidsWarGame.stores.world.playerPos })')
+  await clickByText('.hud-bottom button', '赶走强盗')
+  await waitFor("!!document.querySelector('canvas.battle-canvas')", 'a fresh battle')
+  await sleep(500)
+  // Expose the hostile general: his bodyguard falls and the lord is put right
+  // in front of him, so the next swing ends the fight.
+  const exposed = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      const g = b.data.enemyCommander
+      b.speed = 'fast'
+      b.data.units.filter((u) => u.isGuard && u.guardOf === g.id).forEach((u) => { u.alive = false })
+      g.hp = 1
+      g.x = b.data.commander.x + 24
+      g.y = b.data.commander.y
+      g.tx = g.x
+      g.ty = g.y
+      return { guards: b.data.units.filter((u) => u.isGuard && u.guardOf === g.id && u.alive).length, hp: g.hp }
+    })()
+  `)
+  check('the hostile general can be exposed', exposed.guards === 0 && exposed.hp === 1, JSON.stringify(exposed))
+  await waitFor("!!document.querySelector('.overlay .result')", 'the result of a general going down', 40000)
+  const downed = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      const w = window.kidsWarGame.stores.world
+      const result = b.result || {}
+      return {
+        outcome: b.data ? b.data.outcome : null,
+        settled: b.settled,
+        generalDown: !!result.generalDown,
+        lordDown: !!result.lordDown,
+        relocated: !!result.relocated,
+        halfLost: result.halfLost || 0,
+        heading: document.querySelector('.result h2') ? document.querySelector('.result h2').textContent.trim() : '',
+        text: document.querySelector('.result') ? document.querySelector('.result').textContent : '',
+        lastReturn: w.lastReturn,
+        parties: w.parties.length,
+        pos: { ...w.playerPos },
+        troops: window.kidsWarGame.stores.player.totalTroops
+      }
+    })()
+  `)
+  check('the battle ends with the hostile general down', downed.outcome === 'general' && downed.generalDown, JSON.stringify(downed))
+  check('the result screen names his fall', downed.heading.includes('敌将倒下'), JSON.stringify(downed.heading))
+  check('the result screen says both sides went back to the field', downed.text.includes('战场周围'), downed.text.slice(0, 120))
+  check('the lord paid nothing for it', downed.lordDown === false && downed.halfLost === 0, JSON.stringify(downed))
+  check('he is put back beside the field', downed.relocated === true && downed.lastReturn === 'enemy', JSON.stringify(downed))
+  check('the enemy warband is still on the map', downed.parties > 0, String(downed.parties))
+  const backDistance = Math.hypot(downed.pos.x - fieldTile.x, downed.pos.y - fieldTile.y)
+  check('the lord does not cross the world to get there', backDistance <= 8.5, String(backDistance.toFixed(2)))
+
+  await clickByText('.result button', '返回世界地图')
+  await waitFor("!!document.querySelector('.hud-bottom')", 'the world map after the battle')
+  await sleep(400)
+  const backHome = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const toast = document.querySelector('.toast')
+      return {
+        pos: { ...w.playerPos },
+        parties: w.parties.length,
+        lastReturn: w.lastReturn,
+        toast: toast ? toast.textContent.trim() : '',
+        // The app routes on the hash, so the path alone says nothing.
+        route: location.hash || location.pathname
+      }
+    })()
+  `)
+  check('the result screen leads back to the world map', backHome.route.includes('/world'), backHome.route)
+  check('the map says the hostile general went down', backHome.toast.includes('敌将') || backHome.toast.includes('退回战场'), backHome.toast)
+  check('the note is read only once', backHome.lastReturn === null, String(backHome.lastReturn))
+  const homeDistance = Math.hypot(backHome.pos.x - fieldTile.x, backHome.pos.y - fieldTile.y)
+  check('he is standing beside the field, not in a town', homeDistance <= 8.5, String(homeDistance.toFixed(2)))
+  check('the enemy is still there to be chased', backHome.parties > 0, String(backHome.parties))
+
+  /* --------------------- 5. the last stand of a lone lord ------------------- */
+  // The warband is wiped out to the last soldier: the lord holds the field on
+  // his own, the screen says so, and 撤退 takes him home without another loss.
+  console.log('the last stand')
+  await loadScenario('bandit')
+  const standField = await evaluate('({ ...window.kidsWarGame.stores.world.playerPos })')
+  await clickByText('.hud-bottom button', '赶走强盗')
+  await waitFor("!!document.querySelector('canvas.battle-canvas')", 'a battle for the last stand')
+  await sleep(500)
+  const wiped = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      b.data.units.filter((u) => u.side === 'player').forEach((u) => { u.alive = false })
+      return { playerUnits: b.data.units.filter((u) => u.side === 'player' && u.alive).length }
+    })()
+  `)
+  check('the warband can be wiped out on the field', wiped.playerUnits === 0, JSON.stringify(wiped))
+  await waitFor("!!document.querySelector('.last-stand')", 'the last stand banner')
+  const stand = await evaluate(`
+    (() => {
+      const el = document.querySelector('.last-stand')
+      const b = window.kidsWarGame.stores.battle
+      const button = el.querySelector('.ls-btn')
+      return {
+        text: el.textContent,
+        mine: el.classList.contains('mine'),
+        barWidth: el.querySelector('.ls-bar i') ? el.querySelector('.ls-bar i').style.width : '',
+        button: button ? button.textContent.trim() : '',
+        side: b.data.lastStand ? b.data.lastStand.side : null,
+        outcome: b.data.outcome,
+        lordHp: b.data.commander.hp
+      }
+    })()
+  `)
+  check('the battle does not end when the soldiers are gone', stand.side === 'player' && stand.outcome === null, JSON.stringify(stand))
+  check('the screen says the lord stands alone', stand.mine && stand.text.includes('只剩主将'), stand.text)
+  check('the last stand has a clock', stand.barWidth.endsWith('%'), stand.barWidth)
+  check('the last stand offers a way home', stand.button.includes('撤退'), stand.button)
+
+  // Keep a picture of the countdown for a human to look at afterwards.
+  {
+    const shot = await send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false })
+    const shotFile = path.join(cache, 'battle-last-stand.png')
+    await writeFile(shotFile, Buffer.from(shot.data, 'base64'))
+    check('the last stand screenshot was saved', true, shotFile)
+    console.log('\nscreenshot: ' + shotFile)
+  }
+
+  await clickByText('.last-stand .ls-btn', '撤退')
+  await waitFor("!!document.querySelector('.overlay .result')", 'the result of a retreat')
+  const retreat = await evaluate(`
+    (() => {
+      const b = window.kidsWarGame.stores.battle
+      const r = b.result || {}
+      return {
+        outcome: b.data ? b.data.outcome : null,
+        withdrew: !!r.withdrew,
+        halfLost: r.halfLost || 0,
+        lordDown: !!r.lordDown,
+        relocated: !!r.relocated,
+        troops: window.kidsWarGame.stores.player.totalTroops,
+        text: document.querySelector('.result') ? document.querySelector('.result').textContent : ''
+      }
+    })()
+  `)
+  check('the retreat is settled as a defeat', retreat.outcome === 'lose' && retreat.withdrew === true, JSON.stringify(retreat))
+  check('the retreat costs him no second army', retreat.halfLost === 0 && retreat.lordDown === false, JSON.stringify(retreat))
+  check('the result screen explains the retreat', retreat.text.includes('主将退出战场'), retreat.text.slice(0, 120))
+  check('he still has a handful of wounded at most', retreat.troops <= 4, String(retreat.troops))
+
+  await clickByText('.result button', '返回世界地图')
+  await waitFor("!!document.querySelector('.hud-bottom')", 'the world map after the retreat')
+  await sleep(400)
+  const afterRetreat = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const toast = document.querySelector('.toast')
+      return { pos: { ...w.playerPos }, toast: toast ? toast.textContent.trim() : '', parties: w.parties.length }
+    })()
+  `)
+  check('the map says he walked away', afterRetreat.toast.includes('退出'), afterRetreat.toast)
+  const retreatDistance = Math.hypot(afterRetreat.pos.x - standField.x, afterRetreat.pos.y - standField.y)
+  check('he is put down beside the field', retreatDistance <= 8.5, String(retreatDistance.toFixed(2)))
+  check('the enemy is still on the map', afterRetreat.parties > 0, String(afterRetreat.parties))
 
   check('the console stays clean', consoleErrors.length === 0, consoleErrors.join(' | '))
 } catch (err) {

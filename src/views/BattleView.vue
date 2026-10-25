@@ -3,20 +3,62 @@
     <BattleMap class="map" @end="onEnd" />
 
     <div class="hud-top">
-      <div class="side player">
-        <span class="dot" style="background: #4aa3ff"></span>
-        我方 {{ playerAlive }}
+      <div class="hud-row">
+        <div class="side player">
+          <span class="dot" style="background: #4aa3ff"></span>
+          我方 {{ playerAlive }}
+        </div>
+        <div class="vs">{{ title }}</div>
+        <div class="side enemy">
+          <span class="dot" :style="{ background: enemyColor }"></span>
+          {{ enemyName }} {{ enemyAlive }}
+        </div>
       </div>
-      <div class="vs">{{ title }}</div>
-      <div class="side enemy">
-        <span class="dot" :style="{ background: enemyColor }"></span>
-        {{ enemyName }} {{ enemyAlive }}
+      <!-- The two generals: their own hit points and the bodyguards still
+           standing in front of them. A general is not a squad — his bar is
+           what tells the child whether he can risk a chase. -->
+      <div class="gen-row">
+        <div class="gen" :class="{ hurt: lord && lord.percent < 34, down: !lord || !lord.alive }">
+          <span class="gen-icon">👑</span>
+          <span class="gen-bar"><i :style="{ width: (lord ? lord.percent : 0) + '%' }"></i></span>
+          <span class="gen-hp">{{ lord ? lord.hp : 0 }}/{{ lord ? lord.maxHp : 0 }}</span>
+          <span class="gen-guard" :title="`亲兵 ${lord ? lord.guardsAlive : 0} 人`">
+            🛡{{ lord ? lord.guardsAlive : 0 }}
+          </span>
+        </div>
+        <div
+          v-if="enemyGeneral"
+          class="gen enemy"
+          :class="{ hurt: enemyGeneral.percent < 34 }"
+          :title="`${enemyGeneral.name} · 被击倒 ${enemyGeneral.downs} 次`"
+        >
+          <span class="gen-icon">🗡</span>
+          <span class="gen-bar"><i :style="{ width: enemyGeneral.percent + '%' }"></i></span>
+          <span class="gen-hp">{{ enemyGeneral.hp }}/{{ enemyGeneral.maxHp }}</span>
+          <span class="gen-guard">🛡{{ enemyGeneral.guardsAlive }}</span>
+        </div>
       </div>
     </div>
 
     <div v-if="hungry" class="warn">🌾 军粮不足，部队士气低落（攻击下降）</div>
 
     <div v-if="intel" class="intel">🧠 敌方构成：{{ intel }}</div>
+
+    <!-- The last stand: one side has lost every soldier and its general holds
+         the field alone. The bar drains to zero, and then he yields. -->
+    <div v-if="lastStand" class="last-stand" :class="{ mine: lastStand.mine }">
+      <div class="ls-head">
+        <span class="ls-title">{{ lastStand.mine ? '🛡 只剩主将一人！' : '⚔️ 敌军只剩主将' }}</span>
+        <span class="ls-time">{{ Math.ceil(lastStand.left) }} 秒</span>
+      </div>
+      <div class="ls-bar"><i :style="{ width: lastStand.percent + '%' }"></i></div>
+      <div class="ls-row">
+        <span class="ls-text">
+          {{ lastStand.mine ? '士兵都倒下了，主将正在孤军奋战' : '他的士兵都倒下了，还在死撑' }}
+        </span>
+        <button v-if="lastStand.mine" class="ls-btn" @click="withdraw">🏳 撤退</button>
+      </div>
+    </div>
 
     <!-- Battle tools: speed, terrain legend and the camera. A quick battle
          also has its way out: the fight is only practice, so it can be left
@@ -160,7 +202,9 @@
     <!-- Result overlay -->
     <div v-if="result" class="overlay">
       <div class="result panel pop">
-        <h2 :class="result.outcome">{{ result.outcome === 'win' ? '🏆 大获全胜' : '💀 战斗失利' }}</h2>
+        <h2 :class="result.outcome === 'general' ? 'lose' : result.outcome">
+          {{ result.outcome === 'win' ? '🏆 大获全胜' : result.outcome === 'general' ? '⚔️ 敌将倒下' : '💀 战斗失利' }}
+        </h2>
 
         <div v-if="quick && result.outcome === 'win'" class="loot">
           <div class="loot-item">⚡ 快速战斗 <b>这场练习不计入战绩</b></div>
@@ -170,9 +214,38 @@
           <div v-if="result.badgeGold" class="loot-item">🏅 徽章 <b>+{{ result.badgeGold }}</b></div>
           <div v-if="result.recruits" class="loot-item">🎖️ 收编俘虏 <b>+{{ result.recruits }} 民兵</b></div>
           <div v-if="result.captured" class="loot-item">🏛️ 占领城镇 <b>这座城镇归你了</b></div>
+          <div v-if="result.generalFled" class="loot-item">🗡 敌将 <b>只身逃走，队伍已经打光</b></div>
         </div>
+        <p v-else-if="result.outcome === 'general' && !quick" class="muted lose-tip">
+          敌人的主将被打倒了，双方都退回地图上的战场周围。追不追、跑不跑，由你决定。
+        </p>
+        <p v-else-if="result.withdrew && !quick" class="muted lose-tip">
+          最后一个士兵也倒下了，主将只身退出战场 —— 这一场不会再扣你什么。
+        </p>
         <p v-else-if="quick" class="muted lose-tip">这次的损失只是练习里的事，你的队伍没有少一个士兵。</p>
         <p v-else class="muted lose-tip">部队损失惨重，退回安全地带修养，先去城镇考试赚钱补充兵力吧。</p>
+
+        <!-- The lord himself went down: the battle is lost on the spot and
+             this is what it cost. -->
+        <div v-if="result.lordDown && !quick" class="lord-down">
+          <div class="ld-title">👑 主将倒下，战斗立刻结束</div>
+          <div>🩸 士兵散去一半：损失 <b>{{ result.halfLost || 0 }}</b> 名</div>
+          <div v-if="result.relocated">🐴 亲兵把你抬回战场附近的一处空地</div>
+          <div>❤️ 生命恢复到一半，之后随时间慢慢恢复；在自己的城镇恢复得更快</div>
+          <div>🏃 敌人还在附近，可以继续追上来 —— 快带着队伍跑，或者回头再打</div>
+        </div>
+        <p v-else-if="result.lordDown" class="muted lose-tip">👑 主将在这场练习里倒下了，真实战役不受影响。</p>
+
+        <!-- The warband was wiped out and the lord walked off the field on his
+             own two feet: nothing else is taken from him. -->
+        <div v-if="result.withdrew && !quick" class="lord-down">
+          <div class="ld-title">🛡 士兵全部倒下，主将退出战场</div>
+          <div>💔 队伍打光了：这一场不会再损失第二批士兵</div>
+          <div v-if="result.saved">🏥 有 {{ result.saved }} 名伤兵被抬了回来（各剩 1 点生命）</div>
+          <div v-if="result.relocated">🐴 你退回战场附近的一处空地，还剩 {{ player.lordHp }} 点生命</div>
+          <div>🏃 敌人还在这一带 —— 先去城镇考试赚钱，把队伍补起来再回来</div>
+        </div>
+        <p v-else-if="result.withdrew" class="muted lose-tip">🛡 士兵在这里打光了，主将退出了练习战场。</p>
 
         <div class="casualties">
           <div class="casualty">🩸 阵亡 <b>{{ result.fallen || 0 }}</b></div>
@@ -205,6 +278,7 @@ import { useBattleStore } from '@/stores/battle'
 import { useWorldStore } from '@/stores/world'
 import { usePlayerStore } from '@/stores/player'
 import { ORDERS, FORMATIONS, DENSITIES, SPEEDS, orderOf, formationOf, densityOf } from '@/game/battle'
+import { LAST_STAND_SECONDS } from '@/game/lord'
 import { ARENA_TERRAIN_LIST } from '@/game/arena'
 import { factionOf } from '@/game/factions'
 import { unitSprite, unitName } from '@/game/units'
@@ -309,6 +383,15 @@ const enemyAlive = computed(() => {
   return battle.data ? battle.data.units.filter((u) => u.alive && u.side === 'enemy').length : 0
 })
 
+// The two generals with their hit points and their bodyguards, read through
+// the same stamp as the counts above.
+const generals = computed(() => {
+  void battle.stamp
+  return battle.generals
+})
+const lord = computed(() => generals.value.lord)
+const enemyGeneral = computed(() => generals.value.enemy)
+
 /**
  * The tactics attribute scouts the enemy before the fight: the composition of
  * the other side is written down, so the lord knows what is coming.
@@ -324,6 +407,30 @@ const intel = computed(() => {
   if (!counts.size) return ''
   return [...counts.entries()].map(([name, n]) => `${name} ×${n}`).join(' · ')
 })
+
+/**
+ * The last stand of a lone general: the side has no soldiers left and its
+ * general holds the field on his own. The bar drains to zero, and then he
+ * yields — or the child presses 撤退 for him.
+ */
+const lastStand = computed(() => {
+  void battle.stamp
+  const d = battle.data
+  const stand = d ? d.lastStand : null
+  if (!stand || d.outcome) return null
+  const left = Math.max(0, LAST_STAND_SECONDS - stand.t)
+  return {
+    side: stand.side,
+    left,
+    percent: Math.max(0, Math.min(100, (left / LAST_STAND_SECONDS) * 100)),
+    mine: stand.side === 'player'
+  }
+})
+
+/** Take the lone lord off the field instead of letting him fight it out. */
+function withdraw() {
+  battle.withdraw()
+}
 
 /** Name of whatever the commands apply to right now. */
 const scopeName = computed(() => (battle.selectedGroup ? battle.selected?.name || '该部队' : '全军'))
@@ -466,14 +573,89 @@ watch(
   left: 50%;
   transform: translateX(-50%);
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 8px 16px;
-  border-radius: 999px;
+  gap: 5px;
+  padding: 7px 16px;
+  border-radius: 16px;
   background: rgba(8, 12, 8, 0.72);
   border: 1px solid var(--line);
   z-index: 5;
   white-space: nowrap;
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* The two generals: one compact bar each, with the bodyguard count on the
+   right. The lord is gold, the hostile general copper. */
+.gen-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.gen {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #f2dc9e;
+}
+
+.gen.enemy {
+  color: #f0b3a5;
+}
+
+.gen.down {
+  color: var(--ink-dim);
+}
+
+.gen-icon {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.gen-bar {
+  display: block;
+  width: 58px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.gen-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #e8c56a, #b98c2a);
+}
+
+.gen.enemy .gen-bar i {
+  background: linear-gradient(90deg, #ef8f74, #b8473a);
+}
+
+.gen.hurt .gen-bar i {
+  background: #ff6b52;
+}
+
+.gen-hp {
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.gen-guard {
+  font-size: 11px;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
 }
 
 .side {
@@ -501,7 +683,7 @@ watch(
 
 .warn {
   position: absolute;
-  top: calc(62px + env(safe-area-inset-top));
+  top: calc(76px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   padding: 6px 14px;
@@ -515,7 +697,7 @@ watch(
 /* The scouting line of the tactics attribute. */
 .intel {
   position: absolute;
-  top: calc(96px + env(safe-area-inset-top));
+  top: calc(112px + env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%);
   padding: 5px 12px;
@@ -525,6 +707,92 @@ watch(
   color: #dfe7ff;
   font-size: 12.5px;
   z-index: 5;
+}
+
+/* The last stand of a lone general: a panel with its own clock, so the child
+   can see the seconds and decide whether to run him down or take him home. */
+.last-stand {
+  position: absolute;
+  top: calc(150px + env(safe-area-inset-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(360px, 88vw);
+  padding: 8px 12px 9px;
+  border-radius: 14px;
+  background: rgba(34, 26, 16, 0.9);
+  border: 1px solid rgba(201, 154, 74, 0.75);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  z-index: 6;
+}
+
+.last-stand.mine {
+  background: rgba(38, 22, 18, 0.92);
+  border-color: rgba(216, 120, 80, 0.85);
+}
+
+.ls-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+  font-weight: 800;
+  color: var(--gold);
+}
+
+.last-stand.mine .ls-head {
+  color: #ffb9a1;
+}
+
+.ls-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.ls-bar {
+  position: relative;
+  height: 5px;
+  margin: 6px 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.ls-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #c99a4a, #e8c56a);
+  transition: width 0.12s linear;
+}
+
+.last-stand.mine .ls-bar i {
+  background: linear-gradient(90deg, #a8492f, #e08a5f);
+}
+
+.ls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.ls-text {
+  font-size: 11.5px;
+  color: rgba(240, 232, 214, 0.86);
+  line-height: 1.4;
+}
+
+.ls-btn {
+  flex: none;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* ------------------------------- command bar ------------------------------- */
@@ -1044,6 +1312,30 @@ watch(
   line-height: 1.6;
 }
 
+/* What a lord who went down cost the campaign. */
+.lord-down {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(70, 34, 20, 0.72);
+  border: 1px solid rgba(216, 128, 90, 0.55);
+  font-size: 13.5px;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.lord-down .ld-title {
+  color: #ffc9a8;
+  font-weight: 800;
+}
+
+.lord-down b {
+  color: var(--gold);
+}
+
 .survivors {
   width: 100%;
   text-align: left;
@@ -1097,7 +1389,7 @@ watch(
     left: 12px;
     right: auto;
     transform: none;
-    max-width: calc(100% - 190px);
+    max-width: calc(100% - 200px);
     overflow: hidden;
   }
 
@@ -1110,6 +1402,22 @@ watch(
   /* The speed name lives in the tools panel; the top-right corner keeps only
      the gear, so the strength bar gets the rest of the row. */
   .tool-speed {
+    display: none;
+  }
+
+  /* On a phone the general row keeps only what a thumb's width allows: two
+     icons, two short bars and two bodyguard counts. The numbers are in the
+     tooltip, and the bars already say how much is left. */
+  .gen-row {
+    gap: 8px;
+    font-size: 10.5px;
+  }
+
+  .gen-bar {
+    width: 32px;
+  }
+
+  .gen-hp {
     display: none;
   }
 

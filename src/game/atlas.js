@@ -7,7 +7,10 @@
 
 import { TERRAIN } from './terrain'
 import { drawSprite } from './pixelAssets'
+import { followerTargets } from './followers'
 import { FACTIONS, factionOf } from './factions'
+import { companionStrength } from './npc'
+import { ownerOf } from './settlement'
 import { TILE, WORLD_W, WORLD_H } from './worldgen'
 
 /** Pixels per world tile on the detailed atlas: bigger than a phone screen. */
@@ -78,19 +81,22 @@ function blitTerrain(ctx, world, x, y, w, h) {
  * warbands in their faction colour, the rectangle the big map is looking at
  * and the lord. Everything is a plain shape, so it stays readable at ~100 px.
  */
-export function drawMiniMap(ctx, world, w, h) {
+export function drawMiniMap(ctx, world, w, h, companions = []) {
   const sx = w / WORLD_W
   const sy = h / WORLD_H
   ctx.clearRect(0, 0, w, h)
   blitTerrain(ctx, world, 0, 0, w, h)
 
-  // Settlements: a gold square for a town, a smaller pale square for a village.
+  // Settlements: a square in the owner's colour, so the minimap reads as a
+  // map of who holds what. A town is a bigger square with a dark rim, a
+  // village a smaller pale square; an unclaimed place keeps the neutral tone.
   for (const st of world.settlements) {
     const town = st.kind === 'town'
     const size = town ? 5 : 3
     const x = Math.round(st.x * sx - size / 2)
     const y = Math.round(st.y * sy - size / 2)
-    ctx.fillStyle = town ? '#ffd76a' : '#f4ecd6'
+    const owner = ownerOf(st)
+    ctx.fillStyle = st.owner === 'neutral' ? (town ? '#ffd76a' : '#f4ecd6') : owner.color
     ctx.fillRect(x, y, size, size)
     if (town) {
       ctx.strokeStyle = 'rgba(70, 44, 0, 0.9)'
@@ -106,6 +112,20 @@ export function drawMiniMap(ctx, world, w, h) {
     ctx.beginPath()
     ctx.arc(p.x * sx, p.y * sy, 2, 0, Math.PI * 2)
     ctx.fill()
+  }
+
+  // The companions ride in a tight cluster around the lord: at this scale a
+  // dot per follower is all there is room for, but it reads as a party.
+  if (companions.length) {
+    const cx = (world.playerPos.x + 0.5) * sx
+    const cy = (world.playerPos.y + 0.5) * sy
+    ctx.fillStyle = 'rgba(255, 236, 180, 0.9)'
+    companions.slice(0, 6).forEach((_, i) => {
+      const angle = (i / Math.max(1, Math.min(6, companions.length))) * Math.PI * 2 - Math.PI / 2
+      ctx.beginPath()
+      ctx.arc(cx + Math.cos(angle) * 2.1, cy + Math.sin(angle) * 2.1, 1.1, 0, Math.PI * 2)
+      ctx.fill()
+    })
   }
 
   // The rectangle the big map is showing right now.
@@ -137,21 +157,35 @@ export function drawMiniMap(ctx, world, w, h) {
 /**
  * Detailed atlas: the whole world at ATLAS_SCALE pixels per tile, with the
  * world origin at (ox, oy). Terrain is a single blit; settlements, warband
- * commanders and the lord are drawn on top with their name plates and troop
- * badges, so the atlas reads as the zoomed-in version of the minimap.
+ * commanders, the companions and the lord are drawn on top with their name
+ * plates and troop badges, so the atlas reads as the zoomed-in version of the
+ * minimap.
  */
-export function drawAtlas(ctx, world, { ox, oy, w, h, troops }) {
+export function drawAtlas(ctx, world, { ox, oy, w, h, troops, companions = [] }) {
   ctx.clearRect(0, 0, w, h)
   blitTerrain(ctx, world, ox, oy, WORLD_W * ATLAS_SCALE, WORLD_H * ATLAS_SCALE)
 
   // Settlements: the same castle and hut sprites the big map uses, with the
-  // same name plate, so a place looks the same on both maps.
+  // same name plate and an ownership ring in the holder's colour, so a place
+  // looks the same on both maps and its owner is readable at a glance.
   for (const st of world.settlements) {
     const cx = ox + (st.x + 0.5) * ATLAS_SCALE
     const cy = oy + (st.y + 0.5) * ATLAS_SCALE
     if (cx < -80 || cy < -80 || cx > w + 80 || cy > h + 80) continue
     const town = st.kind === 'town'
     const size = town ? ATLAS_SCALE * 2 : ATLAS_SCALE * 1.5
+    const owner = ownerOf(st)
+
+    // Ownership ring in the colour of the holder, the same signal the big map
+    // uses: a circle around the castle or hut says whose flag flies there.
+    // An unclaimed place stays colourless.
+    if (st.owner && st.owner !== 'neutral') {
+      ctx.strokeStyle = owner.color
+      ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.arc(cx, cy, size / 2 + 3, 0, Math.PI * 2)
+      ctx.stroke()
+    }
 
     ctx.save()
     ctx.shadowColor = 'rgba(0, 0, 0, 0.55)'
@@ -167,7 +201,7 @@ export function drawAtlas(ctx, world, { ox, oy, w, h, troops }) {
     ctx.beginPath()
     ctx.roundRect(cx - plate / 2, plateY, plate, 17, 8)
     ctx.fill()
-    ctx.fillStyle = town ? '#ffe9a8' : '#f0e6cc'
+    ctx.fillStyle = owner.color
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(st.name, cx, plateY + 9)
@@ -184,6 +218,27 @@ export function drawAtlas(ctx, world, { ox, oy, w, h, troops }) {
     drawSprite(ctx, p.faction, cx, cy, ATLAS_SCALE * 1.4)
     ctx.restore()
     drawBadge(ctx, cx + ATLAS_SCALE * 0.55, cy - ATLAS_SCALE * 0.55, partyTroops(p))
+  }
+
+  // The companions first, in the same slots the big map uses, so the party is
+  // one block on both maps; the lord is drawn over them afterwards.
+  if (companions.length) {
+    const slots = followerTargets(companions, world.playerPos, { x: 0, y: 1 })
+    for (const slot of slots) {
+      const cx = ox + (slot.x + 0.5) * ATLAS_SCALE
+      const cy = oy + (slot.y + 0.5) * ATLAS_SCALE
+      if (cx < -40 || cy < -40 || cx > w + 40 || cy > h + 40) continue
+      ctx.save()
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'
+      ctx.shadowBlur = 5
+      drawSprite(ctx, slot.companion.sprite, cx, cy, ATLAS_SCALE * 1.1)
+      ctx.restore()
+      // The same troop badge the lord and the warbands wear, one size smaller:
+      // a companion's banner is worth reading at a glance here too, and the
+      // atlas footer already promises a number on every icon.
+      const soldiers = companionStrength(slot.companion)
+      if (soldiers > 0) drawBadge(ctx, cx + ATLAS_SCALE * 0.55, cy - ATLAS_SCALE * 0.55, soldiers, 7)
+    }
   }
 
   // The lord, on top of everything, with his own troop badge.

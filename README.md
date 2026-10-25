@@ -164,20 +164,26 @@ camping keep the fast 24-second day.
 
 ### 4.2 小地图与全图 · Minimap and detailed atlas
 
-The top-right corner holds a **minimap** of the whole world: blocky terrain, a gold square per town, a pale square
-per village, a faction-coloured dot per roaming warband, the rectangle the main map is currently looking at, and the
-lord as a pulsing blue dot. It is drawn from one cached 1-px-per-tile picture of the terrain, so it costs a single
-`drawImage` per frame.
-右上角是整张世界的**小地图**：方块化地形、每座城镇一个金色方块、每个村庄一个浅色方块、每支游荡部队一个势力色圆点、主地图当前视野的矩形框，以及作为脉动蓝点的主角。小地图由一张缓存的「一格一像素」地形图绘制，因此每帧只要一次 `drawImage`。
+The top-right corner holds a **minimap** of the whole world: blocky terrain, a square per settlement in the colour of
+its owner (a gold square per unclaimed town, a pale square per unclaimed village), a faction-coloured dot per roaming
+warband, the rectangle the main map is currently looking at, and the lord as a pulsing blue dot. It is drawn from one
+cached 1-px-per-tile picture of the terrain, so it costs a single `drawImage` per frame.
+右上角是整张世界的**小地图**：方块化地形、每个据点一个归属色方块（无主的城镇是金色方块、无主的村庄是浅色方块）、每支游荡部队一个势力色圆点、主地图当前视野的矩形框，以及作为脉动蓝点的主角。小地图由一张缓存的「一格一像素」地形图绘制，因此每帧只要一次 `drawImage`。
 
 Tapping the minimap opens the **detailed atlas** (🗺️ 世界全图): the same world at 16 px per tile — larger than a
-phone screen in both directions, so a finger drag pans across it — with the settlement sprites and name plates, every
-faction commander and the lord, each with its troop badge. 「🎯 回到主角」 recentres the view, and ✕ or Esc closes it.
-点击小地图会打开**详细地图**（🗺️ 世界全图）：同一张世界以每格 16 px 渲染——两个方向都比手机屏幕更大，因此可以用手指拖动查看不同区域——上面画出据点素材与名字牌、所有势力将领与主角，每个图标右上角都有兵力角标。点「🎯 回到主角」把视野拉回主角，点 ✕ 或按 Esc 关闭。
+phone screen in both directions, so a finger drag pans across it — with the settlement sprites and name plates (each
+settlement is circled by an ownership ring and carries an owner-coloured name plate, so who holds every patch of land
+is readable at a glance), every faction commander, every companion and the lord, each with its troop badge (a
+companion's badge is one size smaller, and a companion with no soldiers carries none). 「🎯 回到主角」 recentres
+the view, and ✕ or Esc closes it.
+点击小地图会打开**详细地图**（🗺️ 世界全图）：同一张世界以每格 16 px 渲染——两个方向都比手机屏幕更大，因此可以用手指拖动查看不同区域——上面画出据点素材与名字牌（每个据点周围都有一圈归属色光环、名字牌也用归属色，一眼就能看出每片地盘属于谁）、所有势力将领、每位随从与主角，每个图标右上角都有兵力角标（随从的徽章小一号，没有分到兵的随从不挂）。点「🎯 回到主角」把视野拉回主角，点 ✕ 或按 Esc 关闭。
 
 The **legend** under the minimap lists exactly the icons the world map draws — the lord, one commander per faction in
-its faction colour, a town and a village — so a recoloured faction can never go missing from the legend.
-小地图下方的**图例**列出的正是世界地图上绘制的图标——主角、每个势力一位穿着势力色战袍的将领、城镇与村庄——因此给势力改色绝不会在图例里漏掉。
+its faction colour, a town and a village — so a recoloured faction can never go missing from the legend. Everything
+that sits above the world map — the chips and buttons of the top bar, the minimap button, the legend and its
+「收起 / 展开」 toggle — shares one translucent black glass; a hover only deepens the black, and each label keeps its
+own colour.
+小地图下方的**图例**列出的正是世界地图上绘制的图标——主角、每个势力一位穿着势力色战袍的将领、城镇与村庄——因此给势力改色绝不会在图例里漏掉。漂浮在地图上方的所有控件——顶部状态栏的芯片与按钮、小地图按钮、图例与它的「收起 / 展开」——共用同一块黑色透明玻璃；悬停时只是加深黑色，各标签保留自己的颜色。
 
 ### 4.3 据点 · Settlements
 
@@ -642,6 +648,56 @@ equal archers, while cavalry still ride archers down in six or seven seconds.
 If every soldier falls, the warband is empty; there is no free replacement troop.
 如果全军覆没，队伍就真的是空的，不会凭空补兵。
 
+#### 主将与亲兵 · The generals and their bodyguard
+
+Both sides now bring a **general**: you bring the lord (👑, drawn with the lord sprite) and the enemy brings the
+commander of its faction (🗡, drawn with the faction's own commander art — the grey bandit, the purple wolf or the
+amber eagle). A general is **not** a squad: he has his own hit points (**120**), he stands outside the formation
+system, and he swings at anything that comes within reach of his arm without anyone giving him an order.
+双方现在都会带来一位**主将**：你带来领主（👑，用领主的立绘），敌人带来所属势力的大将（🗡，用该势力的将领立绘——
+灰袍强盗、紫色苍狼或琥珀赤鹰）。主将**不是**小队：他有自己的一条生命值（**120**），不参与队形系统，
+也不需要任何命令 —— 谁走进他的攻击范围，他就自己挥刀。
+
+| 项目 Item | 规则 Rule |
+| --- | --- |
+| 生命值 Hit points | 双方主将各 **120** 点，两条血条显示在战场顶部的双方兵力下面。Both generals carry **120** points, shown as two bars under the army counts at the top of the field. |
+| 亲兵 Bodyguard | 开战前每方从自己的**近战**士兵里抽出 **4 名**围住主将（最多抽走一半，至少留下一个小队）。亲兵没死光之前，主将**一下都挨不到**：所有飞向他的刀剑都由亲兵接下。Before the fight each side pulls **4 melee soldiers** out of its own warband to stand around its general (at most half the army, always leaving one squad). Until every guard is dead the general **cannot be hit at all** — every blow and arrow meant for him lands on a guard. |
+| 亲自出手 Swinging | 主将走到敌人身边会自动出手（每 **1.1 秒**一下，基础攻击 16 / 14）。A general strikes whatever is in reach every **1.1 seconds** (16 attack for the lord, 14 for the hostile one). |
+| 敌方主将 The hostile general | 他跟着自己军队的后方走，不会一个人冲进你的阵列。He walks behind his own line instead of charging your army alone. |
+| 把敌将打倒 Beating him | 敌方主将生命归零＝**这场战斗立刻结束**：结算之后双方都退到世界地图上、刚刚的战场周围。他的队伍还在（只是少了阵亡的人），所以你可以**马上追上去再打一场**，也可以带队伍走开（标记在 `generalDowns` 里）。**战斗要赢，仍然得把敌人士兵全部消灭。** A hostile general at zero hit points **ends the battle on the spot**: once it is settled both sides fall back onto the world map around the field they just fought over. His warband survives (minus the fallen), so you may **go after him again at once** or walk away (the fall is counted in `generalDowns`). **A battle is still only won once every enemy soldier is gone.** |
+| 士兵打光 Last stand | 一方士兵全部倒下、主将还站着时，战斗**不会立刻结束**：主将独自撑 **8 秒**（攻击 ×1.3、出手间隔 ×0.75），撑完就退场 —— 你退场＝判负（不再扣第二批士兵），敌将退场＝你赢。**你只剩主将时面板上会出现「🏳 撤退」**，不用等那 8 秒。When a side has no soldiers left but its general still stands, the battle **does not end at once**: the general holds out for **8 seconds** on his own (attack ×1.3, a swing every 0.75 of the usual gap) and then leaves the field — your general leaving is a defeat (nothing else is taken from you), theirs leaving is a win. **While you are the last man standing a「🏳 撤退」button appears**, so you need not wait out those 8 seconds. |
+| 你倒下 You going down | 领主生命归零＝**这场战斗立刻失败**，结算后回到世界地图、落在战场周围，见下面的「倒下之后」。The lord at zero hit points means **the battle is lost on the spot**; it is settled and he is put back on the world map around the field — see「倒下之后」below. |
+
+The bars at the top of the battle screen show it at a glance: 👑 is your own health, 🗡 is the enemy general's, and
+the 🛡 number after each bar is how many bodyguards still stand in front of that general.
+战场顶部的两条血条一眼就能看清：👑 是你自己的血量，🗡 是敌将的血量，每条后面 🛡 的数字是那位主将身前还剩几名亲兵。
+
+##### 倒下之后 · What going down means
+
+| 谁 Who | 发生什么 What happens |
+| --- | --- |
+| 你 You | 战斗立刻判负并结算。接下来：**损失一半士兵**（每组只留下体力最好的那一半）、被亲兵抬回**刚刚那片战场周围**的一处空地（3–7 格，不点对点、不瞬移到别的城镇、也不会恰好落在城里）、生命值恢复到**一半**（60 点）。Land lost at once and settled. Then: **half your soldiers are scattered** (each group keeps its healthiest half), your bodyguard carries you to open ground **around the field you just fought on** (3–7 tiles away — no teleporting across the world, no town you never walked to), and your health comes back at **half** (60 points). |
+| 敌人 The enemy | 他的队伍还站在原地，只是少了阵亡的士兵；他从战场离开，下一次交手会重新带兵。他的队伍在几秒后就能再次咬住你 —— **所以主角也可以逃跑**（遇敌面板上的「逃跑」）。His warband stays where it stood, minus its fallen; he leaves the field and brings a fresh bodyguard next time. That warband can be on you again within seconds — **which is why the lord may run** (the 逃跑 button on the meeting panel). |
+| 士兵全灭 The warband is wiped out | 最后一名士兵倒下时战斗还没结束：主将独自撑 8 秒。撑不住或你按「撤退」＝判负并结算，**不会再损失第二批士兵**（只有医院的救回判定可能抬回几名 1 点血的伤兵），他带着**当前**的生命值退回战场周围，敌人几秒后就能追上来。The battle does not end when the last soldier falls: the lord holds out for 8 seconds. When those run out — or you press 撤退 — it is settled as a defeat with **no second army to lose** (only the hospital rescue roll may bring back a few one-hit-point wounded); he falls back around the field **with the health he still had**, and the enemy can follow within seconds. |
+| 敌将独自撑到最后 The hostile general holds alone | 他的士兵全部倒下后同样撑 8 秒；时间一到他就只身逃走，**这场战斗算你赢**（战利品、占领结算照常），结算面板会写明「敌将只身逃走」。When his soldiers are all gone he holds for 8 seconds too; when the clock runs out he flees alone and **the battle counts as a win** (loot and captures as usual), with 「敌将只身逃走」written on the result screen. |
+| 敌将倒下 The enemy general falls | 同样**立刻结算**并回到地图战场周围：你的队伍一个兵都不会少，敌方队伍也还在，追不追由你决定。The same: **settled at once** and both sides fall back around the field. Not one of your soldiers is lost, the enemy warband survives, and whether to chase it is your choice. |
+
+The battlefield is simply the tile the lord was standing on when the fight broke out, so a defeat in a far corner
+of the map leaves him in that same corner: the enemy warband is still there, the two sides are 3–7 tiles apart, and the
+next few seconds decide whether this ends in a chase or in a clean getaway.
+战场就是他开打时站着的那一格，所以在天涯海角战败也只是回到同一片地方：敌人的队伍还在，双方相隔 3–7 格，
+接下来的几秒决定这是一场追击还是一次脱身。
+
+After a defeat the lord's health closes **slowly over time** and only while the world is moving (marching, camping
+or resting in a town): **0.5 points a second** on the road, **1.6 a second** inside any settlement, **×1.6 again in
+a town of your own**, and **×(1 + 0.2 × 医院等级)** with a hospital. The wound is saved with the game, so a reload
+does not heal him. The world map shows it as a ❤️ chip in the top bar (it turns warm while he is hurt) and the
+👤 角色详情 panel shows the bar and the number.
+战败之后，领主的生命值会**随时间慢慢恢复**，而且只在世界「动起来」的时候恢复（行军、扎营或在据点休整）：
+路上每秒 **0.5** 点，任何据点里每秒 **1.6** 点，**自己的城镇再 ×1.6**，有医院再 **×(1 + 0.2 × 医院等级)**。
+伤口跟着存档走，刷新页面不会自动痊愈。世界地图顶部用一个 ❤️ 芯片显示他的血量（受伤时变成暖色），
+👤 角色详情 面板里有血条和具体数字。
+
 ### 4.7 物资 · Supplies
 
 Each battle consumes **3 food**; fighting with an empty larder weakens the army's attack by 25%.
@@ -659,6 +715,7 @@ current character: troops, treasury and supplies in one place.
 | 区块 Block | 内容 Contents |
 | --- | --- |
 | 头部 Header | 领主名字、第几天、所在地形与时钟状态（停滞 / 流逝 / 扎营）。Lord name, day counter, the terrain you are standing on and the clock state (frozen / flowing / camping). |
+| 主将状态 Lord health | 领主自己的血条与数字，并说明「被打到 0 点即判负、散一半兵、被抬回战场旁」的规则。The lord's own health bar and number, with the rule written out: zero hit points loses the battle, scatters half the warband and carries him back beside the field. |
 | 资金与物资 Treasury and supplies | 金币、军粮、战马，并附消耗说明。Gold, food, horses and what they do. |
 | 部队 Warband | 每个兵种一行：等级 T、数量、攻 / 防 / 血、该兵种日薪小计；末行汇总每日军饷支出。One row per unit type: tier, count, atk/def/hp and its daily wage subtotal, plus a total wage row. |
 | 战绩 Record | 战斗胜 / 总、胜率、参加考试次数、累计答对题数。Wins / battles, win rate, exams taken and total correct answers. |
@@ -692,6 +749,12 @@ remembers who is hurt. A wounded soldier enters the next battle with the health 
 | 在据点休整 Resting in a settlement | **24** | 在城镇里恢复快得多。Much faster inside a town. |
 | 自己的城镇 Own town | **24 + 6 × (等级 − 1)** | 自己的城镇恢复最快，等级越高越快。Fastest in your own town, and the level counts. |
 | 医院加成 Hospital | **×(1 + 0.5 × 等级)** | 每一级医院把恢复速度再乘一次。Every hospital level multiplies the rate again. |
+
+The lord himself heals on a different clock from his soldiers, because the map runs two clocks of its own:
+**0.5 points a second while marching or camping**, **1.6 inside a settlement**, **×1.6 in a town of his own** and
+**×(1 + 0.2 × hospital level)** on top. See 4.6 for what a fallen lord costs.
+领主自己的恢复和士兵不同步，因为地图本来就有两种时钟：**行军或扎营时每秒 0.5 点**、**据点里每秒 1.6 点**、
+**自己的城镇再 ×1.6**，有医院再 **×(1 + 0.2 × 医院等级)**。主将倒下要付什么代价见 4.6。
 
 The **战果 · battle result** screen reports the three numbers that matter: 阵亡 (dead), 受伤 (wounded) and 救回
 (saved by the hospital). The **👤 角色详情** panel shows how many soldiers are hurt and the average health of
@@ -949,6 +1012,93 @@ faction means adding one record there.
 
 ---
 
+### 4.19 城镇、居民与随从 · Towns, townsfolk and companions
+
+据点不再只是一张菜单。走到城门口点「进入」，主角就站进了这座城镇自己的地图：一条主街、一个广场、几排房屋，
+市集、兵营、学堂、医馆、铁匠铺、酒馆都在街边，村民在自家门口走动。地图用和世界地图一样的点击寻路——
+点地面走过去，点房子就走过去推门，点人就走过去说话。
+A settlement is no longer a menu. Tapping 「进入」 at the gate puts the lord inside the town's own map: a main
+street, a square, rows of houses, and the market, barracks, school, hospital, smithy and tavern along the street,
+with the townsfolk drifting about their doorways. It moves exactly like the world map — tap the ground to walk,
+tap a house to walk up to its door, tap a person to walk over and talk.
+
+| 建筑 Building | 城镇 Town | 村庄 Village | 推门后 What the door opens |
+| --- | --- | --- | --- |
+| 🏛️ 议事厅 Hall | ✅ | — | 城镇管理：繁荣度、发展、资金、设施与驻军 · the town books, facilities and garrison |
+| 🛒 集市 Market | ✅ | ✅（谷仓 Barn） | 买卖军粮、战马、集市券 · supplies and horses |
+| 🛡️ 兵营 Barracks | ✅ | — | 招募与升级兵种 · recruit and upgrade soldiers |
+| 🏥 医馆 Hospital | ✅ | — | 恢复速度、伤兵与领主生命 · how fast the town heals |
+| 📜 学堂 School | ✅ | — | 城镇考试 · the exam |
+| ⚒️ 铁匠铺 Smithy | ✅ | — | 兵种升级 · the upgrade tree |
+| 🍺 酒馆 Tavern | ✅ | — | 镇上的所有人，可以逐个搭话 · everybody in town, one by one |
+| 🏠 民居 Houses | ✅ | ✅ | 一句闲话 + 居民名单 · a line of small talk and who lives here |
+| 🌾 磨坊 Mill / 水井 Well | — | ✅ | 同上 · the same |
+
+镇上的每个人都有自己的名字、职业与性格：卫兵、猎人、书生、铁匠、医师、吟游诗人、商人、农夫。
+他们在自家门口一两格内慢慢走动，头顶挂着一个记号：**「?」表示有委托还没接，「!」表示已经接下，「✓」表示做完了**。
+Every townsperson has a name, a trade and a few lines of their own: guard, hunter, scholar, smith, healer, bard,
+merchant, farmer. They wander a step or two around their own doorstep and carry a mark overhead: **「?」 for a job
+nobody has taken, 「!」 for one in progress, 「✓」 for one that is done**.
+
+**委托 Quest.** 和居民说话会看到他想请你做的事，例如「答对 16 道考题」「赢下 3 场战斗」「招募 10 名士兵」。
+点「📜 接受委托」才算接下：接下这一刻会把当前统计（答对题数 / 胜场 / 招募人数）记成起点，之后你为他做的事才计入，
+所以之前攒下的战绩不会白送你一份委托。想反悔就点「放弃委托」，进度作废、可以重新接。
+Talking to somebody shows the job they would like done — answer 16 questions, win 3 fights, hire 10 soldiers.
+Pressing 「📜 接受委托」 is what actually takes it on: the counter (correct answers / wins / recruits) is recorded at
+that moment, and only what the lord does afterwards counts, so an old record never hands out a free quest.
+「放弃委托」 drops it again and it can be taken up anew.
+
+**委托日志 Quest log.** 接下的委托可以在两个地方查看：城镇底部工具栏的「📜 委托」和世界地图顶部的「📜 委托」芯片，
+后者在骑马走天下时也能打开。日志按「进行中 N / 已完成 M」分组，每条写着谁托付的、在哪座城镇、还差多少，
+做完的那条会变成绿色的「✅ 已完成 —— 回去找他就能招募」，并给一个「去找他」按钮直接跳回那座城镇。
+The accepted jobs live in two places: the 「📜 委托」 button in the town bar and the 「📜 委托」 chip on the world map,
+so they can be read while riding across the country. The log lists open and finished jobs, each with who asked, in
+which town, what is still missing, and a green 「✅ 已完成 —— 回去找他就能招募」 line with a button that walks the
+lord straight back to that town.
+
+**招募与随从 Recruiting a companion.** 委托做完之后再找他说话，「🤝 招募为随从」按钮才会亮起，价格按职业不同
+（吟游诗人 110 金、卫兵 140 金、医师 200 金）。花掉金币，他就成了你的随从，**但身边还没有兵**——
+士兵得从你自己的队伍里拨给他：打开「👥 随从」面板，左边是你的部队，右边是他的旗子，点「给他」把一名士兵交过去，
+点「收回」把人要回来。每位随从能带的兵有限（4–6 名，按职业），士兵连同伤口一起转手，不会凭空治好。
+Once the job is done the 「🤝 招募为随从」 button lights up and the price depends on the trade (bard 110, guard 140,
+healer 200). Paying it makes him a companion — **with an empty banner**: his soldiers come out of the lord's own
+warband. In the 「👥 随从」 panel the warband sits on the left, his banner on the right, 「给他」 hands a soldier over
+and 「收回」 takes one back. A banner holds four to six soldiers depending on the trade, and a soldier carries his
+wounds across the transfer.
+
+**路上同行的队伍 The party on the road.** 招募之后，随从会跟着主角在世界地图上走：走在前面时他们排在身后，
+两人一排、越靠后越拉开，走起来轻轻起伏，站定时就在身后站定，夜里和主角一起待在提灯的光圈里。
+小地图上主角的白点周围会多出一圈小点（每位随从一颗），详细全图里则是他们自己的像素小人——右上角带着兵力徽章，
+和领主、敌将一样（小一号，没有分到兵的随从不挂）。世界地图顶部的
+「👥 随从 N」芯片可以随时打开随从面板分配士兵，不必特意跑回城里。
+Once hired, a companion rides with the lord on the world map: a small train behind him, two abreast with the pairs
+opening out further back, bobbing as it walks, standing behind him when he stops and staying inside his lantern light
+at night. The minimap grows a ring of dots around the lord's dot (one per companion) and the detailed atlas draws
+their own sprites — each with his troop badge in the top-right corner, the same one the lord and the commanders wear
+(one size smaller, and none at all for a companion with no soldiers). The 「👥 随从 N」 chip on the world map opens
+the companion panel at any time, so handing out soldiers never means riding back to town.
+
+**随从参战 Companions in battle.** 带着兵的随从会跟你上战场：他的士兵在战场后排排成自己的小队，队名就是他的名字
+（例如「李守信·民兵」），能单独下令、单独换队形。伤亡分开结算——他的兵死了是他的旗子少了人，你的队伍不会替他背损失，
+他本人也不会阵亡。此外每种职业还给全军一点小加成（卫兵 +2% 防御、猎人 +2% 攻击、医师 +15% 伤兵恢复……）。
+A companion with soldiers marches into battle as squads of his own in the rear, named after him
+(「李守信·民兵」), and can be ordered and re-formed like any other squad. Casualties are settled separately: his
+losses thin his banner, never the lord's roster, and he himself is never killed. Each trade also adds a small
+army-wide bonus (guard +2% defence, hunter +2% attack, healer +15% recovery …).
+
+**素材与代码 Art and code.** 城镇场景的 39 张 32×32 素材（地面 6 张、建筑与设施 15 张、街道道具 10 张、
+居民 8 张）由 `tools/pixel-assets/generate-town.mjs` 通过 Pixelorama 桥接生成，与地图素材共用 `pixkit.mjs`
+里的光栅器与调色板。场景布局在 `src/game/town.js`（确定性地块、道路、广场与建筑摆放），人物与委托规则在
+`src/game/npc.js`，界面是 `src/views/TownView.vue` + `src/components/TownMap.vue`、`NpcDialog.vue`、
+`CompanionPanel.vue`、`QuestPanel.vue`。
+The 39 sprites of a town scene (six ground tiles, fifteen buildings and facilities, ten street props and eight
+townsfolk) are drawn by `tools/pixel-assets/generate-town.mjs` through the Pixelorama bridge, sharing the rasterizer
+and palette of the map art in `pixkit.mjs`. The layout lives in `src/game/town.js`, the people and their jobs in
+`src/game/npc.js`, and the screens are `src/views/TownView.vue` with `TownMap.vue`, `NpcDialog.vue`,
+`CompanionPanel.vue` and `QuestPanel.vue`.
+
+---
+
 ## 5. 势力与兵种 · Factions and Units
 
 ### 5.1 势力 · Factions
@@ -1011,8 +1161,9 @@ Your commander is a separate marker on the battlefield (120 HP, speed 150) used 
 | 题库检索 Question bank | `#/bank` | 整个题库的列表：**搜索框**、年级与科目过滤、点开看答案与解析、生成题可「换一题」、每行的掌握度标记。The whole bank in one list: a **search box**, the grade and subject filters, the answer and the explanation of every row, another sample for a generated question and the mastery of each row. |
 | 快速战斗 Quick battle | `#/quick` | 战场地图（六种预设）、四档规模、敌我势力与**每个兵种的加减键和快速滑杆（每种 0–100）**；「⚡ 进入战场」真的上战场打一场，「📊 先看看胜率」用同样的队伍跑 20 场给出胜率与平均阵亡。The battlefield (six presets), the four sizes, the two sides and **a stepper plus a quick slider (0–100) for every kind of soldier**; 「⚡ 进入战场」 puts the lord on the field to fight it out, and 「📊 先看看胜率」 runs the same armies through 20 fights for the win rate and the average casualties. |
 | 游戏介绍 Guide | `#/guide` | 目标、地图、据点、考试、科目（含百科知识与已加载的 Mod 科目）、记忆曲线、兵种克制循环与**兵种升级图**（逐档属性与升级价）、战术 / 队形 / 密度说明，以及题库扩展方式。Goals, map, settlements, exams, the subject list (encyclopedia plus any loaded mod subjects), the memory curve, the RPS cycle and the generated **unit upgrade diagram**, plus the tactics / formation / density tables and how to extend the question bank. |
-| 世界地图 World map | `#/world` | 全屏 canvas 地图、右上角小地图与图例（图标 + 势力色块）、📖 详细地图浮层（拖动平移、回到主角）、顶部状态栏（含 👤 角色详情 芯片、📅 天数时钟芯片（天数 + 时刻 + 当天进度条）与 🎚 难度芯片）、点难度芯片弹出的难度设置面板、底部按钮（进入 / ⛺ 扎营 / ⚔️ 赶走强盗 / 🏰 准备围城 / ⏳ 围城倒计时 / 🚫 取消围城 / ⚔️ 攻打 / 🚩 占领 / ⚔️ 攻城）与四个功能按钮、提示条、扎营时的帐篷与篝火、据点上的归属光环与驻军角标、**遇敌时弹出的遭遇对话框（敌将头像 / 兵力对比 / 名册 / 开战 · 逃跑 · 喊话）**、存档提示浮层。Full-screen canvas map, the corner minimap with its sprite legend, the 📖 detailed atlas overlay (drag to pan, recentre on the lord), status chips (including the 👤 lord info chip, the 📅 day clock chip with the day, the hour and a day-progress bar, and the 🎚 difficulty chip), the difficulty sheet behind that chip, the bottom buttons (enter / ⛺ camp / ⚔️ drive off bandits / 🏰 prepare a siege / ⏳ siege countdown / 🚫 cancel the siege / ⚔️ storm / 🚩 claim / ⚔️ assault) plus four action buttons, hint bar, a tent and campfire while camping, the ownership ring and garrison badge on every settlement, **the meeting card that opens when an enemy catches the lord (portrait / army sizes / roster / fight · run · talk back)**, and toasts. |
-| 据点 Settlement | `#/settlement?id=…` | 据点标题栏（左上角显示城镇等级，中间是 📅 天数时钟芯片，右侧显示归属与金币 / 兵力）、招募 / 升级 / 市场 / 城镇 / 考试 五个页签。Header (town level in the top-left corner, the 📅 day clock chip in the middle, owner, gold and troops on the right) plus Recruit / Upgrade / Market / Town / Exam tabs. |
+| 世界地图 World map | `#/world` | 全屏 canvas 地图、右上角小地图与图例（图标 + 势力色块）、📖 详细地图浮层（拖动平移、回到主角）、顶部状态栏（含 👤 角色详情 芯片、📅 天数时钟芯片（天数 + 时刻 + 当天进度条）与 🎚 难度芯片）、点难度芯片弹出的难度设置面板、底部按钮（进入 / ⛺ 扎营 / ⚔️ 赶走强盗 / 🏰 准备围城 / ⏳ 围城倒计时 / 🚫 取消围城 / ⚔️ 攻打 / 🚩 占领 / ⚔️ 攻城）与四个功能按钮、提示条、扎营时的帐篷与篝火、据点上的归属光环与驻军角标、**遇敌时弹出的遭遇对话框（敌将头像 / 兵力对比 / 名册 / 开战 · 逃跑 · 喊话）**、存档提示浮层。Full-screen canvas map, the corner minimap with its sprite legend, the 📖 detailed atlas overlay (drag to pan, recentre on the lord), status chips (including the 👤 lord info chip, the 📜 quest chip and the 👥 companion chip, the 📅 day clock chip with the day, the hour and a day-progress bar, and the 🎚 difficulty chip), the difficulty sheet behind that chip, the bottom buttons (enter / ⛺ camp / ⚔️ drive off bandits / 🏰 prepare a siege / ⏳ siege countdown / 🚫 cancel the siege / ⚔️ storm / 🚩 claim / ⚔️ assault) plus four action buttons, hint bar, a tent and campfire while camping, the ownership ring and garrison badge on every settlement, **the meeting card that opens when an enemy catches the lord (portrait / army sizes / roster / fight · run · talk back)**, and toasts. |
+| 城镇 Town | `#/town?id=…` | 可以走动的城镇 / 村庄场景：像素地面与建筑、广场喷泉、居民的「?」「!」「✓」委托记号；底部是「💬 和人说话 / 🚪 进入某处」「👥 随从」「📜 委托」「🏛 镇务」；推门打开的是同一套市场 / 招募 / 升级 / 城镇 / 考试面板，医馆是恢复读数，酒馆与民居列出全镇居民。The walkable town / village scene: pixel ground and buildings, a fountain in the square and the 「?」「!」「✓」 job marks over the townsfolk; the bar carries the talk / enter button, 「👥 随从」, 「📜 委托」 and 「🏛 镇务」, and a door opens the very same market / recruit / upgrade / town / exam panels, with the hospital showing the healing numbers and the tavern or a house listing everybody in town. |
+| 据点 Settlement | `#/settlement?id=…` | 据点标题栏（左上角显示城镇等级，中间是 📅 天数时钟芯片，右侧有「🏘 走进城里」按钮与归属、金币 / 兵力）、招募 / 升级 / 市场 / 城镇 / 考试 五个页签。Header (town level in the top-left corner, the 📅 day clock chip in the middle, a 「🏘 走进城里」 button plus owner, gold and troops on the right) plus Recruit / Upgrade / Market / Town / Exam tabs. |
 | 战斗 Battle | `#/battle` | 战场 canvas（带地形，鼠标左键或手指都能拖动镜头）、顶部双方兵力、右上角的帧率芯片（最近半秒平均帧率）、⚙ 战斗工具（速度 🐢/🚶/🐇 与地形说明）、🎯 回中按钮与快速战斗专属的「← 返回」、小队选择条（每档一个按钮）、攻击 / 防守 / 跟随 / 移动 四个命令、可折叠的队形与密度面板、提示行、战斗结果面板；战斗中左缘滑动返回会被拦下并提示；**练兵模式**下顶部写着「🎯 练兵」、对面是训练木桩，底部多出「🏕 结束练兵」。Arena canvas (with terrain, panned by the left mouse button or a finger), both sides' strength, a frame-rate chip in the corner (the average of the last half second), the ⚙ battle tools (speed 🐢/🚶/🐇 and the terrain legend), the 🎯 recentre button and a 「← 返回」 button in a quick battle, a squad chip bar, the four orders, a collapsible formation / density sheet, a hint line and the result panel; an edge swipe back is refused with a note while the fight is on; in **training mode** the bar reads 「🎯 练兵」, the other side is the wooden dummies and a 🏕 结束练兵 button sits under the command bar. |
 
 A first-run intro modal shows the guide before the campaign starts, so new players always see the rules.
@@ -1028,12 +1179,16 @@ A first-run intro modal shows the guide before the campaign starts, so new playe
 - **扎营 Camp** — 点底部「⛺ 扎营」原地扎营，时间与敌军照常流转；点「🔥 拔营」或点地图移动即结束。Tap 「⛺ 扎营」 to rest in place while time keeps running; 「🔥 拔营」 or a map tap breaks camp.
 - **练兵 Drill** — 扎营时底部多出「🎯 练兵」按钮，点它进入训练场：场上只有自己的士兵和训练木桩，没有敌人，不会死人，练习完点「🏕 结束练兵」回到世界地图。While the camp is pitched the bottom bar grows a 「🎯 练兵」 button: it opens a drill ground with the lord's own soldiers and wooden dummies, no enemy and no losses, and 「🏕 结束练兵」 takes you back to the world map.
 - **快速战斗 Quick battle** — 首页的「⚡ 快速战斗」进入快速战斗：选战场、选敌我势力，用加减键或滑杆定好每个兵种的数量（每种 0–100），点「⚡ 进入战场」就在战场上亲自指挥一场；点「📊 先看看胜率」则用同样的队伍跑 20 场给出胜率。The 「⚡ 快速战斗」 entry on the home screen opens the quick battle: pick a battlefield, the two sides and the count of every kind of soldier (0–100 each) with the stepper or the slider, then 「⚡ 进入战场」 puts you on the field to command the fight yourself; 「📊 先看看胜率」 runs the same armies through 20 fights instead.
-- **进入据点 Enter** — 靠近后点击底部的「进入」按钮。Tap the "enter" button once you are close.
+- **走进城镇 Walk into town** — 靠近据点后点底部的「进入」，人就站进了城镇地图：点地面走路，点房子走到门口推门，点人走过去说话；手机上一根手指就够。Tap 「进入」 near a settlement to stand inside its map: tap the ground to walk, tap a house to walk to its door, tap a person to walk over and talk — one finger is enough on a phone.
+- **接受委托 Accept a job** — 和居民说话，看完他的请求后点「📜 接受委托」；接下这一刻才开始计数，点「放弃委托」可以退回。Talk to a townsperson, read the job and press 「📜 接受委托」 — the counting starts at that moment, and 「放弃委托」 gives it back.
+- **看委托 Log of jobs** — 城镇底部「📜 委托」或世界地图顶部「📜 委托」芯片都能打开；里面写着谁托付的、在哪座城、还差多少，做完的可以直接点「去找他」。Open the log from 「📜 委托」 in a town or from the world-map chip: who asked, which town, what is left, and a button that walks straight back to him once it is done.
+- **随从跟着走 The train on the road** — 招募来的随从会在世界地图上跟在主角身后（两人一排的小队），小地图与全图也能看到；点顶部「👥 随从」芯片随时分配士兵。A recruited companion follows the lord on the world map (a small train two abreast), shows on the minimap and the atlas, and the 「👥 随从」 chip hands out soldiers at any time.
+- **随从 Companions** — 「👥 随从」面板里把士兵「给他」或「收回」，他的旗子装满就不再收人；「解散」把人和兵一起放回你的队伍。In the 「👥 随从」 panel hand soldiers over with 「给他」 or take them back with 「收回」; a full banner takes no more, and 「解散」 returns both the companion and his soldiers to the warband.
 - **赶走强盗 Drive off bandits** — 强盗村庄不能进入，底部按钮是「⚔️ 赶走强盗」，打一场就能进。Tap 「⚔️ 赶走强盗」 at a bandit village and win the fight to open it up.
 - **占领无主城镇 Claim an unclaimed town** — 无主的城镇如果没人防守，底部按钮「🚩 占领」直接拿下；如果还有守军，按钮变成「⚔️ 攻城」，必须打赢守军才能占领。An unclaimed town nobody defends is taken with 「🚩 占领」; one that still holds soldiers offers 「⚔️ 攻城」 and has to be stormed.
 - **准备围城 / 攻打 / 取消围城 Prepare a siege / storm / cancel** — 想把别人的城镇据为己有：先「🏰 准备围城」等 2 天（时间会流逝），再「⚔️ 攻打」；只是进去办事就不用打。围城期间随时可以点「🚫 取消围城」中断，准备的进度全部作废；攻打失败后也要重新准备围城。To take someone else's town: 「🏰 准备围城」 (two days, the clock runs) and then 「⚔️ 攻打」; walking in to trade needs no fight. Tap 「🚫 取消围城」 at any time to call the siege off, and a failed assault means the siege has to be prepared all over again.
 - **难度 Difficulty** — 首页开局时选择难度，世界地图上点 🎚 芯片可随时更改；难度决定考试收入、招募价与军粮消耗，也决定敌军有多强，芯片还会显示随胜场上升的威胁。Pick the difficulty on the home screen and change it any time with the 🎚 chip on the world map; it decides the exam pay, the recruit price and the food cost, and how strong the factions are — the chip also shows the threat that rises with every win.
-- **城镇管理 Town management** — 据点里的「🏛️ 城镇」页签：繁荣度、发展、资金、设施与驻军；「注入资金」把自己钱袋里的钱放进城镇金库。The 「🏛️ 城镇」 tab inside a settlement: prosperity, development, funds, facilities and the garrison; 「注入资金」 moves the lord's own gold into the town treasury.
+- **城镇管理 Town management** — 据点里的「🏛️ 城镇」页签：繁荣度、发展、资金、设施与驻军；「注入资金」把自己钱袋里的钱放进城镇金库；在自己占领的城镇里还能点「➕ 驻守 / ➖ 撤回」，把自己的部队留在城里守城、或随时带回来（驻军随城镇逐日恢复，地图上的兵力角标跟着变化）。The 「🏛️ 城镇」 tab inside a settlement: prosperity, development, funds, facilities and the garrison; 「注入资金」 moves the lord's own gold into the town treasury, and in a town he owns the 「➕ 驻守 / ➖ 撤回」 buttons leave his soldiers behind to defend it or bring them back (the garrison heals with the town and the map badge follows it).
 - **遇敌对话 Meeting an enemy** — 敌军追上来时先弹出遭遇对话框：上方是敌将头像、势力、双方兵力与敌方兵种名册，下面三个选项。「⚔️ 开战」进入战场，「🏃 逃跑」随机退开 3–6 格并让敌人冷却 30 秒，「🗣️ 喊话」再听敌将回一句；对话期间世界暂停。A hostile party opens a meeting card instead of a battle: the leader's portrait, his faction, both army sizes and the enemy roster sit above three choices. 「⚔️ 开战」 opens the arena, 「🏃 逃跑」 dashes 3–6 tiles away and cools the enemy down for 30 seconds, and 「🗣️ 喊话」 makes the leader answer; the world is frozen while the card is open.
 - **开战 Start a fight** — 遇敌后点「⚔️ 开战」才进入战斗地图；敌人就是对话框里那支队伍。Tap 「⚔️ 开战」 on the meeting card to enter the battle map with the party from the dialog.
 - **战术 Orders** — 战斗中先点小队按钮选部队（或「全军」），再切 ⚔️ 攻击 / 🛡️ 防守 / 🏇 跟随 / 🎯 移动。Pick a squad chip (or 全军) first, then switch ⚔️ attack / 🛡️ defend / 🏇 follow / 🎯 move.
@@ -1080,6 +1235,9 @@ Friends must be on the same network (WiFi) to open the shared link.
 | 胜利战利品 Victory loot | 按敌方部队价值的 35% 结算 35% of the defeated warband's value |
 | 收编俘虏 Prisoners | 60% 概率，最多 +4 民兵 60% chance, up to +4 militia |
 | 战败结果 On defeat | 队伍只保留幸存者，并被推离敌人 3 格 Your warband keeps only its survivors and is pushed 3 tiles clear |
+| 士兵全部倒下 The warband is wiped out | 不立刻结束：主将独自撑 8 秒，撑完或按「撤退」＝判负，**不再损失第二批士兵**，带着当前生命退回战场周围。Not over at once: the lord holds out for 8 seconds, then (or when 撤退 is pressed) the battle is lost with **no second army to lose**, and he steps back to the field with the health he still has. |
+| 敌将独自撑到最后 The hostile general holds alone | 他撑满 8 秒就只身逃走，**这场战斗算你赢**，结算写明「敌将只身逃走」。He holds for 8 seconds and then flees alone: **the battle counts as a win**, and the result says he ran. |
+| 主将倒下 The lord goes down | 立刻判负：**损失一半士兵**、退到世界地图上**刚刚战场周围**（3–7 格）、生命值恢复到一半（之后慢慢恢复）；敌人还在附近。The battle is lost at once: **half the warband is scattered**, the lord falls back to the world map **around the field he fought on** (3–7 tiles) at half health, which then closes slowly — and the enemy is still nearby. |
 
 The difficulty changes three things: the exam pay, what the army costs (recruit price and food) and how strong the
 factions are. It never changes the questions, and a wrong answer never costs gold.
@@ -1104,11 +1262,14 @@ All state lives in `localStorage`; there is no server.
 | `kids-war-game:users` | 玩过的领主名字列表。The list of player names used on this browser. |
 | `kids-war-game:save:<name>` | 单个存档：世界种子、地形（压缩为地形 id 数组）、据点、部队、玩家坐标、天数、金币、兵员、物资、统计。One save slot: world seed, terrain (stored as a compact terrain-id array), settlements, parties, player position, day, gold, troops, supplies and stats. |
 
-Saved fields · 存档字段：`seed` `gridIds` `settlements` `parties` `playerPos` `day` `gold` `troops` `supplies` `stats` `questionStats` `difficulty` `experience` `attributes`.
+Saved fields · 存档字段：`seed` `gridIds` `settlements` `parties` `playerPos` `day` `gold` `troops` `supplies` `stats` `questionStats` `difficulty` `experience` `attributes` `lordHp` `lordMaxHp` `companions` `quests`.
 
 `experience` and `attributes` are what the child learned: the experience the papers gave and the attribute points it
 was spent on. A save without them starts at zero.
 `experience` 与 `attributes` 记的是孩子学到的东西：考试给的经验与花在属性上的点数；旧存档没有这两个字段时按零处理。
+
+`lordHp` / `lordMaxHp` carry the lord's own wounds: a save without them restores a whole lord.
+`lordHp` / `lordMaxHp` 保存领主自己的伤：没有这两个字段的旧存档会把他当作满血。
 
 `difficulty` carries the difficulty of the campaign; a save without it is an easy game. The threat is not saved: it
 is derived from `stats.wins` and the towns the lord holds, so a reload keeps the same pressure.
@@ -1133,8 +1294,17 @@ ownership system gets a deterministic owner per settlement, so the world still h
 `funds`、`facilities`（`hospital` / `barracks`）、`garrison` 与 `siege`；早于归属系统的存档会按据点 id 稳定地
 补一个归属，因此世界里仍有可以攻打的城市。
 
-`stats` 记录 `days` `battles` `wins` `exams` `correct`。
-`stats` tracks `days` `battles` `wins` `exams` `correct`.
+`stats` 记录 `days` `battles` `wins` `exams` `correct` `recruited`（累计招募的士兵数，委托会用到）。
+`stats` tracks `days` `battles` `wins` `exams` `correct` and `recruited` (how many soldiers were hired, which a quest can ask for).
+
+`companions` 是随从列表：`{ id, name, role, sprite, townId, soldiers }`，`soldiers` 与队伍同构
+（`{ type, tier, count, hp }`）；`quests` 是委托记录，按 NPC id 存 `{ npcId, name, title, townId, townName, kind, target, base, accepted, done }`，
+其中 `base` 是接取当天对应计数（答对题数 / 胜场 / 招募人数）的值。两者都是后加的字段，旧存档没有时按「没有随从、没有委托」处理。
+`companions` is the list of followers (`{ id, name, role, sprite, townId, soldiers }`, with `soldiers` in the same
+`{ type, tier, count, hp }` shape as the warband) and `quests` holds one record per NPC —
+`{ npcId, name, title, townId, townName, kind, target, base, accepted, done }` — where `base` is the value of the
+counter (answers, wins, recruits) on the day the job was accepted. Both are newer fields: a save without them loads
+with nobody following and no job taken.
 
 `questionStats` holds the memory curve, keyed per question — `{ "<mod>:<itemId>" | "<mod>#<kind>": { level, right, wrong, lastSeen } }` — pruned to the 1200 most recently seen records on save; a save without the field simply starts with an empty curve.
 `questionStats` 保存记忆曲线，按题目为键 —— `{ "<mod>:<itemId>" | "<mod>#<kind>": { level, right, wrong, lastSeen } }` —— 存档时只保留最近见到的 1200 条记录；旧存档没有该字段时按「全部生疏」处理。
@@ -1538,15 +1708,17 @@ The game has a set of dependency-free checks under `tools/`, all runnable with p
 | `node tools/verify-battle.mjs` | 168 项检查：难度（三种难度的金币、科目加成、开局资源、军粮、招募价、威胁与敌军成长、存档读写）、战斗速度（默认慢速、慢速推进更少）、**开局对峙**（双方先驻守、敌军 5 秒后变阵 / 再 2.4 秒后冲锋、先动手会立刻引来应战、全军出击一次下令、练兵没有对峙）、**每战一张新地图**（12 个种子给出 12 张不同布局、同种子可复现、每张都含五种地形、湖泊不贴边也不进列阵区、六种预设各自仍有该有的地形、没有士兵开局站在深水里）、战场地形（五种地形的生成与效果、湖泊不可通行、森林减速、森林减伤）、**绕湖寻路**（直线被湖挡住、A* 找到干路、路径与平滑后都在陆地上、撤退方向不进水）、**反击与队形**（士兵记住攻击者、转身还手、挨打掉血；攻击时队形保持、各排仍有距离、两边都有伤亡）、**远程不再钻墙角**（角落里的后撤方向不出界、不往墙里退、不穿过敌人、不会来回犹豫，开阔地仍然直线后退；4 名弓箭手被压进角落 2.5 秒内要离开至少 60 px）、十二场战斗都能分出胜负，以及围城（可中断、失败后要重新准备、打赢后占领）；**冲锋与齐射**（战场面积约为旧场的两倍且格子跟随、远处的近战 1 秒走出 100 px 以上并掉体力、停下命令立刻取消冲刺、2.5 秒后疲劳、齐射后的弓箭手 1 秒只走不到正常时的 80%、射击点亮减速计时、20 px 内无法开弓）。168 checks: the difficulty (the gold of the three levels, the subject bonus, the opening resources, the food, the recruit markup, the threat and the enemy growth, the save round trip), the battle speed (slow by default, the slow speed advances less), **the opening standoff** (both armies hold, the enemy dresses its ranks after five seconds and charges 2.4 seconds later, a first strike brings the answer at once, the charge button orders everyone, a drill has no standoff), **a new field for every battle** (twelve seeds give twelve different layouts, the same seed rebuilds the same map, each holds all five kinds of ground, the lake never touches the edge or a deployment band, the six presets keep their own ground and nobody starts in deep water), the battlefield terrain (all five kinds are generated, the lake is impassable, the forest slows a soldier down and takes less damage), **the path around a lake** (the straight line is blocked, A* finds a dry route, the raw and the smoothed path stay on land, the retreat does not back into water), **the counterattack and the formation**, **the cornered skirmisher** (the retreat stays inside the field, does not back into the wall, does not run through the foe and does not dither between two walls, while an open field still falls back straight away; four archers pressed into a corner get at least 60 px clear within 2.5 s), twelve battles that always end, and the sieges; **the charge and the volley** (the field covers about twice the old area with the grid following it, a distant melee soldier covers over 100 px in one second while its stamina falls, a hold order cancels the sprint, the burst is spent after 2.5 s, an archer slowed by a volley covers under 80 percent of its normal ground, a shot lights the slow clock, and a foe 20 px away cannot be shot). |
 | `node tools/verify-difficulty.mjs` | 58 项检查：普通档保留原来的 5 / 8 / 12 题收入（239 / 410 / 677），困难约为普通的 74%，简单档整卷封顶（50 / 80 / 120），三档的单价、开局资源、军粮与招募价单调递增；威胁随胜场与城镇上升、按档封顶且永不低于 1；同一种子的世界在困难档敌军更多、简单档更少；城镇招募价与旧档迁移；以及世界每天真的按难度与威胁补兵、封顶生效。58 checks: normal keeps the shipped 5 / 8 / 12 question payouts (239 / 410 / 677), hard pays about 74% of normal, the practice paper is capped (50 / 80 / 120), and the price, the starting resources, the food and the recruit markup rise monotonically; the threat rises with wins and towns, is capped per level and never falls below 1; the same world seed fields more enemies on hard and fewer on easy; the town prices and the old-save migration; and the world really reinforces by the difficulty and the threat, with the ceiling holding. |
 | `node tools/verify-battle-mobile-browser.mjs` | 真实 Chrome 用 **390 × 844（dpr 3、触摸）** 的手机视口进一场真实战斗：页面不滚动、画布满屏、顶栏与工具不重叠也不出界、顶栏文字不被截断、两条栏之间留出 **580 px（69%）** 净空、命令栏不超过屏幕三分之一、每个按钮 ≥38 px、开局两支军队全部在画面内（缩放 0.42）、手指拖动平移镜头、左右边缘各留出 **140 px** 外围空地、点 🎯 恢复跟随；换成快速战斗（多一个「← 返回」，工具最宽）后顶栏仍不被工具压住、文字不被截断、返回按钮留在屏幕内；控制台 0 报错（24 项）。Real Chrome enters a real battle with a **390 x 844 (dpr 3, touch)** phone viewport: no page scroll, the canvas fills the screen, the top bar and the tools neither overlap nor leave the screen, the top-bar text is not clipped, **580 px (69 percent)** of clear field sits between the bars, the command bar stays under a third of the screen, every button is at least 38 px, both armies are on screen at the opening (zoom 0.42), a finger drag pans the camera, each side leaves **140 px** of ground past the edge, 🎯 restores the follow, a quick battle (the extra back button makes the tools widest) keeps the top bar clear, unclipped and the back button on screen, and the console stays clean (24 checks). |
-| `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、**战斗开局**（双方驻守 + 「⚔️ 全军出击」提示条，点一下全军出击）、战斗界面的速度按钮与地形说明、帧率芯片、**真的用鼠标拖动和触摸拖动战场**（镜头跟着动、自动跟随停止、指挥官不动）、轻点仍然移动指挥官、点 🎯 恢复跟随、真的执行一次 `history.back()` 确认战斗没有被退出，命令栏透明而按钮各自带面板，以及控制台 0 报错（44 项）；点下「⚔️ 全军出击」后还会确认对峙提示条真的从 DOM 里消失。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, **the battle opening** (both armies holding with the 「⚔️ 全军出击」 banner, and a real click on it that clears the banner from the DOM), the speed buttons and the terrain legend on the battle screen, the frame-rate chip, **a real mouse drag and a real touch drag** (the camera moves, the auto-follow stops, the commander stays put), a tap that still moves the commander, the 🎯 recentre, a real `history.back()` proving the battle is not left, a clear command bar with panels on its buttons, and a clean console (44 checks). |
+| `node tools/verify-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的难度选择、世界地图的难度面板与「取消围城」按钮、**战斗开局**（双方驻守 + 「⚔️ 全军出击」提示条，点一下全军出击）、战斗界面的速度按钮与地形说明、帧率芯片、**真的用鼠标拖动和触摸拖动战场**（镜头跟着动、自动跟随停止、指挥官不动）、轻点仍然移动指挥官、点 🎯 恢复跟随、真的执行一次 `history.back()` 确认战斗没有被退出，命令栏透明而按钮各自带面板、控制台 0 报错、敌将倒下后双方退回战场、士兵打光后的孤军奋战与「撤退」按钮（76 项）；点下「⚔️ 全军出击」后还会确认对峙提示条真的从 DOM 里消失。Real Chrome walks the new features: the difficulty picker on the home screen, the difficulty sheet and the 「取消围城」 button on the world map, **the battle opening** (both armies holding with the 「⚔️ 全军出击」 banner, and a real click on it that clears the banner from the DOM), the speed buttons and the terrain legend on the battle screen, the frame-rate chip, **a real mouse drag and a real touch drag** (the camera moves, the auto-follow stops, the commander stays put), a tap that still moves the commander, the 🎯 recentre, a real `history.back()` proving the battle is not left, a clear command bar with panels on its buttons, a clean console, the fall of a hostile general taking both sides back to the field, and a warband wiped to the last man holding a last stand with its 撤退 button (76 checks). |
 | `node tools/verify-perf-browser.mjs` | 真实 Chrome 开一场 400 v 400（800 名士兵）的快速战斗，等双方接战后再采样 6 秒 `requestAnimationFrame`：断言至少 30 帧、95% 的帧不超过 50 ms，并确认阵亡让存活数下降、命令栏的 `stamp` 在前进、顶部兵力文字发生变化、画布不是空白、控制台 0 报错（9 项）。Real Chrome opens a 400 v 400 quick battle (800 soldiers), waits for the armies to meet, then samples `requestAnimationFrame` for six seconds: at least 30 frames and 95% of frames under 50 ms, with the alive count falling, the command bar's `stamp` advancing, the strength text changing, the canvas painted and the console clean (9 checks). |
 | `node tools/verify-training-browser.mjs` | 真实 Chrome 走一遍新功能：首页显示版本号、点徽章展开更新内容；世界地图上**没扎营时没有「练兵」按钮**、扎营后出现；点进去后战斗界面写着「🎯 练兵」、对面是训练木桩、store 认得出这是训练、没有敌人、**没有胜负**、金币 / 军粮 / 队伍都不变；木桩真的挨打而士兵毫发无伤；点「🏕 结束练兵」回到世界地图，营地还在，控制台 0 报错。Real Chrome walks the new features: the home screen shows the version and the badge opens the update notes; the world map has **no drill button before the camp** and one after it; inside, the battle screen reads 「🎯 练兵」, the other side is the wooden dummies, the store knows it is a drill, there is no enemy, **no outcome**, and the purse, the food and the warband do not move; the dummies really take the blows while the soldiers stay untouched; 「🏕 结束练兵」 returns to the world map with the camp still pitched, and the console stays clean. |
 | `node tools/verify-encounter.mjs` | 50 项检查：遇敌时**不直接开战**而是停下世界、对话内容（势力口气 / 敌军名册 / 双方兵力）、三种选项、逃跑只落在**走得到、站得住的 3–6 格**且不损兵不花钱、冷却按游戏时间计（冻结时也不走）、扎营被打断、喊话只换台词，以及「开战」把刚才那支队伍带进战场。50 checks: a meeting **never drops straight into battle** but freezes the world, the card carries the faction voice / the roster / both army sizes, the three choices all resolve, running lands on a **reachable tile 3–6 away** for free, the cooldown runs on game time (and pauses with the frozen clock), camping is broken, talking only swaps lines, and 开战 throws exactly that party into the arena. |
+| `node tools/verify-companions-browser.mjs` | 真实 Chrome 验证两项世界地图优化：**详细全图上带兵的随从**在图标右上角画出兵力徽章（和领主、敌将同一枚，小一号；没分到兵的不挂），以及**世界上方每一块控件**——状态栏的芯片与按钮、小地图按钮、图例和图例的「收起 / 展开」——都是同一块黑色透明玻璃、悬停只加深黑色；顺带保存世界地图与全图的截图（14 项）。Real Chrome checks the two world-map optimisations: **a companion with soldiers** carries his troop badge in the top-right corner of his sprite on the detailed atlas (the lord's and the commanders' own badge, one size smaller; a soldier-less companion carries none), and **every control above the map** — the top-bar chips and buttons, the minimap button, the legend and its toggle — is the same translucent black glass with a hover that only deepens the black; it also saves screenshots of the world map and the open atlas (14 checks). |
 | `node tools/verify-encounter-browser.mjs` | 真实 Chrome（headless + CDP）走一遍遭遇：预置一支贴着主角的强盗，读回对话框（头像 / 名册 / 三个按钮）且**没有进战斗**；连点两次「喊话」换台词；点「逃跑」后对话框关闭、冷却生效、主角离敌人更远且没损失；再点「开战」真的进战场且敌人就是那支队伍，控制台 0 报错。Real Chrome (headless over CDP) walks a meeting: a bandit party seeded beside the lord brings up the card (portrait / roster / three buttons) with **no battle started**; two 喊话 taps swap the lines; 逃跑 closes the card, arms the cooldown, moves the lord farther away and loses nothing; 开战 really enters the arena with that same party, and the console stays clean. |
 | `node tools/verify-chinese-browser.mjs` | 真实 Chrome 考一张只选「语文」的卷子，走完全部题目并读回题干：卷子里要有**阅读理解短文**与**古诗题**，短文保持换行、同一份卷子里没有重复题目、控制台 0 报错。Real Chrome takes a Chinese-only paper, walks every question and reads the prompts back: the paper must carry a **reading passage** and an **ancient-poem question**, the passage keeps its line breaks, no question repeats inside one paper and the console stays clean. |
 | `node tools/verify-quick-battle-browser.mjs` | 真实 Chrome 走一遍新功能：首页的「⚡ 快速战斗」与开始 / 继续按钮**同级**；点版本徽章弹出**更新对话框**（写着版本号、列出批次、**没有任何开发细节**）、关闭后消失；快速战斗页有六种战场、四档规模、四个己方整队与三个敌方势力，**八个兵种各有加减键和滑杆**（滑杆上限 100，能加也能清零）；选好后点「⚡ 进入战场」，**真的站上战场** —— 顶栏写着「⚡ 快速战斗」、双方兵力与所选一致、小队可选、命令照常下达；控制台 0 报错。Real Chrome walks the new features: the 「⚡ 快速战斗」 entry sits **on the same level** as the start / continue buttons; tapping the version badge opens the **update dialog** (the version, the batches and **no development details** at all) and it closes again; the quick battle screen offers six battlefields, four sizes, four friendly bands and three enemy factions, and **each of the eight kinds has a stepper and a slider** (the slider tops out at 100 and can also clear the count); after the picks, 「⚡ 进入战场」 **really puts the lord on the field** — the bar reads 「⚡ 快速战斗」, both armies match the choice and the orders work, with a clean console. |
 | `node tools/verify-quick-battle.mjs` | 58 项检查：六种战场预设各生成正确的地形、湖泽的深水不可通行；**每个兵种的数量可以任意设置**（清零、加满、缩放时配比不变、每种封顶 100）且每人满血；四个己方整队与三个敌方势力的配比都对；`battle.startQuick()` 用选好的队伍与战场开战，**战斗真的会分出胜负并结算**，而**战役数据纹丝不动**；五场模拟的胜 / 负 / 平相加等于场次、胜率与胜场一致；模拟足够快。58 checks: every battlefield preset lays out the right ground and the deep water of the lake map is impassable; **the count of every kind can be set freely** (cleared, filled, scaled with the mix kept and capped at 100) and every soldier starts healthy; the four friendly bands and the three enemy mixes are right; `battle.startQuick()` opens the fight with the chosen armies on the chosen field, **the fight really ends and settles** and **the campaign data does not move**; the wins, losses and draws of five rounds add up and the win rate follows the wins; and the simulation is quick. |
 | `node tools/build-versions.mjs` | 从 `progress.md` 的「## 2. 已完成功能」一节重新生成 `src/game/versions/batches.js`，并打印解析到的每个批次。Regenerates `src/game/versions/batches.js` from the 「## 2. 已完成功能」 section of `progress.md` and prints every batch it found. |
+| `node tools/verify-general.mjs` | 150 项检查：亲兵确实是从自己队伍里抽出的 4 名近战士兵（不会凭空多出人、小队伍按比例少抽、至少留下一支小队）；有亲兵的主将**一下都挨不到**，伤害由亲兵接下，亲兵死光后主将才掉血；敌将被打到 0 点**立刻结束战斗**并计入 `generalDowns`，敌人队伍还留在场上；领主被打到 0 点**当场判负**；一场战斗结束后双方都退回地图上**刚刚战场周围**（3–7 格内、可走地面、不会瞬移到别的城镇），敌人的队伍还在、冷却几秒就能再追上来；敌将倒下时一个兵都不散、领主也不回满；主将走到敌人身边会自动出手；亲兵一路跟着自己的主将；主将血量的上下限、半血恢复、按真实时间回血（路上 / 据点 / 自己的城镇 / 医院逐级更快）、存档往返；胜场只是带着伤走出战场；界面确实显示两条主将血条、敌将、敌将倒下的结算与退回战场的说明。150 checks: the bodyguard really is four melee soldiers taken out of that side's own warband (nobody appears out of thin air, a small army yields fewer and always keeps a squad); a guarded general **cannot be hit at all** — the damage lands on a guard — and only bleeds once the guards are gone; a hostile general at zero hit points **ends the battle on the spot**, is counted in `generalDowns`, and leaves his warband standing; the lord at zero **loses the battle on the spot**; after any such battle both sides come back to the map **around the field they fought on** (within 3–7 tiles, on walkable ground, never teleported to another town), the enemy warband is still there and free to chase within seconds; an enemy general going down costs the lord not one soldier and does not restore his health; a general swings at whatever comes in reach; the bodyguard keeps station around its general; the lord health clamps, halves, heals in real time (road / settlement / own town / hospital each faster) and survives a save; a won battle only carries the wound out; and the interface really shows both bars, the hostile general, the fall of a general and the fall back to the field. |
 | `node tools/verify-training.mjs` | 62 项检查：版本号格式与更新内容（首个版本是 v0.0.1、只更新修订号、最新条目就是当前版本、更新内容由 `progress.md` 生成）、练兵场（只有自己的士兵与训练木桩、没有敌人、训练不会结束、士兵不会受伤、木桩挨打后会自己立起来）、练兵对战役零影响（金币 / 军粮 / 队伍 / 战绩都不变），以及界面上确实有版本号、练兵按钮与「结束练兵」按钮。62 checks: the version format and the update notes (the first release is v0.0.1, only the patch moves, the newest entry is the current version, the notes are generated from `progress.md`), the drill ground (only the lord's own soldiers and the wooden dummies, no enemy, the session never ends, nobody is hurt, the dummies stand back up), that a drill changes nothing in the campaign (purse / food / warband / record), and that the interface really carries the version, the drill button and the end-of-drill button. |
 | `node tools/verify-quiz.mjs` | 135 项检查：试卷结算（基础价、连击倍率、全对 ×1.5、长卷 ×1.1、及格加成、**答错不扣钱**）、道具掉落（答对掉军粮、连对 5 题必掉、整科全对掉集市券或征兵令、全对掉战马）、掌握度地图（按科目按年级统计、错题本与复习队列）、复习卷只出指定的题、经验与属性点（及格才给经验、点数可分配、属性效果接进恢复 / 造价 / 围城 / 全军攻击）、里程碑（四个道具按答对数解锁）、以及存档与旧档兼容。135 checks: the paper settlement (the base price, the streak multiplier, ×1.5 for a perfect paper, ×1.1 for a long paper, the pass bonus, **a wrong answer never costs gold**), the gear a paper drops (food for a correct answer, two rations for five in a row, a voucher or a recruit order for a perfect subject, a horse for a perfect paper), the mastery map (per subject and per grade, the mistake book and the review queue), a revision paper that only asks for the wanted questions, the experience and the attribute points (only a passed paper teaches, the points can be spent, the effects reach the recovery, the prices, the siege and the attack of the army), the milestones (the four gears unlock by the number of correct answers) and the save round trip with an old save. |
 | `node tools/verify-quiz-browser.mjs` | 真实 Chrome（headless + CDP，1200 × 900）走一遍学习主线：考试设置页有**掌握度地图**与三种卷子（标准 / 只考错题 / 复习队列）；只考错题真的只出错过的题；把一整张卷子全部答对后，结算页出现**连击、全部答对、及格线、掉落道具与经验**，钱袋、经验与背包都真的变了；世界地图上出现**属性点芯片**；角色详情面板列出四个属性、掌握度地图与里程碑，并能真的加一点；市场用**集市券**免费换物资，招募页用**征兵令**免费招两名民兵；控制台 0 报错。Real Chrome (headless over CDP at 1200x900) walks the exam spine: the setup carries the **mastery map** and the three kinds of paper (standard, mistakes, review); a paper of mistakes really holds the mistakes; after a paper answered without a mistake the result page shows the **streak, the perfect bonus, the pass line, the dropped gear and the experience**, and the purse, the experience and the baggage really change; the world map grows an **attribute points chip**; the lord panel lists the four attributes, the mastery map and the milestones, and a point can really be spent; the market pays for one purchase with a **voucher** and the recruits hire two militia with a **recruit order**; the console stays clean. |
@@ -1567,10 +1739,12 @@ kids-war-game/
 ├── vite.config.js              # dev 5180 / preview 4180，@ → src 别名
 ├── README.md                   # 本文件：游戏介绍与维护指南
 ├── progress.md                 # 开发进度、已知限制与路线图
-├── public/pixel/               # 生成的 32x32 素材：unit / settlement / commander / terrain + index.json
+├── public/pixel/               # 生成的 32x32 素材：unit / settlement / commander / terrain / ground / town / prop / npc + index.json
 ├── public/mods/                # 外部题库包：index.json 清单 + 每个科目一个 JSON
 ├── tools/pixel-assets/
-│   └── generate.mjs            # 素材生成脚本，经 Pixelorama 桥接作画
+│   ├── pixkit.mjs              # 共用像素工具：桥接、光栅器、调色板与清单合并
+│   ├── generate.mjs            # 世界地图素材生成脚本（士兵 / 据点 / 将领 / 地形），经 Pixelorama 桥接作画
+│   └── generate-town.mjs       # 城镇场景素材生成脚本（地面 / 建筑 / 道具 / 居民，39 张）
 ├── tools/verify-chinese.mjs    # 语文题库自检（无头，32 项检查）
 ├── tools/verify-chinese-browser.mjs # 真实 Chrome 考一张语文卷，读回短文与古诗题
 ├── tools/verify-chinese.entry.mjs # 语文题库检查的用例
@@ -1581,6 +1755,8 @@ kids-war-game/
 ├── tools/verify-upgrade-browser.mjs # 真实 Chrome 走一遍「升级」界面
 ├── tools/verify-settlements-browser.mjs # 真实 Chrome 走一遍据点、围城与城镇面板
 ├── tools/verify-battle.mjs    # 难度 / 战斗速度 / 开局对峙 / 每战一张新地图 / 战场地形 / 绕湖寻路 / 远程后撤 / 冲锋与齐射 / 反击与队形 / 围城中断自检（无头，168 项检查）
+├── tools/verify-general.mjs   # 主将与亲兵自检：主将挨打、亲兵挡刀、敌将倒下即结束战斗、士兵打光后的孤军奋战与撤退、领主判负与退回战场、回血速率（无头，150 项检查）
+├── tools/verify-general.entry.mjs # 主将与亲兵检查的用例
 ├── tools/verify-difficulty.mjs # 难度数值、开局、军粮、招募价、威胁与敌军成长自检（无头，58 项检查）
 ├── tools/verify-battle-browser.mjs # 真实 Chrome 走一遍难度、开局对峙、速度、地形与围城中断
 ├── tools/verify-battle-mobile-browser.mjs # 真实 Chrome 用 390 × 844 手机视口走一遍战斗 / 快速战斗布局与拖动缓冲（24 项）
@@ -1606,11 +1782,16 @@ kids-war-game/
 ├── tools/verify-difficulty.entry.mjs # 难度数值、威胁与敌军成长检查的用例
 ├── tools/make-save.entry.mjs   # 生成「主角站在村庄旁」的存档，供界面自检使用
 ├── tools/make-settlement-save.entry.mjs # 生成强盗村庄 / 敌城 / 自有城镇三种存档
+├── tools/verify-town.mjs       # 城镇 / 居民 / 委托 / 随从自检（无头，108 项检查）
+├── tools/verify-town.entry.mjs # 城镇检查的用例
+├── tools/verify-town-browser.mjs # 真实 Chrome 走进城镇、点房屋、点居民、接受委托、招募与分配士兵（29 项）
+├── tools/verify-companions-browser.mjs # 真实 Chrome 验证全图随从兵力角标与世界上方统一黑玻璃（14 项）
+├── tools/town-scene.entry.mjs  # 把城镇场景在 node 里重建出来，供浏览器检查定位像素
 ├── tools/reporter.mjs          # 自检脚本共用的输出器
 └── src/
     ├── main.js                 # 应用入口：Pinia + Router，预加载像素素材并启动题库 Mod 加载
     ├── App.vue                 # 根容器，承载全局分享弹窗
-    ├── router/index.js         # hash 路由：home / world / settlement / battle / quick / guide
+    ├── router/index.js         # hash 路由：home / world / town / settlement / battle / quick / bank / guide
     ├── styles/global.css       # 主题变量、按钮、面板、手机断点
     ├── composables/
     │   ├── gameState.js        # 新游戏 / 继续 / 持久化
@@ -1632,10 +1813,14 @@ kids-war-game/
     │   ├── settlement.js       # 据点归属、驻军、围城常量、城镇经济（繁荣度 / 发展 / 等级）与设施
     │   ├── pixelAssets.js      # 素材清单、预加载与 canvas 绘制助手
     │   ├── recruit.js          # 村庄 / 城镇兵源生成
+    │   ├── town.js             # 城镇场景：确定性地块、道路、广场、建筑摆放、可行走判定与场景寻路
+    │   ├── followers.js        # 随从在地图上的队形槽位、追赶拖尾与走路起伏
+    │   ├── npc.js              # 居民与随从：职业、名字、委托类型与文本、随从带兵上限与转移
     │   ├── atlas.js            # 小地图与详细地图：地形缓存、兵力角标、两个整图画法
     │   ├── worldgen.js         # 世界生成（地形 + 最大连通陆地 + 据点 + 部队）
     │   ├── pathfinding.js      # A* + 二叉堆 + 尽力靠近回退
-    │   ├── battle.js           # 战斗模拟（小队、命令、队形、密度、克制、远程风筝、地形、速度档、练兵木桩）
+    │   ├── battle.js           # 战斗模拟（小队、命令、队形、密度、克制、远程风筝、地形、速度档、练兵木桩、双方主将与亲兵）
+    │   ├── lord.js             # 主将：血量、亲兵数量、敌方主将数值、半血与随时间恢复的速率
     │   ├── quickBattle.js      # 快速战斗模拟器：战场 / 敌我势力 / 兵力规模 / 场次与战报
     │   ├── save.js             # localStorage 存档槽
     │   ├── skills.js           # 经验与属性：统御 / 医术 / 工程 / 谋略及其效果
@@ -1659,6 +1844,10 @@ kids-war-game/
     │   └── battle.js           # 战斗：模拟循环与结算
     ├── components/
     │   ├── WorldMap.vue        # 世界地图 canvas 与点击移动
+    │   ├── TownMap.vue         # 城镇 canvas：地面 / 建筑 / 道具 / 居民按脚底排序绘制、点击寻路与居民走动
+    │   ├── NpcDialog.vue       # 与一位居民说话：台词、委托（接受 / 放弃）、招募为随从
+    │   ├── CompanionPanel.vue  # 随从面板：把士兵交给随从的旗子或收回、解散
+    │   ├── QuestPanel.vue      # 委托日志：进行中 / 已完成、进度、回城按钮
     │   ├── MiniMap.vue         # 右上角小地图，点击打开全图
     │   ├── WorldAtlas.vue      # 可拖动的详细地图浮层
     │   ├── BattleMap.vue       # 战场 canvas、地形绘制、可拖动镜头与特效
@@ -1676,7 +1865,8 @@ kids-war-game/
     └── views/
         ├── HomeView.vue        # 登录 / 继续 / 首次介绍
         ├── WorldView.vue       # 世界地图屏
-        ├── SettlementView.vue  # 据点屏
+        ├── TownView.vue        # 城镇屏：可走动的场景 + 推门打开的各个面板 + 委托 / 随从入口
+        ├── SettlementView.vue  # 据点屏（提供「走进城里」入口）
         ├── BattleView.vue      # 战斗屏（练兵时多一个「结束练兵」）
         ├── QuickBattleView.vue # 快速战斗：选战场 / 敌我 / 规模，跑出胜率
         ├── BankView.vue        # 题库检索：搜索、过滤、看答案与掌握度
@@ -1688,6 +1878,9 @@ kids-war-game/
 | 文件 File | 作用 Role |
 | --- | --- |
 | `src/game/worldgen.js` | 世界生成的全部规则。All world-generation rules. |
+| `src/game/town.js` | 城镇与村庄场景：确定性的地块 / 道路 / 广场、建筑与门的位置、可行走判定、场景寻路与「站在谁旁边」的判定。The town and village scenes: the deterministic ground, roads, square, buildings and their doors, the walkable rule, the scene path and the "who is the lord standing next to" lookups. |
+| `src/game/followers.js` | 随从在世界地图上的站位：按行进方向排出的「身后两人一排」槽位、指数追赶的拖尾与走路起伏；小地图与全图共用同一套槽位。Where a companion stands on the world map: the "two abreast behind the lord" slots from the direction of travel, the exponential catch-up lag and the walking bob — the minimap and the atlas read the same slots. |
+| `src/game/npc.js` | 居民与随从：八个职业（名字 / 台词 / 招募价 / 带兵上限 / 全军加成）、三类委托、随从转移士兵的规则。The townsfolk and companions: eight trades (name, lines, hiring price, banner size, army bonus), the three kinds of job and the rule that moves soldiers in and out of a banner. |
 | `src/game/units.js` | 兵种家族、档位、升级树 / 价格与克制关系；介绍里的升级图也从这里生成。Unit families, ranks, the upgrade tree and prices, the counter cycle and the guide's upgrade diagram. |
 | `src/game/settlement.js` | 据点归属、驻军、围城规则、城镇经济（繁荣度 / 发展 / 等级）与设施效果。Settlement ownership, garrisons, the siege rules, the town economy (prosperity / development / level) and the facility effects. |
 | `src/game/battle.js` | 战斗模拟：小队命令、队形 / 密度、克制伤害、远程风筝、地形效果、速度档、开局对峙（双方先驻守、敌军变阵后冲锋）与胜负判定。Battle simulation: squad orders, formations / densities, counter damage, ranged kiting, the terrain effects, the speed settings, the opening standoff (both sides hold, the enemy dresses its ranks and then charges) and win/lose logic. |

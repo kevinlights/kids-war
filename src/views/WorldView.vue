@@ -7,6 +7,11 @@
     <div class="hud-stack">
       <div class="hud-top">
       <div class="chip">👑 {{ player.username || '领主' }}</div>
+      <!-- The lord's own body: a wound from the last battle is shown here and
+           closes slowly, faster inside one of his own towns. -->
+      <div class="chip" :class="{ wound: player.lordWounded }" :title="`生命 ${player.lordHp} / ${player.lordMaxHp}`">
+        ❤️ {{ player.lordHp }}
+      </div>
       <div class="chip gold">🪙 {{ player.gold }}</div>
       <div class="chip">🛡️ {{ player.totalTroops }} 兵</div>
       <DayClock :note="flowLabel" :live="world.timeFlowing" />
@@ -20,6 +25,18 @@
         👑 属性点 {{ player.availableSkillPoints }}
       </button>
       <button class="chip role-btn" title="查看角色信息" @click="showCharacter = true">👤 角色详情</button>
+      <!-- The job log: every promise made in a town, wherever the lord rides. -->
+      <button class="chip role-btn quest-chip" title="查看已接下的委托" @click="showQuests = true">
+        📜 委托 <span v-if="player.openQuests.length">{{ player.openQuests.length }}</span>
+      </button>
+      <!-- Who rides along: the same panel the town opens, reachable on the road. -->
+      <button
+        class="chip role-btn companion-chip"
+        title="查看随从并分配士兵"
+        @click="showCompanions = true"
+      >
+        👥 随从 <span v-if="player.companions.length">{{ player.companions.length }}</span>
+      </button>
       <button class="chip diff-chip" :title="`难度设置 · 当前威胁 ${world.threat.toFixed(2)}×`" @click="showSettings = !showSettings">
         🎚 {{ difficulty.name }} · {{ world.threat.toFixed(2) }}×
       </button>
@@ -144,6 +161,20 @@
 
     <!-- Detailed map, opened by tapping the minimap -->
     <WorldAtlas v-if="showAtlas" @close="showAtlas = false" />
+
+    <!-- The job log, opened from the top bar -->
+    
+    <!-- The companions, managed from the road as well as from a town -->
+    
+    <!-- The companions, managed from the road as well as from a town -->
+    
+    <!-- The job log, opened from the top bar -->
+    <QuestPanel v-if="showQuests" @close="showQuests = false" />
+
+    <!-- The companions, managed from the road as well as from a town -->
+    
+    <!-- The companions, managed from the road as well as from a town -->
+    <CompanionPanel v-if="showCompanions" @close="showCompanions = false" />
   </div>
 </template>
 
@@ -153,6 +184,8 @@ import { useRouter } from 'vue-router'
 import WorldMap from '@/components/WorldMap.vue'
 import MiniMap from '@/components/MiniMap.vue'
 import WorldAtlas from '@/components/WorldAtlas.vue'
+import QuestPanel from '@/components/QuestPanel.vue'
+import CompanionPanel from '@/components/CompanionPanel.vue'
 import CharacterPanel from '@/components/CharacterPanel.vue'
 import EncounterDialog from '@/components/EncounterDialog.vue'
 import DayClock from '@/components/DayClock.vue'
@@ -177,6 +210,10 @@ const showLegend = ref(window.innerWidth > 560)
 const showCharacter = ref(false)
 // Detailed map overlay, opened from the minimap.
 const showAtlas = ref(false)
+// The quest log overlay, opened from the top bar.
+const showQuests = ref(false)
+// The companion panel, opened from the top bar.
+const showCompanions = ref(false)
 // Difficulty sheet on the world map.
 const showSettings = ref(false)
 const toast = ref('')
@@ -269,6 +306,13 @@ function startTraining() {
   router.push('/battle')
 }
 
+/**
+ * Walk through the gate.
+ *
+ * The settlement is a place now, not a menu: the lord is put down inside its
+ * own map and walks to the market, the barracks or whoever is standing in the
+ * square. The management panels are still there, one tap away in the town.
+ */
 function enterSettlement() {
   const st = world.nearbySettlement
   if (!st) return
@@ -276,7 +320,7 @@ function enterSettlement() {
   world.stopCamp()
   world.markVisited(st.id)
   persistGame()
-  router.push({ name: 'settlement', query: { id: st.id } })
+  router.push({ name: 'town', query: { id: st.id } })
 }
 
 /** Start preparing a siege: the clock keeps running while the troops gather. */
@@ -370,6 +414,10 @@ watch(
     showSettings.value = false
     showCharacter.value = false
     showAtlas.value = false
+    showQuests.value = false
+    showCompanions.value = false
+    showCompanions.value = false
+    showQuests.value = false
     if (!world.partyById(enc.partyId)) world.clearEncounter()
   }
 )
@@ -402,7 +450,20 @@ onMounted(() => {
     router.replace('/')
     return
   }
-  flash(`欢迎回来，${player.username}！`)
+  // A battle that ended with a general on the ground puts both armies back on
+  // the map around the field: say what happened, once.
+  if (world.lastReturn === 'lord') {
+    flash('👑 你被打下战场，被抬回附近，生命恢复到一半 —— 敌人可能还追着不放，快跑！')
+    world.clearReturn()
+  } else if (world.lastReturn === 'enemy') {
+    flash('⚔️ 敌将倒下了，双方退回战场周围 —— 可以追上去，也可以先带队伍离开')
+    world.clearReturn()
+  } else if (world.lastReturn === 'withdraw') {
+    flash('🛡 士兵都倒下了，主将退出了战场 —— 敌人还在附近，先去城镇考试赚钱补兵吧')
+    world.clearReturn()
+  } else {
+    flash(`欢迎回来，${player.username}！`)
+  }
   autosave = setInterval(persistGame, 6000)
 })
 
@@ -454,19 +515,19 @@ onBeforeUnmount(() => {
 
 .chip.gold {
   color: var(--gold);
-  border-color: var(--gold-deep);
+}
+
+/* A lord who is still hurt after a battle: the chip turns warm so the wound
+   is visible without opening a panel. */
+/* A wound changes the ink, never the glass: the bar stays one strip. */
+.chip.wound {
+  color: #ffb59c;
 }
 
 /* Tappable status chip that opens the lord info panel. */
 .role-btn {
   color: #fff;
-  border-color: var(--gold-deep);
-  background: rgba(232, 197, 106, 0.14);
   font-weight: 700;
-}
-
-.role-btn:hover {
-  background: rgba(232, 197, 106, 0.26);
 }
 
 /* The chip that points at the unspent attribute points. */
@@ -474,12 +535,39 @@ onBeforeUnmount(() => {
   color: var(--gold);
 }
 
+/* The quest chip: the count of open jobs sits inside the label. */
+.quest-chip {
+  color: #ffe9a8;
+}
+
+/* The companion chip: how many people ride with the lord. */
+.companion-chip {
+  color: #cfe4ff;
+}
+
 /* Difficulty chip and the settings sheet it opens. */
 .diff-chip {
   color: #fff;
-  border-color: var(--gold-deep);
-  background: rgba(232, 197, 106, 0.14);
   font-weight: 700;
+}
+
+/* One bar, one look: every readout and every button in the top bar is the same
+   black glass, so the strip reads as a row of equal controls instead of a row
+   of differently tinted chips. The titles above still colour the ink, not the
+   background. */
+.hud-top > .chip,
+.hud-top > .btn {
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  backdrop-filter: blur(6px);
+}
+
+/* Every button of that bar — the readouts are not buttons — answers a hover
+   with the same black glass, one step deeper: a control above the map never
+   flashes a white or gold background. The selector is deliberately heavier
+   than the rule above so the hover wins over the rest state. */
+.hud-top > button:hover {
+  background: rgba(0, 0, 0, 0.68);
 }
 
 .settings {
@@ -552,10 +640,16 @@ onBeforeUnmount(() => {
   color: var(--ink);
 }
 
+/* The corner column belongs to the same black glass as the chips on the left:
+   one transparent-black language for everything that sits above the map. The
+   minimap button and the legend therefore drop the green panel fill. */
 .legend {
   padding: 10px 12px;
   font-size: 12.5px;
   min-width: 130px;
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  backdrop-filter: blur(6px);
 }
 
 /* The minimap and the legend share the top-right corner, minimap first. */
@@ -580,10 +674,20 @@ onBeforeUnmount(() => {
   align-items: center;
 }
 
+/* The legend's own toggle: a small pill of the same black glass, so the one
+   button inside the legend does not stand out from the strip it lives in. */
 .mini {
   font-size: 11px;
   color: var(--ink-dim);
-  text-decoration: underline;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--glass-line);
+}
+
+.mini:hover {
+  color: var(--ink);
+  background: rgba(0, 0, 0, 0.68);
 }
 
 .legend-body {

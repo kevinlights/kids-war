@@ -22,6 +22,16 @@ import { masteryBySubject } from '@/game/quiz/mastery'
 import { ATTRIBUTES, emptyAttributes, pointsFor, skillEffects } from '@/game/skills'
 import { milestoneEffects, nextMilestone, unlockedMilestones } from '@/game/milestones'
 import { DEFAULT_DIFFICULTY, difficultyKey, difficultyOf, startOf } from '@/game/difficulty'
+import { LORD_MAX_HP, clampLordHp, halfLordHp } from '@/game/lord'
+import {
+  QUEST_KINDS,
+  assignSoldiers as assignToCompanion,
+  companionEffects,
+  companionStrength,
+  makeCompanion,
+  recallSoldiers as recallFromCompanion,
+  roomFor
+} from '@/game/npc'
 
 /** The warband every new lord starts with. */
 function startingTroops() {
@@ -39,9 +49,30 @@ export const usePlayerStore = defineStore('player', {
     username: '',
     gold: startOf(DEFAULT_DIFFICULTY).gold,
     troops: startingTroops(),
+    // The lord's own body: he carries his wounds out of a battle and heals
+    // slowly on the road, faster inside a town of his own.
+    lordHp: LORD_MAX_HP,
+    lordMaxHp: LORD_MAX_HP,
     // simple supply counters used by the market screens
     supplies: startingSupplies(startOf(DEFAULT_DIFFICULTY).food),
-    stats: { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 },
+    // `recruited` counts the soldiers the lord has hired over the whole
+    // campaign: one of the things a NPC may ask him to do.
+    stats: { days: 1, battles: 0, wins: 0, exams: 0, correct: 0, recruited: 0 },
+    /**
+     * The NPCs riding with the lord: `{ id, npcId, name, role, sprite, townId,
+     * soldiers }`. The soldiers are the lord's own, handed over in a town —
+     * they leave the warband and fight under the companion's banner.
+     */
+    companions: [],
+    /**
+     * Progress with every townsperson the lord has talked to:
+     * `{ [npcId]: { kind, target, base, done } }`.
+     *
+     * `base` is the value of the counter (correct answers, wins, recruits) on
+     * the day the quest was accepted, so only what the lord did afterwards
+     * counts towards it.
+     */
+    quests: {},
     // Memory curve bookkeeping: question key → { level, right, wrong, lastSeen }.
     questionStats: {},
     gradePref: 3,
@@ -62,6 +93,10 @@ export const usePlayerStore = defineStore('player', {
     wounded: (s) => woundedCount(s.troops),
     // Average health of the warband in percent, for the roster readout.
     health: (s) => warbandHealth(s.troops),
+    /** The lord's own health in percent, for the HUD and the lord panel. */
+    lordHealth: (s) => Math.round((Math.max(0, s.lordHp) / Math.max(1, s.lordMaxHp)) * 100),
+    /** True while the lord is still hurt: he heals over time, faster in a town. */
+    lordWounded: (s) => s.lordHp < s.lordMaxHp,
     // Memory-curve weight of one question key (0.05 … 1.0).
     questionWeight: (s) => (key) => weightFor(s.questionStats[key]),
     questionLevel: (s) => (key) => levelFor(s.questionStats[key]),
@@ -102,6 +137,21 @@ export const usePlayerStore = defineStore('player', {
     },
     /** Everything the unlocked milestones do. */
     milestoneEffects: (s) => milestoneEffects(s.stats.correct),
+    /** The accepted jobs the lord has not finished yet. */
+    openQuests: (s) => Object.values(s.quests).filter((q) => !q.done),
+    /** Every accepted job, finished ones last: what the quest log lists. */
+    allQuests: (s) =>
+      Object.values(s.quests).sort(
+        (a, b) => Number(a.done) - Number(b.done) || (a.acceptedAt || 0) - (b.acceptedAt || 0)
+      ),
+    /** Soldiers under every companion's banner, counted together. */
+    companionTroops: (s) => s.companions.reduce((n, c) => n + companionStrength(c), 0),
+    /** When a companion is following the lord at all. */
+    hasCompanions: (s) => s.companions.length > 0,
+    /** The army-wide bonus the companions bring (attack, defence, healing). */
+    companionEffects: (s) => companionEffects(s.companions),
+    /** The warband plus every soldier a companion leads: the real army size. */
+    armySize: (s) => s.totalTroops + s.companions.reduce((n, c) => n + companionStrength(c), 0),
     /**
      * Roster rows for the panels: full rank-scaled stats per group, sorted by
      * family order then rank so the list does not jump around while upgrading.
@@ -132,7 +182,11 @@ export const usePlayerStore = defineStore('player', {
       this.gold = start.gold
       this.troops = startingTroops()
       this.supplies = startingSupplies(start.food)
-      this.stats = { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 }
+      this.lordHp = LORD_MAX_HP
+      this.lordMaxHp = LORD_MAX_HP
+      this.stats = { days: 1, battles: 0, wins: 0, exams: 0, correct: 0, recruited: 0 }
+      this.companions = []
+      this.quests = {}
       this.questionStats = {}
       this.gradePref = 3
       this.experience = 0
@@ -153,7 +207,11 @@ export const usePlayerStore = defineStore('player', {
         ticket: Number(supplies.ticket) || 0,
         order: Number(supplies.order) || 0
       }
-      this.stats = data.stats ?? { days: 1, battles: 0, wins: 0, exams: 0, correct: 0 }
+      this.stats = { days: 1, battles: 0, wins: 0, exams: 0, correct: 0, recruited: 0, ...(data.stats || {}) }
+      // Companions and quests are newer than the first saves: an old campaign
+      // simply has nobody following the lord yet.
+      this.companions = Array.isArray(data.companions) ? data.companions : []
+      this.quests = data.quests && typeof data.quests === 'object' ? data.quests : {}
       // Older saves have no memory records yet, which is a valid empty state.
       this.questionStats = data.questionStats && typeof data.questionStats === 'object' ? data.questionStats : {}
       // A save without a difficulty is an easy game: the original numbers.
@@ -161,6 +219,9 @@ export const usePlayerStore = defineStore('player', {
       // Experience and the attributes are new: an old save starts at zero.
       this.experience = Number(data.experience) || 0
       this.attributes = { ...emptyAttributes(), ...(data.attributes || {}) }
+      // An old save has no lord health: a whole lord.
+      this.lordMaxHp = Number(data.lordMaxHp) || LORD_MAX_HP
+      this.lordHp = clampLordHp(data.lordHp === undefined ? this.lordMaxHp : data.lordHp, this.lordMaxHp)
     },
 
     /** Change the difficulty of the campaign. */
@@ -226,6 +287,25 @@ export const usePlayerStore = defineStore('player', {
       healTroops(this.troops, amount)
     },
 
+    /** Heal the lord himself: the wound of a battle fades while he travels. */
+    healLord(amount) {
+      if (!amount || amount <= 0) return this.lordHp
+      this.lordHp = clampLordHp(this.lordHp + amount, this.lordMaxHp)
+      return this.lordHp
+    },
+
+    /** Write the lord's health down, e.g. after a battle. */
+    setLordHp(hp) {
+      this.lordHp = clampLordHp(hp, this.lordMaxHp)
+      return this.lordHp
+    },
+
+    /** A beaten lord wakes up with half his health. */
+    reviveLordHalf() {
+      this.lordHp = halfLordHp(this.lordMaxHp)
+      return this.lordHp
+    },
+
     /**
      * Promote `count` soldiers along one edge of the upgrade tree. The edge
      * must exist (`upgradesFor`), the soldiers must be present and the lord
@@ -254,6 +334,140 @@ export const usePlayerStore = defineStore('player', {
       if (entry.count === 0) this.troops = this.troops.filter((t) => t.count > 0)
       this.addTroops(edge.type, edge.tier, count)
       return { ok: true, cost }
+    },
+
+    /* ------------------------------- townsfolk ------------------------------- */
+
+    /**
+     * The quest record of a NPC, or null when the lord has not accepted it yet.
+     *
+     * Nothing is written just by looking at somebody: a job only starts when the
+     * player presses 「接受委托」, which is what `acceptQuest` does.
+     */
+    questRecord(npcId) {
+      return this.quests[npcId] || null
+    },
+
+    /**
+     * Accept a NPC's job.
+     *
+     * The record stores what cannot be recomputed later: who asked, in which
+     * town, which counter the job is measured on and where that counter stood
+     * today — so only the work done *after* accepting counts towards it.
+     */
+    acceptQuest(npc) {
+      if (!npc || !npc.quest) return { ok: false, reason: '这个人没有委托' }
+      if (this.quests[npc.id]) return { ok: false, reason: '这个委托已经接下了' }
+      const kind = npc.quest.kind
+      const def = QUEST_KINDS[kind] || QUEST_KINDS.exam
+      this.quests[npc.id] = {
+        npcId: npc.id,
+        name: npc.name,
+        title: npc.title || '',
+        role: npc.role,
+        townId: npc.townId || '',
+        townName: npc.townName || '',
+        kind,
+        label: npc.quest.label,
+        target: npc.quest.target,
+        base: def.counter(this),
+        accepted: true,
+        done: false,
+        acceptedAt: Date.now()
+      }
+      return { ok: true, quest: this.quests[npc.id] }
+    },
+
+    /** Give a job back: the progress is dropped and the NPC may be asked again. */
+    abandonQuest(npcId) {
+      if (!this.quests[npcId]) return { ok: false }
+      delete this.quests[npcId]
+      return { ok: true }
+    },
+
+    /** How far the lord has come with one NPC's quest. */
+    questProgress(npc) {
+      const state = npc ? this.quests[npc.id] : null
+      if (!state) return { accepted: false, current: 0, target: npc?.quest?.target || 0, done: false }
+      const def = QUEST_KINDS[state.kind] || QUEST_KINDS.exam
+      const current = Math.max(0, def.counter(this) - state.base)
+      const done = current >= state.target
+      // `done` is sticky: once a job is finished it stays finished, even if the
+      // counter would be recomputed differently later.
+      if (done) state.done = true
+      return {
+        accepted: true,
+        current: Math.min(current, state.target),
+        target: state.target,
+        done: done || state.done
+      }
+    },
+
+    /**
+     * Take a NPC into the warband.
+     *
+     * Three things are needed: the trade has to be one that follows a lord, the
+     * quest has to be done, and the gold has to be in the purse. The companion
+     * starts with an empty banner — his soldiers come out of the lord's own
+     * warband, which the player hands over in the companion panel.
+     */
+    hireCompanion(npc, townId) {
+      if (!npc) return { ok: false, reason: '找不到这个人' }
+      if (!npc.follower) return { ok: false, reason: `${npc.name}是镇上的${npc.title}，不会跟着走` }
+      if (this.companions.some((c) => c.id === npc.id)) {
+        return { ok: false, reason: `${npc.name}已经是你的随从了` }
+      }
+      const quest = this.questProgress(npc)
+      if (!quest.accepted) return { ok: false, reason: '先接下他的委托' }
+      if (!quest.done) return { ok: false, reason: '先完成他的委托' }
+      if (this.gold < npc.cost) return { ok: false, reason: `还需要 ${npc.cost} 金币` }
+      this.gold -= npc.cost
+      this.companions.push(makeCompanion(npc, townId))
+      return { ok: true, cost: npc.cost }
+    },
+
+    /** A companion goes home: his soldiers go back into the warband. */
+    dismissCompanion(id) {
+      const i = this.companions.findIndex((c) => c.id === id)
+      if (i < 0) return { ok: false, reason: '没有这个随从' }
+      const companion = this.companions[i]
+      for (const group of [...companion.soldiers]) {
+        this.addTroops(group.type, group.tier, group.count)
+      }
+      this.companions.splice(i, 1)
+      return { ok: true }
+    },
+
+    /** Soldiers a companion may still take. */
+    companionRoom(id) {
+      const companion = this.companions.find((c) => c.id === id)
+      return companion ? roomFor(companion) : 0
+    },
+
+    /** Hand soldiers of the warband over to a companion's banner. */
+    assignCompanionSoldiers(id, type, tier, count) {
+      const companion = this.companions.find((c) => c.id === id)
+      if (!companion) return { ok: false, reason: '没有这个随从', moved: 0 }
+      const moved = assignToCompanion(companion, this.troops, type, tier, count)
+      if (moved <= 0) {
+        return { ok: false, reason: roomFor(companion) <= 0 ? '他的旗子带不了更多人了' : '队伍里没有这种士兵', moved: 0 }
+      }
+      return { ok: true, moved }
+    },
+
+    /** Take soldiers back from a companion's banner. */
+    recallCompanionSoldiers(id, type, tier, count) {
+      const companion = this.companions.find((c) => c.id === id)
+      if (!companion) return { ok: false, reason: '没有这个随从', moved: 0 }
+      const moved = recallFromCompanion(companion, this.troops, type, tier, count)
+      if (moved <= 0) return { ok: false, reason: '他旗子下没有这种士兵', moved: 0 }
+      return { ok: true, moved }
+    },
+
+    /** Count soldiers hired in a town: one of the things a quest can ask for. */
+    countRecruits(n) {
+      if (!n || n <= 0) return
+      this.stats.recruited = (this.stats.recruited || 0) + n
     },
 
     // Fold one answered question into the memory curve.

@@ -23,244 +23,52 @@
  *   node tools/pixel-assets/generate.mjs militia          # one single asset
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 // The faction table is the single source of truth for the faction colours: the
 // world map legend, the minimap and this generator all read the same values.
 import { FACTIONS } from '../../src/game/factions.js'
 
-const BRIDGE_URL = 'http://127.0.0.1:7373'
+import {
+  BRIDGE_URL,
+  Pix,
+  cmd,
+  OUTLINE,
+  SKIN,
+  SKIN_DARK,
+  METAL,
+  METAL_DARK,
+  LEATHER,
+  LEATHER_DARK,
+  WOOD,
+  WOOD_DARK,
+  GOLD,
+  GOLD_DARK,
+  HORSE,
+  HORSE_DARK,
+  HOOF,
+  CANOPY,
+  CANOPY_DARK,
+  CANOPY_LIGHT,
+  STONE,
+  STONE_DARK,
+  STONE_LIGHT,
+  SNOW,
+  SAND,
+  SAND_DARK,
+  FOAM,
+  STRAW,
+  STRAW_DARK,
+  CAPE_RED,
+  shade,
+  writeIndex
+} from './pixkit.mjs'
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 const OUT_ROOT = join(ROOT, 'public/pixel')
-
-/** Every asset is authored and exported at this size. */
 const SIZE = 32
 
-/* ------------------------------- bridge ------------------------------- */
-
-async function cmd(tool, params = {}) {
-  const res = await fetch(`${BRIDGE_URL}/command`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tool, params })
-  })
-  const json = await res.json().catch(() => ({ success: false, error: 'invalid JSON reply' }))
-  if (!json.success) throw new Error(`${tool} failed: ${json.error || JSON.stringify(json)}`)
-  return json.data || {}
-}
-
-/* ---------------------------- pixel buffer ---------------------------- */
-
-/**
- * Small software rasterizer: shapes are computed in JS and streamed to
- * Pixelorama in one batched flush, which is faster and far easier to tune than
- * chaining hundreds of primitive commands over the bridge.
- */
-class Pix {
-  constructor(w, h) {
-    this.w = w
-    this.h = h
-    this.g = new Map()
-  }
-
-  key(x, y) {
-    return y * this.w + x
-  }
-
-  inBounds(x, y) {
-    return x >= 0 && y >= 0 && x < this.w && y < this.h
-  }
-
-  set(x, y, color) {
-    x = Math.round(x)
-    y = Math.round(y)
-    if (!this.inBounds(x, y)) return
-    this.g.set(this.key(x, y), color)
-  }
-
-  /** Filled or hollow axis-aligned rectangle. */
-  rect(x, y, w, h, color, filled = true) {
-    for (let j = 0; j < h; j += 1) {
-      for (let i = 0; i < w; i += 1) {
-        const edge = i === 0 || j === 0 || i === w - 1 || j === h - 1
-        if (filled || edge) this.set(x + i, y + j, color)
-      }
-    }
-  }
-
-  /** Filled or hollow circle, optionally clipped to a row band. */
-  circle(cx, cy, r, color, filled = true, yMin = -1e9, yMax = 1e9) {
-    for (let j = -r; j <= r; j += 1) {
-      const y = cy + j
-      if (y < yMin || y > yMax) continue
-      for (let i = -r; i <= r; i += 1) {
-        const d = Math.hypot(i, j)
-        if (d > r) continue
-        const inner = r - 1.2
-        if (filled || d >= inner) this.set(cx + i, y, color)
-      }
-    }
-  }
-
-  /** Filled or hollow ellipse, optionally clipped to a row band. */
-  ellipse(cx, cy, rx, ry, color, filled = true, yMin = -1e9, yMax = 1e9) {
-    for (let j = -ry; j <= ry; j += 1) {
-      const y = cy + j
-      if (y < yMin || y > yMax) continue
-      for (let i = -rx; i <= rx; i += 1) {
-        const d = Math.hypot(i / rx, j / ry)
-        if (d > 1) continue
-        const inner = 1 - Math.max(1.2 / rx, 1.2 / ry)
-        if (filled || d >= inner) this.set(cx + i, y, color)
-      }
-    }
-  }
-
-  /** Rounded rectangle, used for hull-ish shapes such as horse bodies. */
-  roundRect(x, y, w, h, r, color, filled = true) {
-    for (let j = 0; j < h; j += 1) {
-      for (let i = 0; i < w; i += 1) {
-        const dx = Math.min(i, w - 1 - i)
-        const dy = Math.min(j, h - 1 - j)
-        const corner = Math.hypot(Math.max(0, r - dx), Math.max(0, r - dy))
-        const inside = corner <= r + 0.2
-        const edge = corner > r - 1.1 || i === 0 || j === 0 || i === w - 1 || j === h - 1
-        if (inside && (filled || edge)) this.set(x + i, y + j, color)
-      }
-    }
-  }
-
-  line(x1, y1, x2, y2, color) {
-    const steps = Math.max(Math.abs(x2 - x1), Math.abs(y2 - y1), 1)
-    for (let s = 0; s <= steps; s += 1) {
-      this.set(x1 + ((x2 - x1) * s) / steps, y1 + ((y2 - y1) * s) / steps, color)
-    }
-  }
-
-  /** Thick line: `n` parallel strokes offset along the normal. */
-  stroke(x1, y1, x2, y2, n, color) {
-    const len = Math.hypot(x2 - x1, y2 - y1) || 1
-    const nx = -(y2 - y1) / len
-    const ny = (x2 - x1) / len
-    for (let i = 0; i < n; i += 1) {
-      this.line(x1 + nx * i, y1 + ny * i, x2 + nx * i, y2 + ny * i, color)
-    }
-  }
-
-  /** Even-odd polygon fill, used for peaks, dune wedges and pennant notches. */
-  poly(points, color) {
-    const xs = points.map((p) => p[0])
-    const ys = points.map((p) => p[1])
-    const x0 = Math.floor(Math.min(...xs))
-    const x1 = Math.ceil(Math.max(...xs))
-    const y0 = Math.floor(Math.min(...ys))
-    const y1 = Math.ceil(Math.max(...ys))
-    const inside = (x, y) => {
-      let hit = false
-      for (let i = 0, j = points.length - 1; i < points.length; j = i, i += 1) {
-        const [xi, yi] = points[i]
-        const [xj, yj] = points[j]
-        if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit
-      }
-      return hit
-    }
-    for (let y = y0; y <= y1; y += 1) {
-      for (let x = x0; x <= x1; x += 1) if (inside(x + 0.5, y + 0.5)) this.set(x, y, color)
-    }
-  }
-
-  /** Clear a region back to transparent. */
-  erase(x, y, w, h) {
-    for (let j = 0; j < h; j += 1) {
-      for (let i = 0; i < w; i += 1) {
-        if (this.inBounds(x + i, y + j)) this.g.delete(this.key(x + i, y + j))
-      }
-    }
-  }
-
-  /**
-   * Silhouette pass: grow every empty pixel that touches a painted pixel into
-   * the outline colour. One pass keeps the stroke proportional at 32px and
-   * still reads at 2x or 4x on a bigger canvas.
-   *
-   * Bounds are checked before building a key: `y * w + x` wraps at the row
-   * ends, so an unguarded `x - 1` would silently test the last column of the
-   * row above and paint stray pixels on the opposite edge.
-   */
-  outline(color) {
-    const add = []
-    for (let y = 0; y < this.h; y += 1) {
-      for (let x = 0; x < this.w; x += 1) {
-        if (this.g.has(this.key(x, y))) continue
-        let touch = false
-        for (let dy = -1; dy <= 1 && !touch; dy += 1) {
-          for (let dx = -1; dx <= 1; dx += 1) {
-            if (!dx && !dy) continue
-            const nx = x + dx
-            const ny = y + dy
-            if (!this.inBounds(nx, ny)) continue
-            if (this.g.has(this.key(nx, ny))) {
-              touch = true
-              break
-            }
-          }
-        }
-        if (touch) add.push(this.key(x, y))
-      }
-    }
-    for (const k of add) this.g.set(k, color)
-  }
-
-  toPixels() {
-    const out = []
-    for (const [key, color] of this.g) {
-      const x = key % this.w
-      out.push({ x, y: (key - x) / this.w, color })
-    }
-    return out
-  }
-}
-
-/* ------------------------------- palette ------------------------------- */
-
-const OUTLINE = '#231a11'
-const SKIN = '#e6b98d'
-const SKIN_DARK = '#c08f62'
-const METAL = '#ccd2da'
-const METAL_DARK = '#8a929c'
-const LEATHER = '#7a5230'
-const LEATHER_DARK = '#54391f'
-const WOOD = '#8b5e3c'
-const WOOD_DARK = '#5f3d26'
-const GOLD = '#e8c56a'
-const GOLD_DARK = '#a9812f'
-const HORSE = '#6b4a33'
-const HORSE_DARK = '#452c1c'
-const HOOF = '#2f2114'
-const CANOPY = '#3f7a3a'
-const CANOPY_DARK = '#2a5427'
-const CANOPY_LIGHT = '#579a45'
-const STONE = '#b9b3a6'
-const STONE_DARK = '#8a8073'
-const STONE_LIGHT = '#d8d3c6'
-const SNOW = '#f1f3f5'
-const SAND = '#d8c07a'
-const SAND_DARK = '#b0955a'
-const FOAM = '#e8f2f8'
-const STRAW = '#ddb85c'
-const STRAW_DARK = '#a9853a'
-const CAPE_RED = '#a8324b'
-
-/** Lighten (positive) or darken (negative) one #rrggbb colour by a 0..1 amount. */
-function shade(hex, amount) {
-  const n = parseInt(hex.slice(1), 16)
-  const mix = (v) => Math.max(0, Math.min(255, Math.round(amount > 0 ? v + (255 - v) * amount : v + v * amount)))
-  const r = mix((n >> 16) & 255)
-  const g = mix((n >> 8) & 255)
-  const b = mix(n & 255)
-  return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
-}
 
 /* ---------------------------- shared shapes ---------------------------- */
 
@@ -934,9 +742,11 @@ async function main() {
   }
 
   // The manifest always lists the complete set, never just this run's subset.
+  // The town generator writes the same file for its own categories, so the
+  // write merges instead of replacing the whole list.
   const index = all.map((a) => ({ category: a.category, name: a.name, width: a.width, height: a.height }))
-  writeFileSync(join(OUT_ROOT, 'index.json'), `${JSON.stringify(index, null, 2)}\n`)
-  console.log(`\n${assets.length} assets drawn, ${index.length} listed in public/pixel/index.json`)
+  const merged = writeIndex(join(OUT_ROOT, 'index.json'), index)
+  console.log(`\n${assets.length} assets drawn, ${merged.length} listed in public/pixel/index.json`)
 }
 
 main().catch((error) => {

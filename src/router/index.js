@@ -4,6 +4,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 const routes = [
   { path: '/', name: 'home', component: () => import('@/views/HomeView.vue') },
   { path: '/world', name: 'world', component: () => import('@/views/WorldView.vue') },
+  { path: '/town', name: 'town', component: () => import('@/views/TownView.vue') },
   { path: '/settlement', name: 'settlement', component: () => import('@/views/SettlementView.vue') },
   { path: '/battle', name: 'battle', component: () => import('@/views/BattleView.vue') },
   { path: '/quick', name: 'quick', component: () => import('@/views/QuickBattleView.vue') },

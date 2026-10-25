@@ -49,8 +49,8 @@ const pct = computed(() => `${(clock.value.progress * 100).toFixed(1)}%`)
   min-width: 124px;
   padding: 5px 11px 6px;
   border-radius: 14px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--line);
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
   font-size: 13px;
   font-weight: 600;
   backdrop-filter: blur(6px);

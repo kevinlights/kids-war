@@ -51,7 +51,14 @@ function measure() {
 
 function loop() {
   if (ctx && size.w) {
-    drawAtlas(ctx, world, { ox: pan.x, oy: pan.y, w: size.w, h: size.h, troops: player.totalTroops })
+    drawAtlas(ctx, world, {
+      ox: pan.x,
+      oy: pan.y,
+      w: size.w,
+      h: size.h,
+      troops: player.totalTroops,
+      companions: player.companions
+    })
   }
   raf = requestAnimationFrame(loop)
 }

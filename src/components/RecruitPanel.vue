@@ -96,6 +96,8 @@ function hire(row, n) {
   const cost = row.cost * n
   if (!player.spendGold(cost)) return
   player.addTroops(row.type, row.tier, n)
+  // Hiring counts towards the quests that ask for soldiers.
+  player.countRecruits(n)
   persistGame()
   toast.value = `招募了 ${n} 名${row.def.name}`
   clearTimeout(timer)
@@ -117,6 +119,7 @@ function useOrder() {
   if (!player.useSupply('order', 1)) return
   const count = Math.min(2, room)
   player.addTroops('militia', 1, count)
+  player.countRecruits(count)
   persistGame()
   toast.value = `征兵令招来了 ${count} 名民兵`
   clearTimeout(timer)

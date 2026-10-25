@@ -11,6 +11,8 @@ import { drawSprite } from '@/game/pixelAssets'
 import { drawBadge, partyTroops } from '@/game/atlas'
 import { TILE, WORLD_W, WORLD_H } from '@/game/worldgen'
 import { ownerOf, garrisonCount } from '@/game/settlement'
+import { easeFollower, followerBob, followerTargets } from '@/game/followers'
+import { companionStrength } from '@/game/npc'
 
 // Terrain keys that carry a pixel-art decoration on top of the flat tile colour.
 const TILE_DECO = { forest: 'forest', mountain: 'mountain', water: 'water', desert: 'desert' }
@@ -123,6 +125,68 @@ function drawParty(p) {
 
   // Troop badge in the icon's top-right corner, same as the lord's.
   drawBadge(ctx, sx + 11, sy - 11, partyTroops(p))
+}
+
+// --- the companions that ride along -------------------------------------------
+// They have no position of their own: each one walks to a slot behind the lord,
+// with a short lag so the party looks like it is moving rather than glued on.
+const followers = new Map()
+let lastLord = { x: 0, y: 0 }
+let facing = { x: 0, y: 1 }
+let walkPhase = 0
+
+function updateFollowers(dt) {
+  const dx = world.playerPos.x - lastLord.x
+  const dy = world.playerPos.y - lastLord.y
+  if (Math.hypot(dx, dy) > 1e-4) facing = { x: dx, y: dy }
+  lastLord = { x: world.playerPos.x, y: world.playerPos.y }
+
+  const list = player.companions || []
+  const targets = followerTargets(list, world.playerPos, facing)
+  walkPhase += dt * 7
+  for (const target of targets) {
+    const current = followers.get(target.id) || { x: target.x, y: target.y }
+    const moved = easeFollower(current, target, dt)
+    followers.set(target.id, moved)
+  }
+  // Somebody dismissed simply stops being drawn.
+  if (followers.size > list.length) {
+    for (const id of [...followers.keys()]) {
+      if (!list.some((c) => c.id === id)) followers.delete(id)
+    }
+  }
+}
+
+/** One companion sprite in the lord's train, with a shadow and a walking bob. */
+function drawFollower(companion) {
+  const at = followers.get(companion.id)
+  if (!at) return
+  const sx = at.x * TILE + TILE / 2 - world.camX
+  const sy = at.y * TILE + TILE / 2 - world.camY
+  if (sx < -60 || sy < -60 || sx > W + 60 || sy > H + 60) return
+
+  ctx.beginPath()
+  ctx.ellipse(sx, sy + 10, 8, 3.5, 0, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(0,0,0,0.28)'
+  ctx.fill()
+
+  const bob = world.path.length || world.camping ? followerBob(walkPhase + at.x + at.y) : 0
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.45)'
+  ctx.shadowBlur = 5
+  drawSprite(ctx, companion.sprite, sx, sy + bob, TILE)
+  ctx.restore()
+
+  // The same troop badge the lord and the warbands wear, one size smaller: a
+  // companion's banner is worth reading at a glance on the map, not only in the
+  // panel.
+  const soldiers = companionStrength(companion)
+  if (soldiers > 0) drawBadge(ctx, sx + 10, sy - 10, soldiers, 7)
+}
+
+/** The whole train, drawn together so the lord is always on top of it. */
+function drawFollowers() {
+  for (const companion of player.companions || []) drawFollower(companion)
 }
 
 // A camped lord is drawn beside a tent with a live campfire, which is the map
@@ -240,6 +304,9 @@ function render() {
   for (const p of world.parties) drawParty(p)
   // The dark comes after the world, so the lord and his campfire stay lit.
   drawNight()
+  // The lord's lantern lights his companions too, so they are drawn after the
+  // dark falls, just under the lord himself.
+  drawFollowers()
   drawPlayer()
 
   // Vignette for depth.
@@ -251,6 +318,7 @@ function loop(ts) {
   const dt = Math.min(0.05, (ts - last) / 1000 || 0)
   last = ts
   world.tick(dt)
+  updateFollowers(dt)
   world.updateCamera(W, H)
   render()
   raf = requestAnimationFrame(loop)
@@ -268,6 +336,7 @@ function onPointer(e) {
 onMounted(() => {
   resize()
   window.addEventListener('resize', resize)
+  lastLord = { x: world.playerPos.x, y: world.playerPos.y }
   last = performance.now()
   raf = requestAnimationFrame(loop)
 })

@@ -20,6 +20,7 @@ import {
   armyBonusOf,
   buildFacility,
   canEnter,
+  canGarrison,
   captureSettlement,
   claimIsFree,
   claimSettlement,
@@ -301,6 +302,65 @@ check('the faction cap starts low', cap >= 20, `${cap}`)
 const rich = [{ owner: 'player', prosperity: 100 }]
 check('a prosperous empire raises the cap', factionStrengthCap(rich) > cap, `${factionStrengthCap(rich)} vs ${cap}`)
 check('the cap counts the soldiers of a faction', factionSoldiers(world3.parties, 'bandit') > 0)
+
+/* ---------------- 8b. the lord stations his own soldiers in his town ------- */
+
+// A fresh pinia keeps the garrison checks independent of the campaigns above.
+setActivePinia(createPinia())
+const gworld = useWorldStore()
+const gplayer = usePlayerStore()
+gplayer.reset('tester')
+// A warband with one wounded militia, so the move can be watched by hp.
+gplayer.troops = [
+  { type: 'militia', tier: 1, count: 3, hp: [30, 30, 7] },
+  { type: 'archer', tier: 1, count: 2, hp: [24, 24] }
+]
+gworld.generate(4242)
+const gown = gworld.settlements.find((s) => s.kind === 'town' && KINGDOMS.includes(s.owner))
+gworld.captureTown(gown.id)
+const gforeign = gworld.settlements.find(
+  (s) => s.kind === 'town' && s.owner !== PLAYER && s.id !== gown.id
+)
+const gneutral = gworld.settlements.find((s) => s.kind === 'town' && s.owner === NEUTRAL)
+
+check('a captured town can take a garrison', canGarrison(gown))
+check('a kingdom town cannot be garrisoned', !!gforeign && !canGarrison(gforeign))
+check('a neutral town cannot be garrisoned', !!gneutral && !canGarrison(gneutral))
+check('a village cannot be garrisoned', gworld.settlements.every((s) => s.kind === 'village' ? !canGarrison(s) : true))
+
+// The lord moves two militia into the garrison, keeping their hit points.
+const warbandBefore = gplayer.totalTroops
+const stationed = gworld.stationTroops(gown.id, 'militia', 1, 2)
+check('the lord can station his soldiers', stationed.ok && stationed.moved === 2, JSON.stringify(stationed))
+check('stationing leaves the warband', gplayer.totalTroops === warbandBefore - 2, `${warbandBefore} -> ${gplayer.totalTroops}`)
+check('the garrison holds the stationed soldiers', garrisonCount(gown.garrison) === 2, String(garrisonCount(gown.garrison)))
+const militiaGarrison = gown.garrison.find((g) => g.type === 'militia')
+check('the garrison keeps each soldier hp', militiaGarrison.hp.length === 2 && militiaGarrison.hp.includes(7), JSON.stringify(militiaGarrison.hp))
+
+// Stationing a group the lord has none of is refused, and so is stationing
+// into a town that is not his.
+check('stationing an absent group is refused', !gworld.stationTroops(gown.id, 'cavalry', 1, 1).ok)
+check('stationing into a foreign town is refused', gforeign && !gworld.stationTroops(gforeign.id, 'militia', 1, 1).ok)
+check('stationing into a neutral town is refused', gneutral && !gworld.stationTroops(gneutral.id, 'militia', 1, 1).ok)
+
+// The soldiers come back, again keeping their hit points.
+const warbandMid = gplayer.totalTroops
+const withdrawn = gworld.withdrawTroops(gown.id, 'militia', 1, 1)
+check('the lord can withdraw his garrison', withdrawn.ok && withdrawn.moved === 1, JSON.stringify(withdrawn))
+check('withdrawing returns the soldier', gplayer.totalTroops === warbandMid + 1, `${warbandMid} -> ${gplayer.totalTroops}`)
+check('withdrawing a group the garrison has none of is refused', !gworld.withdrawTroops(gown.id, 'spearman', 1, 1).ok)
+
+// A player town heals the soldiers it holds, exactly as it heals the lord.
+const garrMilitia = gown.garrison.find((g) => g.type === 'militia')
+garrMilitia.hp = [6]
+const hurtBefore = garrMilitia.hp[0]
+tickSettlement(gown, 1)
+const hurtAfter = garrMilitia.hp[0]
+check(
+  'a player town heals its garrison',
+  hurtAfter > hurtBefore && hurtAfter <= unitDef('militia', 1).hp,
+  `${hurtBefore} -> ${hurtAfter}`
+)
 
 /* -------------------- 9. an unclaimed town can be taken --------------------- */
 

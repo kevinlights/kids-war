@@ -14,9 +14,13 @@ import {
   formationSlots,
   hastenEnemy,
   spawnTrainingDummies,
+  lordReport,
+  yieldBattle,
   ARENA
 } from '@/game/battle'
-import { warbandValue, woundedCount } from '@/game/units'
+import { warbandValue, woundedCount, loseHalfTroops, troopCount } from '@/game/units'
+import { battleCompanions } from '@/game/npc'
+import { LORD_MAX_HP } from '@/game/lord'
 import { survivalChance } from '@/game/settlement'
 import { speedOf } from '@/game/battle'
 import { foodPerBattleOf } from '@/game/difficulty'
@@ -29,6 +33,17 @@ let stampClock = 0
 // How far past the edge of the field the camera may be dragged, in screen
 // pixels: a small margin of ground shows around the field.
 const PAN_OUTSIDE = 140
+
+/**
+ * Seconds before the enemy warband may fight the lord again.
+ *
+ * A general going down ends a battle, not the war: the two sides come back to
+ * the map within sight of each other, and the child has a moment to choose
+ * between chasing the enemy and running away.
+ */
+const LORD_DOWN_COOLDOWN = 6
+const ENEMY_GENERAL_COOLDOWN = 4
+const WITHDRAW_COOLDOWN = 5
 
 export const useBattleStore = defineStore('battle', {
   state: () => ({
@@ -91,6 +106,14 @@ export const useBattleStore = defineStore('battle', {
       if (s.selectedGroup && s.data.groups[s.selectedGroup]) return s.data.groups[s.selectedGroup].density
       const first = s.data.playerGroups[0]
       return first && s.data.groups[first] ? s.data.groups[first].density : 'tight'
+    },
+    /**
+     * The two generals as the battle HUD reads them: hit points and the
+     * bodyguards still standing in front of each of them.
+     */
+    generals: (s) => {
+      void s.stamp
+      return s.data ? lordReport(s.data) : { lord: null, enemy: null, generalDowns: 0 }
     }
   },
 
@@ -118,15 +141,27 @@ export const useBattleStore = defineStore('battle', {
       atkMul *= player.milestoneEffects.armyAtk
       player.supplies.food = Math.max(0, food - FOOD_PER_BATTLE)
 
+      // The companions ride along, each with the soldiers the lord gave him.
+      const allies = battleCompanions(player.companions)
       this.data = markRaw(createBattle({
         playerTroops: player.troops,
         enemyTroops: party.units,
         enemyFaction: party.faction,
         seed,
         playerAtkMul: atkMul,
-        playerDefMul: 1 + world.armyBonus
+        playerDefMul: 1 + world.armyBonus,
+        allyTroops: allies,
+        // The lord carries his own wounds into the fight.
+        lordHp: player.lordHp,
+        lordMaxHp: player.lordMaxHp
       }))
-      this.context = { partyId: party.id, faction: party.faction, kind: 'party', hungry: food < FOOD_PER_BATTLE }
+      this.context = {
+        partyId: party.id,
+        faction: party.faction,
+        kind: 'party',
+        hungry: food < FOOD_PER_BATTLE,
+        companions: allies.map((a) => a.id)
+      }
       this.selectedGroup = null
       this.result = null
       this.settled = false
@@ -156,20 +191,26 @@ export const useBattleStore = defineStore('battle', {
       atkMul *= player.milestoneEffects.armyAtk
       player.supplies.food = Math.max(0, food - FOOD_PER_BATTLE)
 
+      const allies = battleCompanions(player.companions)
       this.data = markRaw(createBattle({
         playerTroops: player.troops,
         enemyTroops: settlement.garrison || [],
         enemyFaction: settlement.owner,
         seed,
         playerAtkMul: atkMul,
-        playerDefMul: 1 + world.armyBonus
+        playerDefMul: 1 + world.armyBonus,
+        allyTroops: allies,
+        // The lord carries his own wounds into the fight.
+        lordHp: player.lordHp,
+        lordMaxHp: player.lordMaxHp
       }))
       this.context = {
         partyId: null,
         faction: settlement.owner,
         kind,
         settlementId: settlement.id,
-        hungry: food < FOOD_PER_BATTLE
+        hungry: food < FOOD_PER_BATTLE,
+        companions: allies.map((a) => a.id)
       }
       this.selectedGroup = null
       this.result = null
@@ -193,7 +234,9 @@ export const useBattleStore = defineStore('battle', {
         seed,
         playerAtkMul: 1,
         playerDefMul: 1,
-        training: true
+        training: true,
+        lordHp: player.lordHp,
+        lordMaxHp: player.lordMaxHp
       }))
       spawnTrainingDummies(this.data)
       this.context = { partyId: null, faction: 'training', kind: 'training', hungry: false }
@@ -214,6 +257,7 @@ export const useBattleStore = defineStore('battle', {
      * 快速战斗：选好的两支队伍在选好的战场上打一场真的仗，但战役数据不受影响。
      */
     startQuick({ map, playerTroops, enemyTroops, enemyFaction, seed }) {
+      const player = usePlayerStore()
       this.data = markRaw(createBattle({
         playerTroops,
         enemyTroops,
@@ -221,7 +265,9 @@ export const useBattleStore = defineStore('battle', {
         seed,
         playerAtkMul: 1,
         playerDefMul: 1,
-        arenaMap: map || 'mixed'
+        arenaMap: map || 'mixed',
+        lordHp: player.lordHp,
+        lordMaxHp: player.lordMaxHp
       }))
       this.context = {
         partyId: null,
@@ -259,6 +305,20 @@ export const useBattleStore = defineStore('battle', {
       return this.speed
     },
 
+    /**
+     * Take the lone lord off the field.
+     *
+     * Only offered while he is the last man standing: the battle is lost
+     * either way, but leaving means he keeps the health he still has instead of
+     * trading blows alone against a whole warband.
+     * 只剩主将时，玩家可以主动撤出战场。
+     */
+    withdraw() {
+      if (!this.data || this.data.outcome) return false
+      if (!this.data.lastStand || this.data.lastStand.side !== 'player') return false
+      return yieldBattle(this.data, 'player')
+    },
+
     /* -------------------------------- camera -------------------------------- */
 
     /**
@@ -278,8 +338,10 @@ export const useBattleStore = defineStore('battle', {
         const needH = Math.max(240, bounds.maxY - bounds.minY + 260)
         const fit = Math.min(viewW / needW, viewH / needH)
         // A phone is narrow: zooming to 0.7 would cut both armies off the
-        // sides of the screen at the opening, so the floor is lower there.
-        const floor = viewW <= 640 ? 0.42 : 0.7
+        // sides of the screen at the opening, so the floor is lower there. The
+        // two generals stand outside the squads, so the box is a little wider
+        // than the armies alone and the phone floor has to follow it.
+        const floor = viewW <= 640 ? 0.36 : 0.7
         this.zoom = Math.max(floor, Math.min(1.5, fit))
         if (this.follow) {
           this.camX += (bounds.cx - this.camX) * 0.12
@@ -305,20 +367,28 @@ export const useBattleStore = defineStore('battle', {
       this.camY = Math.max(minY, Math.min(maxY, this.camY))
     },
 
-    /** The box around every living soldier: what the camera likes to watch. */
+    /** The box around every living soldier and general: what the camera watches. */
     actionBounds() {
       if (!this.data) return null
       let minX = Infinity
       let maxX = -Infinity
       let minY = Infinity
       let maxY = -Infinity
-      for (const u of this.data.units) {
-        if (!u.alive) continue
+      const look = (u) => {
+        if (!u) return
         if (u.x < minX) minX = u.x
         if (u.x > maxX) maxX = u.x
         if (u.y < minY) minY = u.y
         if (u.y > maxY) maxY = u.y
       }
+      for (const u of this.data.units) {
+        if (!u.alive) continue
+        look(u)
+      }
+      // The two generals are worth watching too: a chase after the enemy
+      // general must not walk off the edge of the camera.
+      if (this.data.commander?.alive) look(this.data.commander)
+      if (this.data.enemyCommander?.alive) look(this.data.enemyCommander)
       if (!Number.isFinite(minX)) return null
       return { minX, maxX, minY, maxY, cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 }
     },
@@ -445,12 +515,54 @@ export const useBattleStore = defineStore('battle', {
       return { troops: out, saved }
     },
 
-    settle() {
+    /**
+     * Roll the survivors of every companion's banner.
+     *
+     * A companion's soldiers are his own pool: only the ones that came back
+     * return to his banner, and a banner that lost everybody stays empty until
+     * the lord hands new soldiers over. The companion himself is never killed —
+     * he is a friend, not a unit.
+     */
+    settleAllies(chance) {
+      const player = usePlayerStore()
+      const ids = this.context?.companions || []
+      if (!ids.length) return []
+      const out = []
+      for (const id of ids) {
+        const companion = player.companions.find((c) => c.id === id)
+        const survivors = survivorsByType(this.data, 'player', id)
+        const fallen = fallenByType(this.data, 'player', id)
+        const rolled = this.rollSurvivors(survivors, fallen, chance)
+        const before = troopCount(companion?.soldiers || [])
+        if (companion) companion.soldiers = rolled.troops
+        out.push({
+          id,
+          name: companion ? companion.name : id,
+          before,
+          after: troopCount(companion?.soldiers || []),
+          saved: rolled.saved
+        })
+      }
+      return out
+    },
+
+    settle(seed) {
       // A training session never settles: it changes nothing about the
       // campaign, so the lord's soldiers, purse and record stay untouched.
       if (this.context && this.context.kind === 'training') return
       const outcome = this.data.outcome
       const summary = battleSummary(this.data)
+      // The lord went down himself: the battle is lost and he is carried back
+      // to the map beside the field.
+      const lordDown = !!this.data.lordDown
+      // The hostile general went down: the fight stops there, but his army is
+      // still standing, so both sides fall back and the chase stays open.
+      const generalDown = !!this.data.enemyGeneralDown
+      // A lone general gave up the field when the clock of the last stand ran
+      // out — or when the player pressed 撤退.
+      const yielded = this.data.yielded || null
+      const withdrew = yielded === 'player'
+      const generalFled = yielded === 'enemy'
 
       // A quick battle is a sandbox: the fight was real, but the campaign is
       // not touched — no loot, no record, and not one soldier of the lord's
@@ -465,6 +577,12 @@ export const useBattleStore = defineStore('battle', {
           saved: 0,
           fallen: summary.fallen,
           captured: false,
+          // A sandbox defeat still says the lord went down, but it costs
+          // nothing: no soldiers, no relocation, no health.
+          lordDown,
+          generalDown,
+          withdrew,
+          generalFled,
           sandbox: true
         }
         this.settled = true
@@ -483,6 +601,8 @@ export const useBattleStore = defineStore('battle', {
       let loot = 0
       let recruits = 0
       let captured = null
+      // Where the fight happened: both armies come back to the map around it.
+      const field = { x: world.playerPos.x, y: world.playerPos.y }
 
       if (outcome === 'win') {
         player.stats.wins += 1
@@ -493,7 +613,10 @@ export const useBattleStore = defineStore('battle', {
           if (Math.random() < 0.6) recruits = Math.min(4, Math.round(summary.kills * 0.25))
         }
         player.addGold(loot)
-        if (recruits > 0) player.addTroops('militia', 1, recruits)
+        if (recruits > 0) {
+          player.addTroops('militia', 1, recruits)
+          player.countRecruits(recruits)
+        }
         if (party) world.defeatParty(party.id)
         if (settlement) {
           // The town's soldiers are gone, so the lord takes it over.
@@ -504,19 +627,34 @@ export const useBattleStore = defineStore('battle', {
           }
         }
       } else if (party) {
-        // Defeat: the enemy holds the field with whoever is still standing, so
-        // their troop count must drop to their survivors too.
+        // The enemy holds the field with whoever is still standing, so their
+        // troop count must drop to their survivors too — whether the lord was
+        // beaten or their own general was.
         const survivors = survivorsByType(this.data, 'enemy')
-        world.cooldown[party.id] = 60
         if (survivors.length) party.units = survivors
         else world.defeatParty(party.id)
-        // Nudge the player clear of the enemy so the fight does not restart.
-        const dx = world.playerPos.x - party.x
-        const dy = world.playerPos.y - party.y
-        const d = Math.hypot(dx, dy) || 1
-        world.playerPos.x = party.x + (dx / d) * 3
-        world.playerPos.y = party.y + (dy / d) * 3
-      } else if (settlement && outcome === 'lose') {
+        if (generalDown) {
+          // The warband was not broken, only its commander: it is ready to be
+          // chased down in a few seconds instead of a full minute.
+          if (survivors.length) world.cooldown[party.id] = ENEMY_GENERAL_COOLDOWN
+        } else if (lordDown) {
+          // The lord has just been carried off the field: the enemy may come
+          // after him at once, and he may run.
+          world.cooldown[party.id] = LORD_DOWN_COOLDOWN
+        } else if (withdrew) {
+          // The lord walked off the field with his last strength: the enemy is
+          // still there and may follow, so he gets the same short head start.
+          world.cooldown[party.id] = WITHDRAW_COOLDOWN
+        } else {
+          world.cooldown[party.id] = 60
+          // Nudge the player clear of the enemy so the fight does not restart.
+          const dx = field.x - party.x
+          const dy = field.y - party.y
+          const d = Math.hypot(dx, dy) || 1
+          world.playerPos.x = party.x + (dx / d) * 3
+          world.playerPos.y = party.y + (dy / d) * 3
+        }
+      } else if (settlement && (outcome === 'lose' || generalDown)) {
         // The assault failed: the town still holds its soldiers.
         const survivors = survivorsByType(this.data, 'enemy')
         settlement.garrison = survivors
@@ -524,8 +662,8 @@ export const useBattleStore = defineStore('battle', {
         // and prepare the attack all over again.
         if (this.context.kind === 'siege') settlement.siege = null
         // Push the lord back so the fight does not restart immediately.
-        const dx = world.playerPos.x - settlement.x
-        const dy = world.playerPos.y - settlement.y
+        const dx = field.x - settlement.x
+        const dy = field.y - settlement.y
         const d = Math.hypot(dx, dy) || 1
         world.playerPos.x = settlement.x + (dx / d) * 3
         world.playerPos.y = settlement.y + (dy / d) * 3
@@ -533,11 +671,39 @@ export const useBattleStore = defineStore('battle', {
 
       // The warband after the fight is exactly the soldiers who survived it.
       // Losers keep no free replacement troop, so a wipe really empties it.
-      const survivors = survivorsByType(this.data, 'player')
-      const fallen = fallenByType(this.data, 'player')
+      // The lord's own soldiers only: a companion's banner is settled on its
+      // own, so the two never steal each other's survivors.
+      const survivors = survivorsByType(this.data, 'player', null)
+      const fallen = fallenByType(this.data, 'player', null)
       const chance = survivalChance(world.bestHospital)
       const rolled = this.rollSurvivors(survivors, fallen, chance)
-      player.troops = rolled.troops
+      const companions = this.settleAllies(chance)
+
+      // The lord's own body. A battle he walked away from leaves him wounded
+      // but standing; a battle he fell in scatters half of the soldiers who
+      // came back, and either way both sides step back onto the map around
+      // the field they just fought over.
+      let troops = rolled.troops
+      let halfLost = 0
+      let relocated = false
+      if (lordDown) {
+        const halved = loseHalfTroops(troops)
+        troops = halved.troops
+        halfLost = halved.lost
+        player.reviveLordHalf()
+        relocated = !!world.relocateToField(seed, 'lord', field)
+      } else if (withdrew) {
+        // He walked away from the field himself: his wounds stay as they are,
+        // and nothing else is taken from him.
+        player.setLordHp(this.data.commander.hp)
+        relocated = !!world.relocateToField(seed, 'withdraw', field)
+      } else if (generalDown) {
+        player.setLordHp(this.data.commander.hp)
+        relocated = !!world.relocateToField(seed, 'enemy', field)
+      } else {
+        player.setLordHp(this.data.commander.hp)
+      }
+      player.troops = troops
 
       // The badge of the milestones pays a little gold after every fight.
       const badgeGold = player.milestoneEffects.battleGold
@@ -548,11 +714,20 @@ export const useBattleStore = defineStore('battle', {
         loot,
         recruits,
         summary,
-        wounded: woundedCount(rolled.troops),
+        wounded: woundedCount(troops),
         saved: rolled.saved,
         fallen: summary.fallen,
         badgeGold,
-        captured: !!captured?.ok
+        captured: !!captured?.ok,
+        // What the two generals cost the campaign.
+        lordDown,
+        generalDown,
+        withdrew,
+        generalFled,
+        halfLost,
+        relocated,
+        // What each companion's banner came out of the fight with.
+        companions
       }
       this.settled = true
     },

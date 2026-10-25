@@ -104,6 +104,7 @@ function motionOf(u, dt) {
       facing: u.facing || 1,
       type: u.type,
       tier: u.tier,
+      sprite: u.sprite,
       isDummy: !!u.isDummy,
       isCommander: !!u.isCommander,
       at: animTime
@@ -266,6 +267,16 @@ function drawDummy(u, x = u.x, y = u.y) {
 }
 
 /**
+ * The art of one figure. A general carries his own sprite in the battle data:
+ * the lord's own art for the lord, the commander of the faction for the
+ * hostile one, so the two sides can never be mistaken for each other.
+ */
+function spriteOf(u) {
+  if (u.sprite) return u.sprite
+  return u.isCommander ? 'lord' : unitSprite(u.type, u.tier)
+}
+
+/**
  * The fallen. A soldier that dies is drawn for a moment longer than it lives:
  * it tips over, drops and fades, with a ring of dust at its feet.
  */
@@ -294,22 +305,16 @@ function drawDeaths() {
     if (d.isDummy) {
       drawDummy(d, 0, 0)
     } else {
-      drawSprite(
-        ctx,
-        d.isCommander ? 'lord' : unitSprite(d.type, d.tier),
-        0,
-        0,
-        size,
-        d.facing < 0,
-        true
-      )
+      drawSprite(ctx, spriteOf(d), 0, 0, size, d.facing < 0, true)
     }
     ctx.restore()
   }
 }
 
 function drawUnit(u) {
-  const size = u.isCommander ? 36 : 28
+  // A general is drawn a little larger than a soldier: he is a person, and the
+  // child must be able to tell him apart in a crowd at a glance.
+  const size = u.isCommander ? 40 : 28
   const isPlayer = u.side === 'player'
   const groundY = u.y + size / 2 - 4
   const hpPct = Math.max(0, u.hp / u.maxHp)
@@ -359,6 +364,27 @@ function drawUnit(u) {
     ctx.fill()
   }
 
+  // A gold ring marks a general: the lord's is gold, the hostile one's is a
+  // warm copper, so the two are never confused when they meet.
+  if (u.isCommander) {
+    ctx.strokeStyle = isPlayer ? 'rgba(232,197,106,0.9)' : 'rgba(255,166,138,0.9)'
+    ctx.lineWidth = 2
+    ctx.beginPath()
+    ctx.ellipse(u.x, groundY, 17, 6.5, 0, 0, Math.PI * 2)
+    ctx.stroke()
+    // A bodyguard still standing shields him: a pale arc in front of his ring.
+    const shielded = battle.data.units.some(
+      (g) => g.alive && g.isGuard && g.guardOf === u.id
+    )
+    if (shielded) {
+      ctx.strokeStyle = 'rgba(200,225,255,0.55)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.ellipse(u.x, groundY, 21, 8, 0, -Math.PI * 0.85, -Math.PI * 0.15)
+      ctx.stroke()
+    }
+  }
+
   // The white flash of a fresh hit, behind the sprite.
   if (u.hitFlash > 0) {
     const k = Math.max(0, Math.min(1, u.hitFlash / HIT_FLASH_TIME))
@@ -377,15 +403,7 @@ function drawUnit(u) {
   if (u.isDummy) {
     drawDummy(u, 0, 0)
   } else {
-    drawSprite(
-      ctx,
-      u.isCommander ? 'lord' : unitSprite(u.type, u.tier),
-      0,
-      0,
-      size,
-      facingLeft,
-      true
-    )
+    drawSprite(ctx, spriteOf(u), 0, 0, size, facingLeft, true)
   }
   ctx.restore()
 
@@ -465,10 +483,17 @@ function drawProjectiles() {
 function drawEffects() {
   for (const e of battle.data.effects) {
     const k = e.t / e.life
-    ctx.strokeStyle = `rgba(255,240,180,${1 - k})`
-    ctx.lineWidth = 2
+    // A guard catching a blow for his general is pale blue, a general going
+    // down is gold, a plain hit is warm white.
+    ctx.strokeStyle =
+      e.kind === 'down'
+        ? `rgba(232,197,106,${1 - k})`
+        : e.kind === 'block'
+          ? `rgba(190,220,255,${1 - k})`
+          : `rgba(255,240,180,${1 - k})`
+    ctx.lineWidth = e.kind === 'down' ? 3 : 2
     ctx.beginPath()
-    ctx.arc(e.x, e.y, 4 + k * 14, 0, Math.PI * 2)
+    ctx.arc(e.x, e.y, 4 + k * (e.kind === 'down' ? 26 : 14), 0, Math.PI * 2)
     ctx.stroke()
   }
 }
@@ -483,7 +508,9 @@ function render(dt = 0) {
   animTime += dt
   for (const u of battle.data.units) motionOf(u, dt)
   const cmd = battle.data.commander
+  const foeGeneral = battle.data.enemyCommander
   motionOf(cmd, dt)
+  if (foeGeneral) motionOf(foeGeneral, dt)
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
   // The ground around the field, so the area outside it does not look like a
@@ -518,6 +545,7 @@ function render(dt = 0) {
   drawDeaths()
   for (const u of battle.data.units) if (u.alive) drawUnit(u)
   if (cmd.alive) drawUnit(cmd)
+  if (foeGeneral && foeGeneral.alive) drawUnit(foeGeneral)
   drawRallies()
   drawProjectiles()
   drawEffects()

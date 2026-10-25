@@ -53,15 +53,24 @@ class Heap {
 }
 
 // terrainCost(grid, x, y) -> { walkable, cost }
+//
+// The world map is one grid and a town is another, so the search itself takes
+// the size of the grid it works on. `findPath` keeps the world-map signature and
+// the town scene calls `findPathOn` with its own width and height.
+// 世界地图与城镇地图是两张不同的格子图，因此搜索本身接受宽高两个参数。
 export function findPath(grid, start, goal, terrainCost) {
+  return findPathOn(grid, WORLD_W, WORLD_H, start, goal, terrainCost)
+}
+
+export function findPathOn(grid, w, h, start, goal, terrainCost) {
   const sx = Math.round(start.x)
   const sy = Math.round(start.y)
-  const gx = Math.max(0, Math.min(WORLD_W - 1, Math.round(goal.x)))
-  const gy = Math.max(0, Math.min(WORLD_H - 1, Math.round(goal.y)))
+  const gx = Math.max(0, Math.min(w - 1, Math.round(goal.x)))
+  const gy = Math.max(0, Math.min(h - 1, Math.round(goal.y)))
 
   if (sx === gx && sy === gy) return []
 
-  const key = (x, y) => y * WORLD_W + x
+  const key = (x, y) => y * w + x
   const startNode = { x: sx, y: sy, g: 0, f: 0, parent: null }
   const open = new Heap()
   open.push(startNode)
@@ -84,7 +93,7 @@ export function findPath(grid, start, goal, terrainCost) {
     for (const [dx, dy, dist] of NEIGHBORS) {
       const nx = current.x + dx
       const ny = current.y + dy
-      if (nx < 0 || ny < 0 || nx >= WORLD_W || ny >= WORLD_H) continue
+      if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
       const nk = key(nx, ny)
       if (closed.has(nk)) continue
       const t = terrainCost(grid, nx, ny)

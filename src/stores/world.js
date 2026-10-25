@@ -8,6 +8,7 @@ import { darknessOf, isNight, speedFactorOf } from '@/game/daynight'
 import { normalizeTroops, healTroops, unitDef } from '@/game/units'
 import { createRng } from '@/game/rng'
 import { FLEE_COOLDOWN, fleeCandidates } from '@/game/encounter'
+import { FIELD_RETURN_MAX, FIELD_RETURN_MIN, lordRegenPerSecond } from '@/game/lord'
 import { enemyCapMulOf, enemySizeMulOf, foeOf, threatOf } from '@/game/difficulty'
 import {
   BANDIT,
@@ -16,6 +17,7 @@ import {
   SIEGE_PREPARE_DAYS,
   SIEGE_GARRISON_PER_DAY,
   armyBonusOf,
+  canGarrison,
   captureSettlement,
   claimSettlement,
   facilityLevel,
@@ -26,7 +28,9 @@ import {
   liberateSettlement,
   normalizeSettlement,
   ownerOf,
-  tickSettlement
+  stationSoldiers,
+  tickSettlement,
+  withdrawSoldiers
 } from '@/game/settlement'
 import { usePlayerStore } from './player'
 
@@ -104,7 +108,10 @@ export const useWorldStore = defineStore('world', {
     visited: [],
     // Settlement the lord is resting in: wounds heal faster and the town keeps
     // developing while he stays.
-    restingAt: null
+    restingAt: null,
+    // Set when a battle ended with a general on the ground, so the world map
+    // can say what just happened, once: 'lord' or 'enemy'.
+    lastReturn: null
   }),
 
   getters: {
@@ -218,6 +225,7 @@ export const useWorldStore = defineStore('world', {
       this.cooldown = {}
       this.visited = []
       this.restingAt = null
+      this.lastReturn = null
     },
 
     // Restore a previously saved world, migrating pre-standard party rosters.
@@ -240,6 +248,7 @@ export const useWorldStore = defineStore('world', {
       this.cooldown = {}
       this.visited = []
       this.restingAt = null
+      this.lastReturn = null
     },
 
     tile(x, y) {
@@ -358,6 +367,31 @@ export const useWorldStore = defineStore('world', {
         (p) => !(p.faction === BANDIT && Math.hypot(p.x - st.x, p.y - st.y) < 9)
       )
       return { ok: true, settlement: st }
+    },
+
+    /**
+     * Move some of the lord's own soldiers into the garrison of one of his
+     * towns: they leave the warband and defend the town, keeping their wounds.
+     */
+    stationTroops(settlementId, type, tier, count) {
+      const st = this.settlementById(settlementId)
+      if (!st) return { ok: false, reason: '找不到这座城镇' }
+      if (!canGarrison(st)) return { ok: false, reason: '只能在自己占领的城镇驻守' }
+      const player = usePlayerStore()
+      const moved = stationSoldiers(player.troops, st.garrison, type, tier, count)
+      if (moved <= 0) return { ok: false, reason: '部队里没有足够的士兵' }
+      return { ok: true, moved }
+    },
+
+    /** Take soldiers back out of a town garrison into the lord's warband. */
+    withdrawTroops(settlementId, type, tier, count) {
+      const st = this.settlementById(settlementId)
+      if (!st) return { ok: false, reason: '找不到这座城镇' }
+      if (!canGarrison(st)) return { ok: false, reason: '只能在自己占领的城镇驻守' }
+      const player = usePlayerStore()
+      const moved = withdrawSoldiers(player.troops, st.garrison, type, tier, count)
+      if (moved <= 0) return { ok: false, reason: '驻军里没有足够的士兵' }
+      return { ok: true, moved }
     },
 
     /**
@@ -532,6 +566,14 @@ export const useWorldStore = defineStore('world', {
      */
     restTick(dt, settlementId) {
       this.restingAt = settlementId || null
+      // A town is where the lord mends fastest: his own town more than any
+      // other, and a hospital on top of that.
+      const town = settlementId ? this.settlementById(settlementId) : null
+      this.healLordTick(dt, {
+        inSettlement: true,
+        ownTown: !!town && town.owner === PLAYER,
+        hospital: town ? facilityLevel(town, 'hospital') : 0
+      })
       this.timeAcc += dt / REST_SECONDS_PER_HOUR
       if (this.timeAcc < 24) return
       this.timeAcc -= 24
@@ -599,6 +641,19 @@ export const useWorldStore = defineStore('world', {
         this.timeAcc -= 24
         this.day += 1
         this.advanceDay()
+      }
+
+      // --- the lord's own wounds ------------------------------------------
+      // A battle leaves its mark on the lord himself. The wound closes while
+      // the world moves; a frozen world heals nothing, so camping and resting
+      // in a town are what mend him.
+      if (gdt > 0) {
+        const resting = this.restingAt ? this.settlementById(this.restingAt) : null
+        this.healLordTick(gdt, {
+          inSettlement: !!resting,
+          ownTown: !!resting && resting.owner === PLAYER,
+          hospital: resting ? facilityLevel(resting, 'hospital') : 0
+        })
       }
 
       // --- party cooldowns -------------------------------------------------
@@ -714,6 +769,91 @@ export const useWorldStore = defineStore('world', {
 
     markVisited(id) {
       if (!this.visited.includes(id)) this.visited.push(id)
+    },
+
+    /* ---------------------------- the lord himself ---------------------------- */
+
+    /**
+     * Both armies fall back onto the world map around the field they just
+     * fought over.
+     *
+     * The lord is put down on a random walkable tile a few steps from where
+     * the fight happened — never across the world, never beside a town he did
+     * not walk to. The enemy warband stays exactly where it stood, so it can
+     * chase him, and he can run.
+     * 战斗结束后双方退回世界地图：领主被放到战场周围随机一处可走地面，
+     * 敌人仍留在原地，因此可以继续追击，玩家也可以逃跑。
+     */
+    relocateToField(seed, who = 'lord', center = null) {
+      const rng = createRng(Number.isFinite(seed) ? seed : Math.floor(Math.random() * 1e9))
+      // The battlefield is the tile the lord was standing on when the fight
+      // broke out, unless the caller kept it from before the aftermath moved
+      // him.
+      const field = center ? { x: center.x, y: center.y } : { x: this.playerPos.x, y: this.playerPos.y }
+      const spot = this.landNearField(field, rng)
+      if (!spot) return null
+      this.playerPos = { x: spot.x, y: spot.y }
+      this.path = []
+      this.camping = false
+      this.encounter = null
+      this.restingAt = null
+      // The camera jumps with him: the map must not slide across the whole
+      // world while the child wonders what happened.
+      this.camX = spot.x * TILE + TILE / 2
+      this.camY = spot.y * TILE + TILE / 2
+      this.lastReturn = who
+      return { field, x: spot.x, y: spot.y }
+    },
+
+    /**
+     * A walkable tile in a ring around the field.
+     *
+     * Tiles where a hostile warband already stands are skipped: coming back
+     * from a battle should hand the child a moment to decide whether to run,
+     * not drop him straight back into the same fight.
+     */
+    landNearField(center, rng) {
+      let fallback = null
+      for (let attempt = 0; attempt < 90; attempt += 1) {
+        const angle = rng.float(0, Math.PI * 2)
+        const distance = rng.float(FIELD_RETURN_MIN, FIELD_RETURN_MAX)
+        const x = Math.round(center.x + Math.cos(angle) * distance)
+        const y = Math.round(center.y + Math.sin(angle) * distance)
+        if (x < 1 || y < 1 || x >= WORLD_W - 1 || y >= WORLD_H - 1) continue
+        const terrain = TERRAIN[this.grid[y]?.[x]]
+        if (!terrain || !terrain.walkable) continue
+        // Not on a town's doorstep either: a lord who has just been carried off
+        // the field should not find himself standing inside the gate.
+        if (this.settlements.some((st) => Math.hypot(st.x - x, st.y - y) < 1.2)) continue
+        if (!fallback) fallback = { x, y }
+        const crowded = this.parties.some(
+          (p) => factionOf(p.faction).hostile && Math.hypot(p.x - x, p.y - y) < 2
+        )
+        if (crowded) continue
+        return { x, y }
+      }
+      if (fallback) return fallback
+      // Nothing dry within the ring (a field in the middle of a lake): stay
+      // where the fight happened rather than jump somewhere else.
+      return {
+        x: Math.max(1, Math.min(WORLD_W - 2, Math.round(center.x))),
+        y: Math.max(1, Math.min(WORLD_H - 2, Math.round(center.y)))
+      }
+    },
+
+    /** The lord's wounds close a little; returns the hit points recovered. */
+    healLordTick(dt, { inSettlement = false, ownTown = false, hospital = 0 } = {}) {
+      const player = usePlayerStore()
+      if (!dt || dt <= 0) return 0
+      if (player.lordHp >= player.lordMaxHp) return 0
+      const before = player.lordHp
+      player.healLord(lordRegenPerSecond({ inSettlement, ownTown, hospital }) * dt)
+      return player.lordHp - before
+    },
+
+    /** The note about the last battle has been read. */
+    clearReturn() {
+      this.lastReturn = null
     },
 
     clearEncounter() {

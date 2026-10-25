@@ -44,7 +44,14 @@ export function persistGame() {
     difficulty: player.difficulty,
     // What the child learned: the experience and the attributes it bought.
     experience: player.experience,
-    attributes: player.attributes
+    attributes: player.attributes,
+    // The lord's own hit points: a wound is not forgotten by a reload.
+    lordHp: player.lordHp,
+    lordMaxHp: player.lordMaxHp,
+    // The companions and the quests of the towns, so the people of a town
+    // remember the lord when he comes back.
+    companions: player.companions,
+    quests: player.quests
   })
 }
 

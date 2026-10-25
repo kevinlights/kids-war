@@ -45,7 +45,15 @@ export function saveGame(username, state) {
     difficulty: state.difficulty || 'easy',
     // What the child learned: the experience and the attributes it bought.
     experience: state.experience || 0,
-    attributes: state.attributes || {}
+    attributes: state.attributes || {},
+    // The lord's own body: his wounds survive a reload.
+    lordHp: state.lordHp,
+    lordMaxHp: state.lordMaxHp,
+    // The people who ride with him and how far he got with every townsfolk
+    // he talked to. Both are newer than the first saves, so a save without
+    // them simply loads with nobody following and no quest started.
+    companions: state.companions || [],
+    quests: state.quests || {}
   }
   localStorage.setItem(saveKey(username), JSON.stringify(payload))
   rememberUser(username)

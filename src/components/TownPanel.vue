@@ -97,9 +97,20 @@
     <div class="block panel">
       <div class="block-head">
         <b>🛡️ 驻守士兵</b>
-        <span class="muted small">{{ mine ? '你的驻军会随城镇一起成长' : '攻下城镇前先打败他们' }}</span>
+        <span class="muted small">{{ mine ? '把部队留在这里守城，随时可以撤回' : '攻下城镇前先打败他们' }}</span>
       </div>
-      <div v-if="garrisonRows.length" class="garrison">
+      <!-- The lord's own town: move his soldiers in and out of the garrison. -->
+      <div v-if="mine && garrisonOps.length" class="garrison-ops">
+        <div v-for="op in garrisonOps" :key="op.key" class="gop-row">
+          <img class="unit-icon" :src="spriteUrl(unitSprite(op.type, op.tier))" :alt="op.name" />
+          <span class="gop-name">{{ op.name }}</span>
+          <button class="btn tiny" :disabled="op.warband <= 0" @click="station(op.type, op.tier)">➕ 驻守</button>
+          <span class="gop-count">部队 {{ op.warband }} · 守军 {{ op.garrison }}</span>
+          <button class="btn tiny" :disabled="op.garrison <= 0" @click="withdraw(op.type, op.tier)">➖ 撤回</button>
+        </div>
+      </div>
+      <div v-else-if="mine && !garrisonOps.length" class="muted small">你还没有可以留在这里的部队。</div>
+      <div v-else-if="garrisonRows.length" class="garrison">
         <div v-for="row in garrisonRows" :key="row.key" class="garrison-row">
           <img class="unit-icon" :src="spriteUrl(unitSprite(row.type, row.tier))" :alt="row.name" />
           <span>{{ row.name }}</span>
@@ -118,6 +129,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { usePlayerStore } from '@/stores/player'
+import { useWorldStore } from '@/stores/world'
 import {
   FACILITIES,
   INJECT_COST,
@@ -140,6 +152,7 @@ import { persistGame } from '@/composables/gameState'
 
 const props = defineProps({ settlement: { type: Object, required: true } })
 const player = usePlayerStore()
+const world = useWorldStore()
 
 // The engineering attribute makes every facility cheaper.
 const discount = computed(() => player.skillEffects.buildDiscount)
@@ -164,6 +177,37 @@ const garrisonRows = computed(() =>
     count: g.count
   }))
 )
+
+/**
+ * The groups the lord may move between the warband and the garrison: every
+ * group present on either side, so he can station soldiers and take them back.
+ */
+const garrisonOps = computed(() => {
+  const warband = {}
+  for (const g of player.troops) {
+    if (!g.count) continue
+    warband[troopKey(g.type, g.tier)] = { type: g.type, tier: g.tier, count: g.count }
+  }
+  const garrison = {}
+  for (const g of props.settlement.garrison || []) {
+    if (!g.count) continue
+    garrison[troopKey(g.type, g.tier)] = { type: g.type, tier: g.tier, count: g.count }
+  }
+  const keys = [...new Set([...Object.keys(warband), ...Object.keys(garrison)])]
+  return keys
+    .map((key) => {
+      const def = warband[key] || garrison[key]
+      return {
+        key,
+        type: def.type,
+        tier: def.tier,
+        name: unitName(def.type, def.tier),
+        warband: warband[key]?.count || 0,
+        garrison: garrison[key]?.count || 0
+      }
+    })
+    .sort((a, b) => a.key.localeCompare(b.key) || b.tier - a.tier)
+})
 
 function flash(msg) {
   toast.value = msg
@@ -216,6 +260,28 @@ function inject() {
     return
   }
   flash(`已注入 ${injectCost} 金币，城镇金库 +${injectCost}`)
+  persistGame()
+}
+
+/** Move one soldier of the group from the warband into the town garrison. */
+function station(type, tier) {
+  const res = world.stationTroops(props.settlement.id, type, tier, 1)
+  if (!res.ok) {
+    flash(res.reason)
+    return
+  }
+  flash(`${unitName(type, tier)} 入城驻守`)
+  persistGame()
+}
+
+/** Move one soldier of the group back from the garrison into the warband. */
+function withdraw(type, tier) {
+  const res = world.withdrawTroops(props.settlement.id, type, tier, 1)
+  if (!res.ok) {
+    flash(res.reason)
+    return
+  }
+  flash(`${unitName(type, tier)} 撤回部队`)
   persistGame()
 }
 </script>
@@ -361,6 +427,41 @@ function inject() {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.garrison-ops {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+}
+
+.gop-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.gop-count {
+  font-size: 12px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.btn.tiny {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+  box-shadow: 0 3px 0 #6d5119, var(--shadow);
+}
+
+.btn.tiny:active {
+  box-shadow: 0 1px 0 #6d5119, var(--shadow);
 }
 
 .garrison-row {

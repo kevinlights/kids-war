@@ -18,6 +18,150 @@
     "height": 32
   },
   {
+    "category": "ground",
+    "name": "cobble",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "ground",
+    "name": "farm",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "ground",
+    "name": "grass",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "ground",
+    "name": "path",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "ground",
+    "name": "plaza",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "ground",
+    "name": "water",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "bard",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "farmer",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "guard",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "healer",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "hunter",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "merchant",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "scholar",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "npc",
+    "name": "smith",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "banner",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "barrel",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "bush",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "cart",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "crate",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "fence",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "haystack",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "lamp",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "signpost",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "prop",
+    "name": "tree",
+    "width": 32,
+    "height": 32
+  },
+  {
     "category": "settlement",
     "name": "town",
     "width": 32,
@@ -56,6 +200,96 @@
   {
     "category": "terrain",
     "name": "water",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "barn",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "barracks",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "fountain",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "gate",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "hall",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "hospital",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "house-a",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "house-b",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "house-c",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "mill",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "school",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "shop",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "smithy",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "tavern",
+    "width": 32,
+    "height": 32
+  },
+  {
+    "category": "town",
+    "name": "well",
     "width": 32,
     "height": 32
   },

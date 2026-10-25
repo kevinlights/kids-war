@@ -12,6 +12,9 @@
   --player: #4aa3ff;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
   --radius: 14px;
+  /* The translucent black every bar control is made of. */
+  --glass: rgba(8, 12, 8, 0.55);
+  --glass-line: rgba(255, 255, 255, 0.16);
   font-synthesis: none;
 }
 
@@ -134,8 +137,9 @@ button {
   gap: 6px;
   padding: 5px 11px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid var(--line);
+  /* One glass look for every readout and every button of a bar. */
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
   font-size: 13px;
   font-weight: 600;
 }

@@ -25,7 +25,7 @@
  * keeps defeated soldiers alive, the barracks trains the army.
  */
 import { createRng } from './rng'
-import { unitDef, unitCost, normalizeTroops, troopCount, MAX_TIER } from './units'
+import { unitDef, unitCost, normalizeTroops, troopCount, healTroops, MAX_TIER } from './units'
 import { FACTIONS } from './factions'
 
 /** The owner key of a settlement that belongs to nobody. */
@@ -323,6 +323,78 @@ export function addGarrison(garrison, type, tier, count) {
   return garrison
 }
 
+/**
+ * The lord may station his own soldiers in a town he owns.
+ *
+ * A kingdom town, an unclaimed town and a village are not his to garrison —
+ * the soldiers he leaves there would not be safe, so the choice is only open
+ * for the towns that carry his flag.
+ */
+export function canGarrison(settlement) {
+  return isPlayerTown(settlement)
+}
+
+/**
+ * Move up to `count` soldiers of one group from the warband into a garrison,
+ * keeping each soldier's hit points. Returns how many moved.
+ *
+ * The soldiers are taken from the back of the group, so a wounded soldier
+ * stays wounded on both sides of the move; no health is invented or lost.
+ */
+export function stationSoldiers(warband, garrison, type, tier, count) {
+  if (!count || count <= 0) return 0
+  const from = warband.find((g) => g.type === type && g.tier === tier)
+  if (!from || from.count <= 0) return 0
+  const move = Math.min(from.count, Math.floor(count))
+  const maxHp = unitDef(type, tier).hp
+  const hp = from.hp || new Array(from.count).fill(maxHp)
+  const movedHp = hp.splice(hp.length - move, move)
+  from.count -= move
+  while (hp.length > from.count) hp.pop()
+  from.hp = hp
+  if (from.count === 0) {
+    const i = warband.indexOf(from)
+    if (i >= 0) warband.splice(i, 1)
+  }
+  const found = garrison.find((g) => g.type === type && g.tier === tier)
+  if (found) {
+    found.count += move
+    found.hp = (found.hp || []).concat(movedHp)
+  } else {
+    garrison.push({ type, tier, count: move, hp: movedHp })
+  }
+  return move
+}
+
+/**
+ * Move up to `count` soldiers of one group out of a garrison back into the
+ * warband, keeping each soldier's hit points. Returns how many moved.
+ */
+export function withdrawSoldiers(warband, garrison, type, tier, count) {
+  if (!count || count <= 0) return 0
+  const from = garrison.find((g) => g.type === type && g.tier === tier)
+  if (!from || from.count <= 0) return 0
+  const move = Math.min(from.count, Math.floor(count))
+  const maxHp = unitDef(type, tier).hp
+  const hp = from.hp || new Array(from.count).fill(maxHp)
+  const movedHp = hp.splice(hp.length - move, move)
+  from.count -= move
+  while (hp.length > from.count) hp.pop()
+  from.hp = hp
+  if (from.count === 0) {
+    const i = garrison.indexOf(from)
+    if (i >= 0) garrison.splice(i, 1)
+  }
+  const found = warband.find((g) => g.type === type && g.tier === tier)
+  if (found) {
+    found.count += move
+    found.hp = (found.hp || []).concat(movedHp)
+  } else {
+    warband.push({ type, tier, count: move, hp: movedHp })
+  }
+  return move
+}
+
 /* -------------------------------- the economy ------------------------------- */
 
 /** Daily income a town earns from its prosperity. */
@@ -352,6 +424,19 @@ export function tickSettlement(settlement, days = 1) {
     settlement.development = Math.max(0, development - 0.2 * days)
     settlement.funds = (settlement.funds || 0) + dailyIncome(settlement) * days
     syncLevel(settlement)
+    // A town heals the soldiers it holds, exactly as it heals the lord: the
+    // garrison the lord leaves behind recovers with the town.
+    if (garrisonCount(settlement.garrison) > 0) {
+      healTroops(
+        settlement.garrison,
+        healRate({
+          inSettlement: true,
+          ownTown: true,
+          level: settlement.level,
+          hospital: facilityLevel(settlement, 'hospital')
+        }) * days
+      )
+    }
   } else if (settlement.owner !== NEUTRAL) {
     // A hostile town keeps its garrison up: a siege that takes too long meets
     // more soldiers than it did at the start.

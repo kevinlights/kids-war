@@ -354,3 +354,31 @@ export function warbandHealth(units) {
 export function warbandValue(units) {
   return (units || []).reduce((n, t) => n + unitCost(t.type, t.tier) * t.count, 0)
 }
+
+/**
+ * Scatter half a warband.
+ *
+ * A lord carried off the field loses half of the soldiers who came back with
+ * him: every group keeps the healthiest half (rounded up, so one lone soldier
+ * survives), and the rest are lost.
+ * 主将被抬下战场时，跟着他回来的士兵会散掉一半：每组只留下体力最好的那一半（向上取整）。
+ */
+export function loseHalfTroops(units) {
+  let lost = 0
+  const out = []
+  for (const group of units || []) {
+    if (!group || !group.count) continue
+    const maxHp = unitDef(group.type, group.tier).hp
+    const hp = (group.hp || []).map((value) => Math.max(1, Math.min(maxHp, Number(value) || maxHp)))
+    while (hp.length < group.count) hp.push(maxHp)
+    const keep = Math.ceil(group.count / 2)
+    lost += group.count - keep
+    if (keep <= 0) continue
+    out.push({
+      ...group,
+      count: keep,
+      hp: hp.sort((a, b) => b - a).slice(0, keep)
+    })
+  }
+  return { troops: out, lost }
+}

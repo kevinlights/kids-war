@@ -328,6 +328,90 @@ export const BATCHES = [
     { zh: "**齐射之后会慢，贴脸时更危险**：弓箭手每射出一箭都会短暂降速（**0.9 秒 × 0.72**），距离小于 **32 px** 时无法开弓，只能以 **0.85 倍**的速度后撤；因此被近战咬住之后连续风筝越来越难，长矛兵可以把弓箭手拖进肉搏。", en: "**Slow after a volley, and in real danger at point-blank range**: every arrow leaves the archer slowed for a moment (**0.9 s at 0.72 speed**), it cannot draw its bow under **32 px** and can only back away at **0.85 times** its speed; sustained kiting therefore gets harder once a melee soldier is on it, and spearmen can drag archers into hand-to-hand." },
     { zh: "**同数量对局的实测**：长矛兵对弓箭手 **8 v 8** 只赢 **1/5**（弓箭手虽赢，但每局要损失 1–4 人）；**20 v 20** 长矛兵 **5/5** 惨胜，打 **27–38 秒**、20 人只剩 **7–11 人**；单挑时一名长矛兵能在 **26 秒**后以 19 点生命取胜。民兵仍打不过同数量弓箭手（0/5），骑兵依旧碾压（5/5，6–7 秒）。", en: "**The measured equal fights**: spearmen beat archers only **1/5** at **8 v 8** (the archers win but lose one to four soldiers each time); at **20 v 20** the spearmen win **5/5** at a heavy cost, taking **27–38 s** and finishing with **7–11 of 20**; one spearman against one archer wins after **26 s** with 19 health left. Militia still lose to equal archers (0/5) while cavalry still ride them down (5/5 in 6–7 s)." }
     ]
+  },
+  {
+    batch: 31,
+    title: "驻守：把部队留在自己的城镇 Station your soldiers in your towns",
+    date: "2026-10-24",
+    items: [
+    { zh: "**可以把自己的部队留驻在己方城镇**：在自己占领的城镇里，「驻守士兵」一栏把每种兵都列成一行，点「➕ 驻守」把部队里的一个士兵留下守城，点「➖ 撤回」再把他带回来；士兵的生命值跟着人走，不会凭空回满，也不会白白丢掉。", en: "**You can leave your own soldiers behind in a town you own**: in the 「驻守士兵」 panel of your own town every troop family is a row, 「➕ 驻守」 moves one soldier of the warband into the garrison and 「➖ 撤回」 brings one back; each soldier keeps its own hit points across the move, so nothing is healed for free and nothing is lost." },
+    { zh: "**驻军会和城镇一起恢复**：留在城里的士兵会像主角一样，随城镇的等级与医院逐日恢复生命值；地图上这座城镇的兵力角标也会跟着驻军人数的变化实时更新。", en: "**The garrison heals with the town**: the soldiers you leave behind recover their hit points day by day, exactly like the lord, scaled by the town's level and its hospital, and the garrison badge on the world map follows the soldiers the town now holds." }
+    ]
+  },
+  {
+    batch: 32,
+    title: "地图按势力上色：小地图与全图一眼看出归属 Faction colours on the maps",
+    date: "2026-10-24",
+    items: [
+    { zh: "**世界全图按势力给每个据点上色**：点角落的小地图打开「世界全图」，城堡和村庄周围会画一圈归属色光环，名字牌也用归属色——你的城镇是蓝色、强盗是灰色、苍狼王国是紫色、赤鹰王国是橙色，无主的城镇保持原本的金色/淡色，一眼就能看出每片地盘属于谁。", en: "**The detailed atlas colours every settlement by its owner**: when you tap the corner minimap to open the world map, each castle and hut is circled by an ownership ring in the holder's colour and its name plate is tinted the same way — your towns are blue, bandits grey, the Wolf Kingdom purple, the Eagle Kingdom orange, and an unclaimed town keeps its original gold/pale tone, so who holds every patch of land is readable at a glance." },
+    { zh: "**角落小地图也按势力上色**：右下角的小地图上，城镇与村庄的方块同样用归属色，和全图保持一致，扫一眼就能看出势力的分布。", en: "**The corner minimap is coloured too**: on the small minimap the town and village squares carry the same owner colours as the atlas, so the spread of the factions is visible at a glance and matches the big map." }
+    ]
+  },
+  {
+    batch: 33,
+    title: "主将上阵与四方亲兵 The two generals and their bodyguards",
+    date: "2026-10-24",
+    items: [
+    { zh: "**主角和敌人都有了主将，主将会亲自上阵打架**：战场左右各站着一位主将（主角是领主，敌人是所属势力的大将），他们有独立的血条，走到对方身边就会自动出手砍人，不用再靠士兵代劳。", en: "**Both sides now have a general who fights in person**: a general stands on each side of the field (the lord for the player, the faction's own commander for the enemy), each with a health bar of its own, and he swings at whoever comes within reach of his arm instead of leaving every blow to the soldiers." },
+    { zh: "**开战前自动给双方主将各配 4 名近战亲兵**：这四名士兵是从你自己的队伍里抽出来的，围着主将站成一圈，**亲兵没死光之前主将一下都挨不到**，所有的攻击都由他们替主将挡下。", en: "**Four melee bodyguards are assigned to each general before the fight**: they are taken out of that side's own warband and stand in a ring around their general, and **the general cannot be hit at all until all four are gone** — every blow meant for him lands on a guard instead." },
+    { zh: "**主角血量归零＝这场战斗立刻失败**：不会死，但会损失**一半**士兵，然后被亲兵抬到世界地图上**随机一座城镇**附近，血量恢复到一半；之后血量会随时间慢慢恢复，**在自己的城镇里恢复得明显更快**。", en: "**The lord reaching zero hit points means the battle is lost at once**: he does not die, but **half** his soldiers are scattered, his bodyguard carries him to a spot beside a **random town** on the world map, and his health comes back at half; from there it closes slowly over time and **noticeably faster inside a town of his own**." },
+    { zh: "**敌方主将打不倒：他被抬走，一会儿又回来**：把敌人主将打到 0 点，他只是被随机放到你当前位置附近、血量恢复一半，所以你可以一路追击他；**只有把敌人的士兵全部消灭，战斗才算赢**。", en: "**A hostile general cannot be finished off: he is carried off and comes back**: bringing him down to zero merely drops him at a random spot near where you stand with half his health, so you can keep chasing him; **the battle is only won once every enemy soldier is gone**." }
+    ]
+  },
+  {
+    batch: 34,
+    title: "主将倒下即收兵，两军退回战场旁 Generals end the battle; both armies step back to the field",
+    date: "2026-10-24",
+    items: [
+    { zh: "**主角被打败：结算并回到世界地图，就落在刚才那片战场旁边**：不再被送到随机一座城镇，而是退到开打那格周围 3–7 格的一处空地。代价不变 —— 损失一半士兵、血量回到一半，之后随时间慢慢恢复。", en: "**A beaten lord is settled and put back on the world map right beside the field**: no more being dropped at a random town — he falls back 3–7 tiles from the very tile the fight broke out on. The price is unchanged: half the warband scattered and his health back at half, then closing over time." },
+    { zh: "**打输不等于脱身：敌人会继续追，你也可以跑**：退回地图后敌方队伍还站在原地，几秒后就能再次咬上来；想脱身就按遇敌面板上的「逃跑」，想翻盘就回头再打。", en: "**Losing does not mean getting away — the enemy keeps chasing, and you can run**: back on the map the enemy warband still stands where it did and can be on you again within seconds. Press 逃跑 on the meeting panel to get out, or turn around and fight again." },
+    { zh: "**敌方主将被打倒：同样立刻结算、退回战场周围，追不追你说了算**：敌人队伍一个兵都不会凭空消失（只少了战场上阵亡的），所以你可以立刻追上去打第二场，也可以趁他重整的时候离开。要注意：**战斗要算赢，仍然得把敌人的士兵全部消灭**。", en: "**A beaten enemy general ends the battle the same way — back to the field around the fight, and the chase is your call**: his warband does not vanish (only the soldiers who fell are gone), so you may go after it at once or slip away while it re-forms. Note that **a win still means every enemy soldier is gone**." },
+    { zh: "**战斗里不再有「敌将半血复活」**：主将倒下就是这一场的结尾，结算面板会告诉你发生了什么（新的「⚔️ 敌将倒下」结算，以及主角倒下的「你被抬回战场附近」说明）。", en: "**No more \"the hostile general gets back up at half health\" mid-fight**: a general going down is the end of that battle, and the result screen says what happened — a new「⚔️ 敌将倒下」result, and a「carried back to the field」note when the lord goes down." }
+    ]
+  },
+  {
+    batch: 35,
+    title: "士兵打光之后：孤军奋战与撤退 After the army falls: the last stand",
+    date: "2026-10-24",
+    items: [
+    { zh: "**士兵全部倒下，战斗不会立刻结束**：最后一名士兵倒下后，主将会独自撑 **8 秒**，这段时间他打得更好（攻击 ×1.3、出手更快），屏幕上会出现一条「🛡 只剩主将一人！」的倒计时。", en: "**The battle no longer ends when the last soldier falls**: the general holds the field on his own for **8 seconds**, hitting harder and swinging faster, with a「🛡 只剩主将一人！」countdown on screen." },
+    { zh: "**你只剩主将时，可以按「🏳 撤退」**：不用等那 8 秒。撤退＝这一场判负，但**不会再损失第二批士兵**（本来也打光了，只有医院的救回判定可能带回几名 1 点血的伤兵），你带着**当前**的生命值退回战场周围，敌人还在附近。", en: "**When the lord is the last man standing, a「🏳 撤退」button appears**: no need to wait out those 8 seconds. Retreating loses the battle but **takes no second army from you** (there is none left — only the hospital rescue roll may bring back a few one-hit-point wounded). He steps back to the field around the fight **with the health he still had**, and the enemy is still nearby." },
+    { zh: "**敌方主将撑到最后就只身逃走，这一场算你赢**：他的士兵打光后同样撑 8 秒，时间一到战斗结束 —— **算你获胜**，战利品与占领结算照常，结果面板会写「敌将只身逃走」。", en: "**A hostile general who holds to the end flees alone and hands you the battle**: he holds for 8 seconds too, and when the clock runs out the fight ends **as your victory** — loot and captures as usual, with「敌将只身逃走」on the result screen." }
+    ]
+  },
+  {
+    batch: 36,
+    title: "走进城镇：街道、居民、委托与随从 Towns you can walk through, their people, jobs and companions",
+    date: "2026-10-25",
+    items: [
+    { zh: "**据点变成了可以走动的场景**：在世界地图上点「进入」，主角就站进了这座城镇自己的地图 —— 一条主街、一个广场和喷泉、两排房屋，市集 / 兵营 / 学堂 / 医馆 / 铁匠铺 / 酒馆都排在街边。点地面走过去（和世界地图同一套寻路），点房子走到门口推门，点人走过去说话，镜头跟着主角，居民在自家门口一两格内慢慢走动。村庄也有自己的小地图：谷仓、磨坊、水井、几间农舍和城外的田地。", en: "**A settlement is now a place you walk through**: tapping 「进入」 on the world map puts the lord on the town's own map — a main street, a square with a fountain and two rows of houses, with the market, barracks, school, hospital, smithy and tavern along the street. Tap the ground to walk (the same pathfinder the world map uses), tap a house to walk up to its door, tap a person to walk over and talk; the camera follows the lord and the townsfolk drift a step or two around their own doorsteps. A village has a small map of its own: barn, mill, well, a few cottages and fields on the edge." },
+    { zh: "**推门进去就是原来那些面板**：议事厅 = 城镇管理，集市 = 市场，兵营 = 招募与升级，学堂 = 考试，铁匠铺 = 升级，医馆显示「医院等级 / 每天恢复 / 伤兵 / 领主生命」，酒馆与民居会列出全镇的居民供你挑一个人说话 —— 没有第二套界面，只是把同一个面板搬到门口。", en: "**A door opens the very panels the game already had**: the hall is the town books, the market the market, the barracks recruiting and upgrading, the school the exam, the smithy the upgrade tree, the hospital shows the healing numbers, and the tavern or a house lists everybody in town so you can pick who to talk to — no second implementation, only the same panels moved to a door." },
+    { zh: "**镇上有名字的人**：每座城镇 7 位、每座村庄 4 位居民，八个职业（卫兵 / 猎人 / 书生 / 铁匠 / 医师 / 吟游诗人 / 商人 / 农夫）各有一套台词与性格；头顶挂着记号 ——「?」有委托还没接、「!」已经接下、「✓」做完了。", en: "**Named people in town**: seven townsfolk in a town and four in a village across eight trades (guard, hunter, scholar, smith, healer, bard, merchant, farmer), each with lines of their own — and a mark over their head: 「?」 for a job nobody has taken, 「!」 for one in progress, 「✓」 for one that is done." },
+    { zh: "**委托要先接，才算数**：和居民说话会看到他请你做的事 —— 答对 16 道题、赢下 3 场战斗、招募 10 名士兵。点「📜 接受委托」的这一刻才把当前统计（答对题数 / 胜场 / 招募人数）记成起点，之后你为他做的事才计入，之前攒下的战绩不会白送；点「放弃委托」可以退回重接。", en: "**A job has to be accepted before it counts**: talking to somebody shows what they would like done — answer 16 questions, win 3 fights, hire 10 soldiers. Pressing 「📜 接受委托」 is what records the counter at that moment, and only what the lord does afterwards counts, so an old record never hands out a free quest; 「放弃委托」 gives it back." },
+    { zh: "**委托日志：城镇和世界地图都能打开**：日志写着谁托付的、在哪座城镇、还差多少，并按「进行中 / 已完成」分组；做完的那条变绿并写着「✅ 已完成 —— 回去找他就能招募」，右边一个「去找 某某」按钮直接把你送回那座城镇。", en: "**A quest log reachable from a town and from the world map**: each row says who asked, in which town and what is left, grouped into open and finished jobs; a finished one turns green with 「✅ 已完成 —— 回去找他就能招募」 and a 「去找 某某」 button that walks the lord straight back to that town." },
+    { zh: "**花金币招随从，再把自己的兵交给他**：委托做完后「🤝 招募为随从」才会亮，价格按职业 110–200 金。招来的随从**身边没有兵**：打开「👥 随从」，左边是你的部队、右边是他的旗子，点「给他」把一名士兵交过去、点「收回」要回来，一顶旗子最多 4–6 人（按职业），士兵连伤口一起转手。", en: "**Hire a companion with gold, then hand him your own soldiers**: the 「🤝 招募为随从」 button lights up once the job is done, at 110–200 gold depending on the trade. A new companion has **no soldiers of his own**: in 「👥 随从」 the warband sits on the left and his banner on the right, 「给他」 hands a soldier over and 「收回」 takes one back, a banner holds four to six (by trade), and a soldier carries his wounds across." },
+    { zh: "**随从带兵上战场，伤亡各算各的**：带着兵的随从会在战场后排排出自己的小队，队名就是他的名字（「李守信·民兵」），能单独下令与换队形；他的兵死了只少他自己旗子上的人，你的队伍不替他背损失，他本人也不会阵亡。每种职业还给全军一点小加成（卫兵 +2% 防御、猎人 +2% 攻击、医师 +15% 伤兵恢复……）。", en: "**Companions fight with their own banner, settled separately**: a companion with soldiers forms squads in the rear named after him (「李守信·民兵」) that take orders and formations like any other; his losses thin his banner only, never the lord's roster, and he is never killed. Each trade adds a small army-wide bonus (guard +2% defence, hunter +2% attack, healer +15% recovery …)." },
+    { zh: "**39 张新的像素素材**：六张可平铺的地面（草地 / 土路 / 石板路 / 广场砖 / 水 / 田地）、十五张建筑与设施（议事厅 / 三种民居 / 集市 / 酒馆 / 铁匠铺 / 兵营 / 医馆 / 学堂 / 磨坊 / 谷仓 / 城门 / 水井 / 喷泉）、十张街道道具（木桶 / 木箱 / 推车 / 路灯 / 树 / 灌木 / 路牌 / 草堆 / 旗帜 / 栅栏）和八张居民（每个职业一张）。全部 32 × 32，经 Pixelorama 桥接生成，与地图素材共用同一套调色板。", en: "**39 new pixel sprites**: six tileable grounds (grass, dirt road, cobbles, plaza slabs, water, field), fifteen buildings and facilities (hall, three houses, market, tavern, smithy, barracks, hospital, school, mill, barn, gate, well, fountain), ten street props (barrel, crate, cart, lamp, tree, bush, signpost, haystack, banner, fence) and eight townsfolk, one per trade — all 32 x 32, drawn through the Pixelorama bridge with the same palette as the map art." }
+    ]
+  },
+  {
+    batch: 37,
+    title: "随从跟着走：地图上的小队 A companion rides along on the world map",
+    date: "2026-10-25",
+    items: [
+    { zh: "**招募的随从会跟着你走**：不再只在城镇里出现。主角在地图上走，随从就跟在他身后排成一小队（两人一排，越走越靠后拉开），走动时轻轻一颠一颠，停下时围在身后站定；夜里他们和主角一起被提灯照亮。", en: "**A recruited companion now walks with the lord**: no more showing up only inside a town. When the lord rides, his companions follow in a small train behind him (two abreast, the pairs opening out further back), bobbing a little while they walk and standing behind him when he stops — and at night they share the lord's lantern light." },
+    { zh: "**小地图与全图也看得到**：小地图上主角的白点周围多出一圈小点（每位随从一颗），详细全图里则是随从自己的像素小人，和大地图上的站位一致。", en: "**The minimap and the atlas show them too**: a ring of small dots around the lord's dot on the minimap (one per companion), and their own pixel sprites on the detailed atlas, standing in the same slots as on the big map." },
+    { zh: "**路上也能管理随从**：世界地图顶部新增「👥 随从 N」芯片，点开就是城镇里那块面板 —— 不必为了给谁分兵特地跑回城里。", en: "**Companions can be managed on the road**: the world-map bar grew a 「👥 随从 N」 chip that opens the very panel the town uses, so handing out soldiers no longer means riding back to town." }
+    ]
+  },
+  {
+    batch: 38,
+    title: "全图标都有兵数，顶部一律黑玻璃 Badges on every icon, one black glass above the map",
+    date: "2026-10-25",
+    items: [
+    { zh: "**详细全图上的随从也有兵力角标**：全图里每位随从的像素小人，右上角都画出一枚兵力徽章 —— 和领主、敌将身上那枚一模一样，只是小一号；没有分到兵的随从不挂徽章。全图底部那句「图标右上角数字是该部队兵力」，现在对每一个图标都算数。", en: "**A companion on the atlas carries his troop badge too**: every companion sprite on the detailed atlas now wears the badge in his top-right corner — the same disc the lord and the commanders wear, one size smaller; a companion with no soldiers stays unbaded. The atlas footer's promise that the corner number is the troop count now holds for every icon on the map." },
+    { zh: "**世界地图上方统一成黑色透明**：顶部状态栏的芯片与按钮、右上角的小地图按钮、图例和图例里的「收起 / 展开」，现在全是同一块黑色透明玻璃（悬停时只是加深一点黑色，不再闪白色或金色）；文字颜色照旧各自区分，一块玻璃、五种颜色。", en: "**One black glass above the world map**: the chips and buttons of the top bar, the minimap button in the corner, the legend and its 「收起 / 展开」 toggle all wear the same translucent black — a hover only deepens the black instead of flashing white or gold; the labels keep their own colours, so it is one glass with five inks." }
+    ]
   }
 ]
 

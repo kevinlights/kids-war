@@ -23,6 +23,22 @@ import { unitDef, unitName, counterMultiplier, normalizeTroops } from './units'
 import { createRng } from './rng'
 import { arenaTerrainAt, arenaWalkable, ARENA_CELL, generateArenaTerrain } from './arena'
 import { arenaLineClear, findArenaPath, retreatDirection } from './arenaPath'
+import { factionOf } from './factions'
+import {
+  ENEMY_GENERAL_ATK,
+  ENEMY_GENERAL_DEF,
+  ENEMY_GENERAL_SPEED,
+  GENERAL_SWING_COOLDOWN,
+  LAST_STAND_ATK_MUL,
+  LAST_STAND_SECONDS,
+  LAST_STAND_SWING_MUL,
+  LORD_ATK,
+  LORD_DEF,
+  LORD_GUARD_COUNT,
+  LORD_MAX_HP,
+  LORD_SPEED,
+  clampLordHp
+} from './lord'
 
 /**
  * The battle field. It is deliberately larger than the screen of a phone: the
@@ -255,24 +271,32 @@ function groupKeyOf(side, type, tier) {
  * Lay out one side: one squad per troop group, anchored down the left (player)
  * or right (enemy) edge so several squads start in their own band of the field.
  */
-function addSide(b, side, troops, dir, atkMul) {
+function addSide(b, side, troops, dir, atkMul, opts = {}) {
   // One squad per family and rank; duplicates are merged up front so a squad
   // always has a single anchor point.
   const list = normalizeTroops(troops)
   // The armies start in their own half of the field, with room to manoeuvre in
   // between instead of clashing on the first step.
   const originX = side === 'player' ? ARENA.w * 0.22 : ARENA.w * 0.78
+  // A companion's banner takes its own band of the field, so the lord's squads
+  // and his companion's squads never start on top of each other.
+  const bandFrom = opts.yFrom ?? 0.06
+  const bandTo = opts.yTo ?? 0.94
 
   list.forEach((t, gi) => {
     const def = unitDef(t.type, t.tier)
-    const key = groupKeyOf(side, t.type, def.tier)
-    const anchorY = (ARENA.h * (gi + 1)) / (list.length + 1)
+    const key = opts.owner ? `${side}:${opts.owner}:${t.type}:${def.tier}` : groupKeyOf(side, t.type, def.tier)
+    const anchorY = ARENA.h * (bandFrom + (bandTo - bandFrom) * ((gi + 1) / (list.length + 1)))
     const group = {
       key,
       side,
       type: t.type,
       tier: def.tier,
-      name: unitName(t.type, def.tier),
+      // A squad under a companion's banner is named after him, so the battle
+      // HUD says whose soldiers are whose.
+      name: opts.owner ? `${opts.label}·${unitName(t.type, def.tier)}` : unitName(t.type, def.tier),
+      owner: opts.owner || null,
+      ownerName: opts.label || null,
       formation: side === 'player' ? 'square' : 'line2',
       density: 'tight',
       // The map opens on a standoff: every squad holds its ground until it is
@@ -305,6 +329,9 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
     side,
     group: group.key,
     slotIndex: index,
+    // `null` is a soldier of the lord's own warband; a string is the id of the
+    // companion under whose banner this soldier marches.
+    owner: group.owner || null,
     type: group.type,
     tier: group.tier,
     def,
@@ -345,6 +372,171 @@ function addUnit(b, side, group, def, index, atkMul, dir, carriedHp) {
   })
 }
 
+/** Where the bodyguards stand around their general, before the side decides. */
+const GUARD_SLOTS = [
+  { ox: 20, oy: -15 },
+  { ox: 20, oy: 15 },
+  { ox: -15, oy: -19 },
+  { ox: -15, oy: 19 }
+]
+
+/**
+ * Build one general.
+ *
+ * A general carries the same visual fields as a soldier (flash, swing, nav) so
+ * the renderer needs no special path for him.
+ */
+function makeGeneral({ id, side, x, y, maxHp, hp, atk, def, speed, name, sprite, isEnemyGeneral = false }) {
+  const top = Math.max(1, Math.round(maxHp || LORD_MAX_HP))
+  return {
+    id,
+    side,
+    type: 'commander',
+    name,
+    sprite,
+    x,
+    y,
+    tx: x,
+    ty: y,
+    maxHp: top,
+    hp: clampLordHp(hp === undefined ? top : hp, top),
+    atk,
+    def,
+    speed,
+    alive: true,
+    cd: 0,
+    // Visual-only fields shared with the soldiers, so the renderer does not
+    // need a special path for a general.
+    hitFlash: 0,
+    swing: 0,
+    facing: side === 'player' ? 1 : -1,
+    nav: { path: [], index: 0, goal: null, at: -1 },
+    isCommander: true,
+    isGeneral: true,
+    isEnemyGeneral,
+    // How many times a beaten general was carried back to his feet.
+    downs: 0
+  }
+}
+
+/**
+ * Take the bodyguards out of a warband.
+ *
+ * They are real soldiers of the side — never free troops — so the warband is
+ * smaller by exactly the guards that now stand around its general, and each
+ * guard carries the health its soldier had. Melee families are preferred, a
+ * one-soldier army still keeps one soldier in its squad, and an army of a
+ * single archer simply has no bodyguard.
+ */
+export function splitGuards(troops, count = LORD_GUARD_COUNT) {
+  const list = normalizeTroops(troops).map((t) => ({ ...t, hp: [...(t.hp || [])] }))
+  const total = list.reduce((n, t) => n + t.count, 0)
+  // Never strip a squad bare: at most half the army is on bodyguard duty, so a
+  // small warband still fields a squad of its own.
+  const want = Math.min(count, Math.max(0, total - 1), Math.floor(total / 2))
+  const guards = []
+  const isMelee = (t) => !unitDef(t.type, t.tier).ranged
+  while (guards.length < want) {
+    const melee = list.filter((t) => t.count > 0 && isMelee(t))
+    const pool = melee.length ? melee : list.filter((t) => t.count > 0)
+    if (!pool.length) break
+    // The biggest melee squad gives the next guard, so a wide army shares the
+    // duty instead of one squad disappearing into the bodyguard.
+    pool.sort((a, b) => b.count - a.count || b.tier - a.tier)
+    const from = pool[0]
+    const hp = from.hp.length ? from.hp.shift() : unitDef(from.type, from.tier).hp
+    from.count -= 1
+    guards.push({ type: from.type, tier: from.tier, hp })
+  }
+  return { troops: list.filter((t) => t.count > 0), guards }
+}
+
+/**
+ * Put the bodyguard of one general on the field: a small squad that follows
+ * him and stands in the way of whoever swings at him.
+ */
+function addGuardSquad(b, general, guards) {
+  if (!general || !guards.length) return null
+  const side = general.side
+  const dir = side === 'player' ? 1 : -1
+  const key = `${side}:guard:1`
+  const first = guards[0]
+  const group = {
+    key,
+    side,
+    type: first.type,
+    tier: first.tier,
+    name: '亲兵',
+    formation: 'square',
+    density: 'tight',
+    // A bodyguard holds to its general: it never joins the charge.
+    order: 'follow',
+    isGuard: true,
+    guardOf: general.id,
+    dir,
+    anchor: { x: general.x, y: general.y },
+    rally: null,
+    tx: general.x,
+    ty: general.y,
+    count: guards.length,
+    unitCount: guards.length,
+    slots: []
+  }
+  group.slots = guards.map((unused, i) => {
+    const slot = GUARD_SLOTS[i % GUARD_SLOTS.length]
+    return { ox: slot.ox * dir, oy: slot.oy }
+  })
+  guards.forEach((carried, i) => {
+    const def = unitDef(carried.type, carried.tier)
+    const slot = group.slots[i]
+    b.units.push({
+      id: `${key}#${i}`,
+      side,
+      group: key,
+      slotIndex: i,
+      type: carried.type,
+      tier: def.tier,
+      def,
+      atkMul: side === 'player' ? b.playerAtkMul : 1,
+      maxHp: def.hp,
+      hp: Math.max(1, Math.min(def.hp, Number.isFinite(carried.hp) ? carried.hp : def.hp)),
+      x: clamp(general.x + slot.ox, 18, ARENA.w - 18),
+      y: clamp(general.y + slot.oy, 18, ARENA.h - 18),
+      cd: b.rng.float(0, 0.6),
+      alive: true,
+      stamina: 1,
+      sprinting: false,
+      tired: 0,
+      volleyT: 0,
+      facing: dir,
+      hitFlash: 0,
+      swing: 0,
+      lastAttackerId: null,
+      nav: { path: [], index: 0, goal: null, at: -1 },
+      isGuard: true,
+      guardOf: general.id,
+      wobble: {
+        x: 0,
+        y: 0,
+        dx: 0,
+        dy: 0,
+        phase: b.rng.float(0, Math.PI * 2),
+        speed: b.rng.float(1.6, 2.8)
+      }
+    })
+  })
+  b.groups[key] = group
+  return group
+}
+
+/**
+ * The sprite of a hostile general: the commander art of its faction.
+ */
+export function generalSprite(enemyFaction) {
+  const key = factionOf(enemyFaction)?.key
+  return ['bandit', 'wolf', 'eagle'].includes(key) ? key : 'bandit'
+}
+
 export function createBattle({
   playerTroops,
   enemyTroops,
@@ -353,7 +545,20 @@ export function createBattle({
   playerAtkMul = 1,
   playerDefMul = 1,
   training = false,
-  arenaMap = 'mixed'
+  arenaMap = 'mixed',
+  // The companions riding with the lord: `[{ id, name, troops }]`. Their
+  // soldiers are player-side squads of their own, tagged with the companion id.
+  allyTroops = [],
+  // The lord carries his wounds in from the world map.
+  lordHp = LORD_MAX_HP,
+  lordMaxHp = LORD_MAX_HP,
+  // A watched battle ends the moment a general falls and the two armies go
+  // back to the world map. An instant simulation has no map to return to, so
+  // it fights on until one army is gone.
+  endOnGeneralDown = true,
+  // A general whose soldiers are all gone holds out for a few seconds before
+  // he falls or yields. An instant simulation skips that and settles at once.
+  lastStand = true
 }) {
   const b = {
     rng: createRng(seed),
@@ -376,28 +581,21 @@ export function createBattle({
     groups: {},
     playerGroups: [],
     units: [],
-    commander: {
+    commander: makeGeneral({
       id: 'commander',
       side: 'player',
-      type: 'commander',
       x: ARENA.w * 0.16,
       y: ARENA.h / 2,
-      tx: ARENA.w * 0.16,
-      ty: ARENA.h / 2,
-      maxHp: 120,
-      hp: 120,
-      atk: 14,
-      def: 12,
-      speed: 150,
-      alive: true,
-      cd: 0,
-      // Visual-only fields shared with the soldiers, so the renderer does not
-      // need a special path for the lord.
-      hitFlash: 0,
-      swing: 0,
-      nav: { path: [], index: 0, goal: null, at: -1 },
-      isCommander: true
-    },
+      name: '主将',
+      sprite: 'lord',
+      maxHp: lordMaxHp,
+      hp: lordHp,
+      atk: LORD_ATK,
+      def: LORD_DEF,
+      speed: LORD_SPEED
+    }),
+    // The enemy fields a general of its own, unless this is a drill.
+    enemyCommander: null,
     projectiles: [],
     effects: [],
     time: 0,
@@ -406,12 +604,69 @@ export function createBattle({
     opening: training
       ? null
       : { phase: 'wait', t: 0, wait: OPENING.wait, dress: OPENING.dress },
-    outcome: null, // 'win' | 'lose' | null
+    outcome: null, // 'win' | 'lose' | 'general' | null
+    // Set when the lord himself went down: the store reads it to scatter half
+    // the warband, restore half his health and put him back beside the field.
+    lordDown: false,
+    // Set when the hostile general went down: the store reads it to put both
+    // armies back on the map around the field, with the chase still open.
+    enemyGeneralDown: false,
+    endOnGeneralDown: !!endOnGeneralDown,
+    lastStandEnabled: !!lastStand,
+    // Set while a side with no soldiers left is still holding the field with
+    // its general: `{ side, t }` counts the seconds of the last stand.
+    lastStand: null,
+    // Set when a battle ended because a lone general gave up the field:
+    // 'player' (the lord withdrew) or 'enemy' (their general fled).
+    yielded: null,
+    // How many times a general went down on this field.
+    generalDowns: 0,
     kills: 0,
     losses: 0
   }
-  addSide(b, 'player', playerTroops, 1, playerAtkMul)
-  addSide(b, 'enemy', enemyTroops, -1, 1)
+
+  // The bodyguard is taken out of each army before the squads are laid out, so
+  // the four guards really are four soldiers of that side.
+  const playerSide = training
+    ? { troops: playerTroops, guards: [] }
+    : splitGuards(playerTroops)
+  const enemySide = training ? { troops: enemyTroops, guards: [] } : splitGuards(enemyTroops)
+
+  addSide(b, 'player', playerSide.troops, 1, playerAtkMul, { yFrom: 0.05, yTo: 0.6 })
+  addSide(b, 'enemy', enemySide.troops, -1, 1)
+  // A companion's banner stands behind the lord's line, in its own band.
+  for (const ally of allyTroops) {
+    if (!ally || !ally.troops || !ally.troops.length) continue
+    addSide(b, 'player', ally.troops, 1, playerAtkMul, {
+      owner: ally.id,
+      label: ally.name,
+      yFrom: 0.66,
+      yTo: 0.96
+    })
+  }
+
+  if (!training) {
+    b.enemyCommander = makeGeneral({
+      id: 'enemy-commander',
+      side: 'enemy',
+      x: ARENA.w * 0.84,
+      y: ARENA.h / 2,
+      name: `${factionOf(enemyFaction)?.name || '敌军'}主将`,
+      sprite: generalSprite(enemyFaction),
+      maxHp: lordMaxHp,
+      hp: lordMaxHp,
+      atk: ENEMY_GENERAL_ATK,
+      def: ENEMY_GENERAL_DEF,
+      speed: ENEMY_GENERAL_SPEED,
+      isEnemyGeneral: true
+    })
+    // The enemy general holds the same ground its army does at the opening.
+    b.enemyCommander.tx = b.enemyCommander.x
+    b.enemyCommander.ty = b.enemyCommander.y
+  }
+
+  addGuardSquad(b, b.commander, playerSide.guards)
+  addGuardSquad(b, b.enemyCommander, enemySide.guards)
   return b
 }
 
@@ -545,16 +800,66 @@ function targetGrid(b) {
   if (grid && b.time - grid.at < TARGET_GRID_LIFE) return grid
   const cells = new Map()
   const byId = new Map()
+  // A general whose bodyguard still stands cannot be picked as a target: the
+  // guards are what the soldiers have to get through first.
+  const shielded = new Set()
   for (const u of b.units) {
     if (!u.alive) continue
+    if (u.isGuard) shielded.add(u.guardOf)
     byId.set(u.id, u)
     const key = Math.floor(u.x / TARGET_CELL) + ':' + Math.floor(u.y / TARGET_CELL)
     let list = cells.get(key)
     if (!list) cells.set(key, (list = []))
     list.push(u)
   }
-  b._targetGrid = { at: b.time, cells, byId }
+  // The two generals are on the field as well: they can be struck, and they
+  // are who a soldier answers when a general is the one who hit it.
+  for (const gen of generalsOf(b)) {
+    if (!gen.alive) continue
+    byId.set(gen.id, gen)
+    const key = Math.floor(gen.x / TARGET_CELL) + ':' + Math.floor(gen.y / TARGET_CELL)
+    let list = cells.get(key)
+    if (!list) cells.set(key, (list = []))
+    list.push(gen)
+  }
+  b._targetGrid = { at: b.time, cells, byId, shielded }
   return b._targetGrid
+}
+
+/** The generals of the field: the lord and, unless it is a drill, the enemy's. */
+function generalsOf(b) {
+  return b.enemyCommander ? [b.commander, b.enemyCommander] : [b.commander]
+}
+
+/** True while a general still has a living bodyguard in front of him. */
+export function generalShielded(b, general) {
+  if (!general || !general.isGeneral) return false
+  return b.units.some((u) => u.alive && u.isGuard && u.guardOf === general.id)
+}
+
+/** The living bodyguards of one general. */
+export function guardsOf(b, general) {
+  if (!general) return []
+  return b.units.filter((u) => u.alive && u.isGuard && u.guardOf === general.id)
+}
+
+/**
+ * True while this general is the last body left on his side of the field.
+ *
+ * A general in that state fights the last stand: he swings harder and faster,
+ * and the battle waits a few seconds before deciding how it ends.
+ * 士兵全部倒下后，主将会进入「孤军奋战」：攻击更高、出手更快。
+ */
+export function isLastStand(b, general) {
+  return !!b.lastStand && !!general && b.lastStand.side === general.side
+}
+
+/** A soldier or a general by its id, alive or not. */
+function combatantById(b, id) {
+  if (!id) return null
+  const unit = b.units.find((u) => u.id === id)
+  if (unit) return unit
+  return generalsOf(b).find((g) => g.id === id) || null
 }
 
 function nearestEnemy(b, unit) {
@@ -571,6 +876,8 @@ function nearestEnemy(b, unit) {
     if (!list) return
     for (const u of list) {
       if (u.side !== foeSide) continue
+      // A shielded general is not a target: his guards are.
+      if (u.isGeneral && grid.shielded.has(u.id)) continue
       const dx = u.x - unit.x
       const dy = u.y - unit.y
       const d2 = dx * dx + dy * dy
@@ -625,6 +932,9 @@ function foeFor(b, unit) {
   const grid = targetGrid(b)
   const attacker = grid.byId.get(unit.lastAttackerId)
   if (!attacker || !attacker.alive) return nearest
+  // A general who hit someone still answers for it, unless his bodyguard is
+  // standing in the way: then the blow is answered by the guards.
+  if (attacker.isGeneral && grid.shielded.has(attacker.id)) return nearest
   const d = Math.hypot(attacker.x - unit.x, attacker.y - unit.y)
   const reach = unit.def.ranged ? unit.def.range : MELEE_RANGE
   if (d > reach) return nearest
@@ -781,7 +1091,7 @@ export function dressEnemyRanks(b) {
   o.phase = 'dress'
   o.t = 0
   for (const g of Object.values(b.groups)) {
-    if (g.side !== 'enemy' || g.isDummy) continue
+    if (g.side !== 'enemy' || g.isDummy || g.isGuard) continue
     const def = unitDef(g.type, g.tier)
     g.formation = def.ranged ? 'line1' : 'wedge'
     g.slots = formationSlots(g.unitCount, g.formation, g.density, g.dir)
@@ -796,7 +1106,8 @@ export function enemyAdvance(b) {
   o.phase = 'advance'
   o.t = 0
   for (const g of Object.values(b.groups)) {
-    if (g.side !== 'enemy' || g.isDummy) continue
+    // A bodyguard stays with its general, the dummies stay at their post.
+    if (g.side !== 'enemy' || g.isDummy || g.isGuard) continue
     g.order = 'attack'
   }
   return true
@@ -842,6 +1153,17 @@ function updateGroupTargets(b) {
     if (g.isDummy) {
       g.tx = g.anchor.x
       g.ty = g.anchor.y
+      g.retreat = null
+      continue
+    }
+
+    // A bodyguard walks with the general it protects: whichever side it is on,
+    // the general himself is the anchor, so the four men stay between him and
+    // whoever comes for him.
+    if (g.isGuard) {
+      const general = g.guardOf === 'commander' ? b.commander : b.enemyCommander
+      g.tx = general ? general.x : g.anchor.x
+      g.ty = general ? general.y : g.anchor.y
       g.retreat = null
       continue
     }
@@ -946,7 +1268,62 @@ export function damageOf(b, unit, target) {
   return Math.max(1, Math.round(effAtk - effDef * 0.5 + b.rng.float(-1, 1)))
 }
 
-function strike(b, unit, target) {
+/**
+ * The damage one blow of a general deals.
+ *
+ * A general is not part of a squad, so no formation or order modifier applies:
+ * only the ground under his feet and the ground under the man he hits.
+ */
+export function generalDamage(b, general, target) {
+  const atkGround = arenaTerrainAt(b.terrain, general.x, general.y)
+  const defGround = arenaTerrainAt(b.terrain, target.x, target.y)
+  const targetDef = typeof target.def === 'number' ? target.def : (target.def && target.def.def) || 0
+  const effAtk = general.atk * atkGround.atkMul * (isLastStand(b, general) ? LAST_STAND_ATK_MUL : 1)
+  const effDef = targetDef * defMulOf(b, target) * defGround.defMul
+  return Math.max(1, Math.round(effAtk - effDef * 0.5 + b.rng.float(-1, 1)))
+}
+
+/**
+ * The enemy general goes down: the battle is over on the spot.
+ *
+ * Unlike the lord he does not lose the campaign — nobody dies — but his army
+ * has just lost its commander, so both sides fall back onto the world map
+ * around the field. The warband is still standing, so the lord may go after it
+ * again at once, or walk away while he has the chance.
+ * 敌将倒下同样立刻结束战斗：双方退回世界地图、落在战场周围，玩家可以继续追击或离开。
+ */
+export function downEnemyGeneral(b) {
+  const gen = b.enemyCommander
+  if (!gen) return false
+  gen.hp = 0
+  gen.alive = false
+  gen.hitFlash = 0
+  gen.swing = 0
+  gen.downs = (gen.downs || 0) + 1
+  gen.nav = { path: [], index: 0, goal: null, at: -1 }
+  b.generalDowns = (b.generalDowns || 0) + 1
+  b.effects.push({ x: gen.x, y: gen.y, t: 0, life: 0.5, kind: 'down' })
+  b.enemyGeneralDown = true
+  // A general who falls with no soldier of his own left on the field is not a
+  // reason to stop short: the army is gone, so the battle is won outright.
+  b.outcome = aliveUnits(b, 'enemy').length === 0 ? 'win' : 'general'
+  return true
+}
+
+/**
+ * A lone general gives up the field (the player pressed 撤退).
+ *
+ * The battle is lost either way, but the rest of the rules still apply through
+ * `settle()`: the lord keeps whatever health he has, the enemy warband stays on
+ * the map, and both sides fall back around the field.
+ * 只剩主将时玩家可以主动撤出战场：判负，但不再额外损失。
+ */
+export function yieldBattle(b, side = 'player') {
+  if (!b || b.outcome) return false
+  b.yielded = side
+  b.outcome = side === 'player' ? 'lose' : 'win'
+  return true
+}function strike(b, unit, target) {
   // A training dummy only takes blows: it never swings back.
   if (unit.isDummy) return
   const def = unit.def
@@ -999,13 +1376,45 @@ export function applyDamage(b, target, dmg, attacker) {
       target.wobble.dy += (dy / len) * 5
     }
   }
-  if (target.isCommander) {
+  if (target.isGeneral) {
+    // The bodyguard throws itself in the way: while one of the four men still
+    // stands, the general takes no blow at all — the guard does.
+    const guards = guardsOf(b, target)
+    if (guards.length) {
+      let blocker = guards[0]
+      let bestD = Infinity
+      for (const guard of guards) {
+        const d = Math.hypot(guard.x - target.x, guard.y - target.y)
+        if (d < bestD) {
+          bestD = d
+          blocker = guard
+        }
+      }
+      applyDamage(b, blocker, dmg, attacker)
+      b.effects.push({ x: blocker.x, y: blocker.y, t: 0, life: 0.18, kind: 'block' })
+      return
+    }
     target.hp = Math.max(0, target.hp - dmg)
     target.hitFlash = 0.2
-    if (target.hp <= 0) {
-      target.alive = false
-      b.outcome = 'lose'
+    if (target.hp > 0) return
+    // A hostile general keeps his own life, but the blow he cannot take ends
+    // the battle: both armies fall back onto the world map.
+    if (target.isEnemyGeneral) {
+      if (!b.endOnGeneralDown) {
+        // An instant simulation has no world map to go back to, so it fights
+        // on without a commander rather than stopping halfway.
+        target.hp = 0
+        target.alive = false
+        b.generalDowns = (b.generalDowns || 0) + 1
+        return
+      }
+      downEnemyGeneral(b)
+      return
     }
+    // The lord never dies, but a battle he falls in is lost on the spot.
+    target.alive = false
+    b.lordDown = true
+    b.outcome = 'lose'
     return
   }
   target.hp -= dmg
@@ -1023,6 +1432,34 @@ export function applyDamage(b, target, dmg, attacker) {
   }
 }
 
+/**
+ * One frame of a general: walk where he was told to go, and strike anyone who
+ * comes within reach of his arm.
+ *
+ * Both generals work this way, so the lord who walks onto an enemy squad, and
+ * the enemy general who walks onto the lord, trade blows without any special
+ * case for either of them.
+ */
+function stepGeneral(b, gen, dt) {
+  if (!gen || !gen.alive) return
+  if (gen.cd > 0) gen.cd -= dt
+  if (gen.hitFlash > 0) gen.hitFlash -= dt
+  if (gen.swing > 0) gen.swing -= dt
+  moveTo(b, gen, gen.tx, gen.ty, gen.speed, dt)
+
+  const foe = nearestEnemy(b, gen)
+  if (!foe.unit) return
+  const reach = MELEE_RANGE + 6
+  if (foe.dist > reach) return
+  if (!arenaLineClear(b.terrain, gen.x, gen.y, foe.unit.x, foe.unit.y, 6)) return
+  gen.facing = foe.unit.x >= gen.x ? 1 : -1
+  if (gen.cd > 0) return
+  gen.cd = GENERAL_SWING_COOLDOWN * (isLastStand(b, gen) ? LAST_STAND_SWING_MUL : 1)
+  gen.swing = 0.16
+  applyDamage(b, foe.unit, generalDamage(b, gen, foe.unit), gen)
+  b.effects.push({ x: foe.unit.x, y: foe.unit.y, t: 0, life: 0.22, kind: 'hit' })
+}
+
 export function stepBattle(b, dt) {
   if (b.outcome) return b
   b.time += dt
@@ -1031,12 +1468,30 @@ export function stepBattle(b, dt) {
   // First the standoff: it decides whether the enemy still holds or attacks.
   updateOpening(b, dt)
 
-  // Move the commander toward its click target, around any lake.
-  if (cmd.alive) {
-    moveTo(b, cmd, cmd.tx, cmd.ty, cmd.speed, dt)
-    if (cmd.cd > 0) cmd.cd -= dt
-    if (cmd.hitFlash > 0) cmd.hitFlash -= dt
-    if (cmd.swing > 0) cmd.swing -= dt
+  // The lord walks toward the spot he was given, around any lake, and swings
+  // at whatever stands in his way.
+  stepGeneral(b, cmd, dt)
+
+  // The enemy general stands with his army, a little behind its front line,
+  // and swings at whatever the line does not stop. He is a general, not a
+  // squad: nobody gives him orders, and he does not run ahead of his men.
+  const foeGeneral = b.enemyCommander
+  if (foeGeneral && foeGeneral.alive) {
+    if (!b.opening || b.opening.phase === 'advance') {
+      const own = b.units.filter((u) => u.alive && u.side === 'enemy' && !u.isGuard)
+      if (own.length) {
+        const cx = own.reduce((n, u) => n + u.x, 0) / own.length
+        const cy = own.reduce((n, u) => n + u.y, 0) / own.length
+        // +x is the enemy's own side of the field: the general keeps to the
+        // rear of his line instead of walking into the lord's army alone.
+        foeGeneral.tx = clamp(cx + 70, 40, ARENA.w - 40)
+        foeGeneral.ty = clamp(cy, 40, ARENA.h - 40)
+      } else {
+        foeGeneral.tx = cmd.x
+        foeGeneral.ty = cmd.y
+      }
+    }
+    stepGeneral(b, foeGeneral, dt)
   }
 
   updateGroupTargets(b)
@@ -1236,11 +1691,13 @@ export function stepBattle(b, dt) {
     const d = Math.hypot(dx, dy)
     const step = p.speed * dt
     if (d <= step || p.t > 2.5) {
-      const target = b.units.find((u) => u.id === p.targetId && u.alive)
+      const found = combatantById(b, p.targetId)
+      const target = found && found.alive ? found : null
       // Loose ranks give up density for cover, so a scattered squad takes less
       // from arrows. The reduction is applied where the arrow lands.
       if (target) {
-        const shooter = p.attackerId ? b.units.find((u) => u.id === p.attackerId) : null
+        const shooter = combatantById(b, p.attackerId)
+        // A volley at a general is caught by his bodyguard instead.
         applyDamage(b, target, Math.max(1, Math.round(p.dmg * rangedTakenOf(b, target))), shooter)
       }
     } else {
@@ -1273,19 +1730,57 @@ export function stepBattle(b, dt) {
   }
   const playerAlive = aliveUnits(b, 'player')
   const enemyAlive = aliveUnits(b, 'enemy')
-  if (!cmd.alive) b.outcome = 'lose'
-  else if (enemyAlive.length === 0) b.outcome = 'win'
-  else if (playerAlive.length === 0) b.outcome = 'lose'
+  // The lord going down loses the battle at once — he does not die, he is
+  // carried off the field (see `applyDamage`).
+  if (!cmd.alive || cmd.hp <= 0) {
+    b.outcome = 'lose'
+    return b
+  }
+  // An instant simulation settles the moment a side runs out of soldiers.
+  if (!b.lastStandEnabled) {
+    if (enemyAlive.length === 0) b.outcome = 'win'
+    else if (playerAlive.length === 0) b.outcome = 'lose'
+    return b
+  }
+  // Soldiers gone, general still standing: the field is not lost yet. The
+  // general holds out on his own for a few seconds — long enough for the
+  // child to see it, run him down, or take him home.
+  if (!b.lastStand) {
+    if (playerAlive.length === 0) b.lastStand = { side: 'player', t: 0 }
+    else if (enemyAlive.length === 0) b.lastStand = { side: 'enemy', t: 0 }
+  }
+  const stand = b.lastStand
+  if (!stand) return b
+  // The lone general fell before the time was up: `applyDamage` already ended
+  // the battle the ordinary way (the lord down, or the hostile general down).
+  const generalGone =
+    stand.side === 'player' ? !cmd.alive : !b.enemyCommander || !b.enemyCommander.alive
+  if (generalGone) {
+    if (b.outcome) return b
+    b.outcome = stand.side === 'player' ? 'lose' : 'win'
+    return b
+  }
+  stand.t += dt
+  if (stand.t >= LAST_STAND_SECONDS) {
+    // Time is up: the lone general gives up the field. The lord withdraws and
+    // the battle is lost; a hostile general flees and the battle is won.
+    b.yielded = stand.side
+    b.outcome = stand.side === 'player' ? 'lose' : 'win'
+  }
   return b
 }
 
 /* --------------------------------- helpers --------------------------------- */
 
 /** Soldiers of one side still standing, merged by family and rank. */
-export function survivorsByType(b, side) {
+export function survivorsByType(b, side, owner) {
   const out = []
   for (const u of b.units) {
     if (!u.alive || u.side !== side) continue
+    // `owner` filters the soldiers by whose banner they marched under:
+    // `undefined` reads the whole side, `null` only the lord's own soldiers and
+    // a string only that companion's.
+    if (owner !== undefined && (u.owner || null) !== owner) continue
     const found = out.find((x) => x.type === u.type && x.tier === u.tier)
     if (found) {
       found.count += 1
@@ -1301,10 +1796,11 @@ export function survivorsByType(b, side) {
  * Soldiers of one side that went down, merged by family and rank. A hospital
  * can still save some of them, so the store needs to know who fell.
  */
-export function fallenByType(b, side) {
+export function fallenByType(b, side, owner) {
   const out = []
   for (const u of b.units) {
     if (u.alive || u.side !== side) continue
+    if (owner !== undefined && (u.owner || null) !== owner) continue
     const found = out.find((x) => x.type === u.type && x.tier === u.tier)
     if (found) found.count += 1
     else out.push({ type: u.type, tier: u.tier, count: 1 })
@@ -1329,6 +1825,8 @@ export function battleGroups(b, side) {
         density: g.density,
         total: g.unitCount,
         alive,
+        owner: g.owner || null,
+        ownerName: g.ownerName || null,
         rally: g.rally,
         anchor: g.anchor
       }
@@ -1343,4 +1841,34 @@ export function battleSummary(b) {
   const wounded = remaining.filter((u) => u.hp < u.maxHp).length
   const fallen = b.units.filter((u) => !u.alive && u.side === 'player').length
   return { remaining, byType, kills: b.kills, losses: b.losses, wounded, fallen }
+}
+
+/**
+ * The two generals as the battle HUD reads them: hit points, and how many of
+ * the four bodyguards still stand between a general and his enemies.
+ */
+export function lordReport(b) {
+  const of = (gen) => {
+    if (!gen) return null
+    const guards = b.units.filter((u) => u.isGuard && u.guardOf === gen.id)
+    const hp = Math.max(0, Math.round(gen.hp))
+    return {
+      id: gen.id,
+      side: gen.side,
+      name: gen.name,
+      hp,
+      maxHp: gen.maxHp,
+      percent: Math.max(0, Math.min(100, Math.round((hp / gen.maxHp) * 100))),
+      alive: gen.alive,
+      guards: guards.length,
+      guardsAlive: guards.filter((g) => g.alive).length,
+      shielded: guards.some((g) => g.alive),
+      downs: gen.downs || 0
+    }
+  }
+  return {
+    lord: of(b.commander),
+    enemy: of(b.enemyCommander),
+    generalDowns: b.generalDowns || 0
+  }
 }

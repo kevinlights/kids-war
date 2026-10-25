@@ -23,12 +23,20 @@ import release008 from './v0.0.8'
 import release009 from './v0.0.9'
 import release010 from './v0.0.10'
 import release011 from './v0.0.11'
+import release012 from './v0.0.12'
+import release013 from './v0.0.13'
+import release014 from './v0.0.14'
+import release015 from './v0.0.15'
+import release016 from './v0.0.16'
+import release017 from './v0.0.17'
+import release018 from './v0.0.18'
+import release019 from './v0.0.19'
 
 /** The version of this build. */
-export const VERSION = '0.0.11'
+export const VERSION = '0.0.19'
 
 /** Every release, newest first. */
-export const VERSIONS = [release011, release010, release009, release008, release007, release006, release005, release004, release003, release002, release001]
+export const VERSIONS = [release019, release018, release017, release016, release015, release014, release013, release012, release011, release010, release009, release008, release007, release006, release005, release004, release003, release002, release001]
 
 /** The notes of the current build. */
 export const CHANGELOG = VERSIONS

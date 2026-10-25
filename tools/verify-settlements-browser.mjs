@@ -518,6 +518,62 @@ try {
   check('the town funds are shown', townPanel.stats.some((s) => s.includes('500')), JSON.stringify(townPanel.stats))
   check('both facilities are offered', townPanel.facilities.length === 2, JSON.stringify(townPanel.facilities))
 
+  // The lord can leave his own soldiers in the town as a garrison and take
+  // them back: the station button moves a militia in, the withdraw brings it
+  // home, and the map badge follows the garrison it holds.
+  const opsBefore = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const p = window.kidsWarGame.stores.player
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(own.name)})
+      return {
+        rows: [...document.querySelectorAll('.gop-row')].map((r) => r.textContent.replace(/\\s+/g, ' ').trim()),
+        warband: p.troops.reduce((n, g) => n + g.count, 0),
+        garrison: st.garrison.reduce((n, g) => n + g.count, 0)
+      }
+    })()
+  `)
+  check('the garrison transfer rows are shown', opsBefore.rows.length > 0, JSON.stringify(opsBefore.rows))
+  check('the captured town starts without a garrison', opsBefore.garrison === 0, String(opsBefore.garrison))
+
+  await clickByText('.gop-row button', '驻守')
+  await sleep(400)
+  const afterStation = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const p = window.kidsWarGame.stores.player
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(own.name)})
+      return {
+        warband: p.troops.reduce((n, g) => n + g.count, 0),
+        garrison: st.garrison.reduce((n, g) => n + g.count, 0)
+      }
+    })()
+  `)
+  check(
+    'stationing moves a soldier into the garrison',
+    afterStation.garrison === 1 && afterStation.warband === opsBefore.warband - 1,
+    JSON.stringify(afterStation)
+  )
+
+  await clickByText('.gop-row button', '撤回')
+  await sleep(400)
+  const afterWithdraw = await evaluate(`
+    (() => {
+      const w = window.kidsWarGame.stores.world
+      const p = window.kidsWarGame.stores.player
+      const st = w.settlements.find((s) => s.name === ${JSON.stringify(own.name)})
+      return {
+        warband: p.troops.reduce((n, g) => n + g.count, 0),
+        garrison: st.garrison.reduce((n, g) => n + g.count, 0)
+      }
+    })()
+  `)
+  check(
+    'withdrawing brings the soldier home',
+    afterWithdraw.garrison === 0 && afterWithdraw.warband === opsBefore.warband,
+    JSON.stringify(afterWithdraw)
+  )
+
   const before = await evaluate(`
     (() => {
       const w = window.kidsWarGame.stores.world

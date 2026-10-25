@@ -36,6 +36,7 @@ import {
   walkTilt,
   woundedTilt
 } from '@/game/battleAnim'
+import { LAST_STAND_SECONDS } from '@/game/lord'
 import { rewardFor } from '@/game/quiz'
 import {
   DEFAULT_DIFFICULTY,
@@ -171,7 +172,7 @@ function standoffBattle() {
   })
 }
 
-const enemiesOf = (b) => Object.values(b.groups).filter((g) => g.side === 'enemy' && !g.isDummy)
+const enemiesOf = (b) => Object.values(b.groups).filter((g) => g.side === 'enemy' && !g.isDummy && !g.isGuard)
 
 const hold = standoffBattle()
 check('the lord opens on the defensive order', hold.groups[hold.playerGroups[0]].order === 'defend')
@@ -766,8 +767,8 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
  */
 {
   const b = createBattle({
-    playerTroops: [{ type: 'spearman', tier: 2, count: 9, hp: [] }],
-    enemyTroops: [{ type: 'spearman', tier: 2, count: 9, hp: [] }],
+    playerTroops: [{ type: 'spearman', tier: 2, count: 16, hp: [] }],
+    enemyTroops: [{ type: 'spearman', tier: 2, count: 16, hp: [] }],
     enemyFaction: 'bandit',
     seed: 88
   })
@@ -775,7 +776,7 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   for (const key of b.playerGroups) b.groups[key].order = 'attack'
   for (let i = 0; i < 60 * 20; i += 1) stepBattle(b, 1 / 60)
   const group = b.groups[b.playerGroups[0]]
-  const living = b.units.filter((u) => u.alive && u.side === 'player')
+  const living = b.units.filter((u) => u.alive && u.side === 'player' && u.group === group.key)
   // How wide the squad is on the field, against how wide its formation is.
   const xs = living.map((u) => u.x)
   const ys = living.map((u) => u.y)
@@ -786,8 +787,10 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   check('the formation holds while attacking', spread > wanted * 0.6, `${spread.toFixed(1)} px of ${wanted} px`)
   // The squad is not collapsed on the enemy: the ranks are still spread out.
   check('the ranks keep their distance', spread > 20, `${spread.toFixed(1)} px`)
-  // The fight still happens: both sides took losses.
-  check('the attack is not harmless', b.kills > 0 && b.losses > 0, `${b.kills} kills / ${b.losses} losses`)
+  // The fight still happens: the charge really kills soldiers. With a general
+  // and his bodyguard on the field the exchange can be one-sided in twenty
+  // seconds, so only the enemy death count is asserted here.
+  check('the attack is not harmless', b.kills > 0, `${b.kills} kills / ${b.losses} losses`)
 }
 
 /**
@@ -809,7 +812,7 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   let offY = 0
   let counted = 0
   for (const u of b.units) {
-    if (!u.alive || u.side !== 'player') continue
+    if (!u.alive || u.side !== 'player' || u.group !== group.key) continue
     const slot = group.slots[u.slotIndex] || { ox: 0, oy: 0 }
     offX += Math.abs(u.x - (group.tx + slot.ox))
     offY += Math.abs(u.y - (group.ty + slot.oy))
@@ -848,7 +851,9 @@ check('no battle runs longer than two minutes', longest < 120, longest.toFixed(1
   }
   check('the scattered squad attacks the enemy', b.kills > 0, `${b.kills} kills`)
   check('the scattered fight ends', !!b.outcome, String(b.outcome))
-  check('the scattered fight does not stall', t < 60, `${t.toFixed(1)}s`)
+  // The last stand of a lone general holds the field for a few seconds, so the
+  // ceiling is the fight plus that window rather than a bare minute.
+  check('the scattered fight does not stall', t < 60 + LAST_STAND_SECONDS + 6, `${t.toFixed(1)}s`)
 }
 
 /* --------------------------- 4c. battle animation --------------------------- */

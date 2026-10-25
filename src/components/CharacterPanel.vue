@@ -90,6 +90,20 @@ function raise(key) {
       </header>
 
       <section class="section">
+        <div class="sec-title">
+          ❤️ 主将状态
+          <span class="muted small">{{ player.lordHp }} / {{ player.lordMaxHp }}</span>
+        </div>
+        <div class="lord-hp">
+          <div class="lord-hp-fill" :style="{ width: player.lordHealth + '%' }"></div>
+        </div>
+        <p class="note muted">
+          主将会亲自上阵。他被打到 0 点，这场战斗立刻失败：损失一半士兵，亲兵把你抬回战场附近的一处空地，
+          生命恢复到一半，之后随时间慢慢恢复 —— 在自己的城镇里恢复得更快。敌人还在附近，可以追上来，你也可以跑。
+        </p>
+      </section>
+
+      <section class="section">
         <div class="sec-title">💰 资金与物资</div>
         <div class="stat-grid cols-3">
           <div class="stat">
@@ -580,6 +594,23 @@ function raise(key) {
   color: var(--gold);
   font-size: 12px;
   font-weight: 700;
+}
+
+/* The lord's own health bar: a wide, quiet bar under a section title. */
+.lord-hp {
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  margin: 8px 0;
+}
+
+.lord-hp-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e8c56a, #b98c2a);
+  transition: width 0.3s;
 }
 
 /* Phones: keep the three-up treasury row readable and stack the roster meta. */

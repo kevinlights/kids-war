@@ -6,12 +6,14 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useWorldStore } from '@/stores/world'
+import { usePlayerStore } from '@/stores/player'
 import { drawMiniMap } from '@/game/atlas'
 import { WORLD_H, WORLD_W } from '@/game/worldgen'
 
 defineEmits(['open'])
 
 const world = useWorldStore()
+const player = usePlayerStore()
 const canvasEl = ref(null)
 
 let ctx = null
@@ -35,7 +37,8 @@ function measure() {
 }
 
 function loop() {
-  if (ctx && viewW && viewH) drawMiniMap(ctx, world, viewW, viewH)
+  // The companions are drawn as a small cluster around the lord's dot.
+  if (ctx && viewW && viewH) drawMiniMap(ctx, world, viewW, viewH, player.companions)
   raf = requestAnimationFrame(loop)
 }
 
@@ -62,6 +65,8 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* The minimap is a button that sits above the world map, so it wears the same
+   black glass as the chips and the legend — not the green panel fill. */
 .minimap {
   display: block;
   width: 124px;
@@ -69,6 +74,9 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border-radius: 12px;
   text-align: center;
+  background: var(--glass);
+  border: 1px solid var(--glass-line);
+  backdrop-filter: blur(6px);
 }
 
 .minimap canvas {
@@ -76,7 +84,7 @@ onBeforeUnmount(() => {
   width: 100%;
   /* Blocky terrain is the point here, so never let the browser smooth it. */
   image-rendering: pixelated;
-  border-bottom: 1px solid var(--line);
+  border-bottom: 1px solid var(--glass-line);
 }
 
 .tag {

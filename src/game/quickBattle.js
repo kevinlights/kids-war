@@ -218,7 +218,12 @@ export function simulateRound({ map, playerTroops, enemyTroops, enemyFaction, se
     seed,
     playerAtkMul: 1,
     playerDefMul: 1,
-    arenaMap: map
+    arenaMap: map,
+    // An instant round has no world map to fall back to: a general who goes
+    // down stays down and the soldiers fight it out to the end.
+    endOnGeneralDown: false,
+    // Nor does it need a last stand to look at: the round ends with the army.
+    lastStand: false
   })
   // An instant simulation assumes the lord gives the attack order at once: the
   // standoff at the start of a watched fight is skipped, so the result is the
